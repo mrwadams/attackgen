@@ -1,6 +1,21 @@
 # AttackGen
 
-AttackGen is a cybersecurity incident response testing tool that leverages the power of large language models and the comprehensive MITRE ATT&CK framework. The tool generates tailored incident response scenarios based on user-selected threat actor groups and your organization's details.
+AttackGen is a cybersecurity incident response testing tool that leverages the power of large language models and the comprehensive MITRE ATT&CK framework. The tool generates tailored incident response scenarios based on user-selected threat actor groups and your organisation's details.
+
+## Table of Contents
+- [Star the Repo](#star-the-repo)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Data Setup](#data-setup)
+- [Running AttackGen](#running-attackgen)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [Licence](#licence)
+
+## Star the Repo
+If you find AttackGen useful, please consider starring the repository on GitHub. This helps more people discover the tool. Your support is greatly appreciated! ⭐
+
 
 ## Features
 
@@ -8,6 +23,8 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 - Allows you to specify your organisation's size and industry for a tailored scenario.
 - Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
 - Downloadable scenarios in Markdown format.
+
+![AttackGen Screenshot](./images/screenshot.jpg)
 
 ## Requirements
 
@@ -61,6 +78,6 @@ Please note that generating a scenario may take a minute or so. Once the scenari
 
 I'm very happy to accept contributions to this project. Please feel free to submit an issue or pull request.
 
-## License
+## Licence
 
 This project is licensed under [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.0/).
