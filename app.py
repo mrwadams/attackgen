@@ -30,7 +30,7 @@ from langchain.prompts import (
 from mitreattack.stix20 import MitreAttackData
 
 # Add environment variables for LangSmith
-os.environ["LANGCHAIN_TRACING_V2"] = True
+os.environ["LANGCHAIN_TRACING_V2"]=true
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
 st.write("LangChain API Key", os.environ["LANGCHAIN_API_KEY"] == st.secrets["LANGCHAIN_API_KEY"])
