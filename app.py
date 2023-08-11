@@ -28,6 +28,12 @@ from langchain.prompts import (
 
 from mitreattack.stix20 import MitreAttackData
 
+# Add environment variables for LangSmith
+LANGCHAIN_TRACING_V2 = st.secrets["LANGCHAIN_TRACING_V2"]
+LANGCHAIN_ENDPOINT = st.secrets["LANGCHAIN_ENDPOINT"]
+LANGCHAIN_API_KEY = st.secrets["LANGCHAIN_API_KEY"]
+LANGCHAIN_PROJECT = st.secrets["LANGCHAIN_PROJECT"]
+
 # Define a class for handling Streamlit's callback operations
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container, initial_text=""):
