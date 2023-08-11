@@ -33,7 +33,7 @@ from mitreattack.stix20 import MitreAttackData
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-st.write("LangChain API Key", os.environ["LANGCHAIN_API_KEY"] == st.secrets["LANGCHAIN_API_KEY"])
+os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 # Define a class for handling Streamlit's callback operations
 class StreamHandler(BaseCallbackHandler):
