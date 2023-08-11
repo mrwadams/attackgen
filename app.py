@@ -17,6 +17,7 @@ to view it, please see https://www.gnu.org/licenses/
 
 import pandas as pd
 import streamlit as st
+import os
 
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chat_models import ChatOpenAI
@@ -29,10 +30,10 @@ from langchain.prompts import (
 from mitreattack.stix20 import MitreAttackData
 
 # Add environment variables for LangSmith
-LANGCHAIN_TRACING_V2 = st.secrets["LANGCHAIN_TRACING_V2"]
-LANGCHAIN_ENDPOINT = st.secrets["LANGCHAIN_ENDPOINT"]
-LANGCHAIN_API_KEY = st.secrets["LANGCHAIN_API_KEY"]
-LANGCHAIN_PROJECT = st.secrets["LANGCHAIN_PROJECT"]
+LANGCHAIN_TRACING_V2 = os.environ.get("LANGCHAIN_TRACING_V2")
+LANGCHAIN_ENDPOINT = os.environ.get("LANGCHAIN_ENDPOINT")
+LANGCHAIN_API_KEY = os.environ.get("LANGCHAIN_API_KEY")
+LANGCHAIN_PROJECT = os.environ.get("LANGCHAIN_PROJECT")
 
 # Define a class for handling Streamlit's callback operations
 class StreamHandler(BaseCallbackHandler):
