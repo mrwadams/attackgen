@@ -23,6 +23,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Allows you to specify your organisation's size and industry for a tailored scenario.
 - Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
 - Downloadable scenarios in Markdown format.
+- Integrated with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 
 ![AttackGen Screenshot](./images/screenshot.jpg)
 
