@@ -190,7 +190,7 @@ st.markdown("")
 st.markdown("""
             ### Generate a Scenario
 
-            Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be made at random and used to generate the scenario.
+            Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be chosen at random and used to generate the scenario.
 
             It normally takes between 30-50 seconds to generate a scenario. ⏱️
             """)
