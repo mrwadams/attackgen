@@ -25,7 +25,7 @@ st.set_page_config(
 
 with st.sidebar:
     st.sidebar.markdown("### <span style='color: #1DB954;'>Setup</span>", unsafe_allow_html=True)     
-    openai_api_key = st.text_input("Enter your OpenAI API Key", type="password")
+    openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password",help="You can find your API key at https://platform.openai.com/account/api-keys")
     st.session_state["openai_api_key"] = openai_api_key
 
     # Add the drop-down selectors for Industry and Company Size
