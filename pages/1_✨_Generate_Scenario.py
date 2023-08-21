@@ -21,6 +21,10 @@ openai_api_key = st.session_state["openai_api_key"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
+st.set_page_config(
+    page_title="Generate Scenario",
+    page_icon="✨",
+)
 
 def generate_scenario(openai_api_key, messages):
     with st.spinner('Generating scenario...'):
@@ -28,14 +32,22 @@ def generate_scenario(openai_api_key, messages):
         response = llm(messages)
     return response
 
-attack_data = MitreAttackData("./data/enterprise-attack.json")
+# Load and cache the MITRE ATT&CK data
+@st.cache_resource
+def load_attack_data():
+    attack_data = MitreAttackData("./data/enterprise-attack.json")
+    return attack_data
 
-groups = pd.read_json("./data/groups.json")
+attack_data = load_attack_data()
 
-st.set_page_config(
-    page_title="Generate Scenario",
-    page_icon="✨",
-)
+# Load and cache the list of threat actor groups
+@st.cache_resource
+def load_groups():
+    groups = pd.read_json("./data/groups.json")
+    return groups
+
+groups = load_groups()
+
 
 st.markdown("# <span style='color: #1DB954;'>Generate Scenario✨</span>", unsafe_allow_html=True)
 
