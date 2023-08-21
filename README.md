@@ -63,8 +63,10 @@ Download the latest version of the MITRE ATT&CK dataset in STIX format from [her
 After the data setup, you can run AttackGen with the following command:
 
 ```
-streamlit run app.py
+streamlit run 👋_Welcome.py
 ```
+
+You can also try the app on [Streamlit Community Cloud](https://attackgen.streamlit.app/).
 
 ## Usage
 
