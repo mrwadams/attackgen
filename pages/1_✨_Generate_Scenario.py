@@ -15,7 +15,6 @@ from mitreattack.stix20 import MitreAttackData
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 openai_api_key = st.session_state["openai_api_key"]
 industry = st.session_state["industry"]
