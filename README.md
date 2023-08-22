@@ -54,6 +54,12 @@ cd attackgen
 pip install -r requirements.txt
 ```
 
+## LangSmith Setup
+
+If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key.
+
+If you do not wish to use LangSmith, you can delete the LangSmith related environment variables from the top of the `pages/1_✨_Generate_Scenario.py` file.
+
 ## Data Setup
 
 Download the latest version of the MITRE ATT&CK dataset in STIX format from [here](https://github.com/mitre-attack/attack-stix-data/blob/master/enterprise-attack/enterprise-attack.json). Ensure to place this file in the `./data/` directory within the repository.
