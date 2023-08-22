@@ -54,7 +54,7 @@ with st.sidebar:
     st.sidebar.markdown("""
                         Created by [Matt Adams](https://www.linkedin.com/in/matthewrwadams)
                         
-                        View the source code on [GitHub](https://https://github.com/mrwadams/attackgen)
+                        View the source code on [GitHub](https://github.com/mrwadams/attackgen)
                         """)
 
 
