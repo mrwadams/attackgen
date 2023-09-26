@@ -1,14 +1,12 @@
-import pandas as pd
-import streamlit as st
 import os
 
+import pandas as pd
+import streamlit as st
+from langchain.callbacks.manager import collect_runs
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
-
+from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
+                               SystemMessagePromptTemplate)
+from langsmith import Client
 from mitreattack.stix20 import MitreAttackData
 
 # Add environment variables for LangSmith
@@ -17,20 +15,48 @@ os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
-openai_api_key = st.session_state["openai_api_key"]
+# Initialize the LangSmith client
+client = Client()
+
+# Check if 'openai_api_key' exists in the session state
+if "openai_api_key" not in st.session_state:
+    st.error("""
+             OpenAI API key not found!
+             
+             Please go to the `Welcome` page and enter your OpenAI API key to continue.
+             """)
+    st.stop()
+else:
+    openai_api_key = st.session_state["openai_api_key"]
+
+if "scenario_generated" not in st.session_state:
+    st.session_state["scenario_generated"] = False
+    
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
 st.set_page_config(
     page_title="Generate Scenario",
-    page_icon="✨",
+    page_icon="🎭",
 )
 
 def generate_scenario(openai_api_key, messages):
-    with st.spinner('Generating scenario...'):
-        llm = ChatOpenAI(openai_api_key=openai_api_key, streaming=False)
-        response = llm(messages)
-    return response
+    try:
+        with st.status('Generating scenario...', expanded=True):
+            st.write("Initialising AI model.")
+            llm = ChatOpenAI(openai_api_key=openai_api_key, streaming=False)
+            st.write("Model initialised. Generating scenario, please wait.")
+
+            with collect_runs() as cb:
+                response = llm.generate(messages=[messages])
+                run_id1 = cb.traced_runs[0].id # Get run_id from the callback
+
+            st.write("Scenario generated successfully.")
+            st.session_state['run_id'] = run_id1 # Store the run ID in the session state
+        return response
+    except Exception as e:
+        st.error("An error occurred while generating the scenario: " + str(e))
+        return None
 
 # Load and cache the MITRE ATT&CK data
 @st.cache_resource
@@ -49,7 +75,7 @@ def load_groups():
 groups = load_groups()
 
 
-st.markdown("# <span style='color: #1DB954;'>Generate Scenario✨</span>", unsafe_allow_html=True)
+st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
 
 st.markdown("""
             ### Select a Threat Actor Group
@@ -171,19 +197,18 @@ try:
 
         # Create Human Message Template
         human_template = ("""
-                          **Background information:**
-                          The company operates in the '{industry}' industry and is of size '{company_size}'. 
-                          
-                          **Threat actor information:**
-                          Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain
-                          {kill_chain_string}
-                          
-                          **Your task:**
-                          Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident 
-                          response capabilities against the identified threat actor group. 
-                          
-                          Your response should be well structured and formatted using Markdown. Write in British English.
-                          """)
+**Background information:**
+The company operates in the '{industry}' industry and is of size '{company_size}'. 
+                    
+**Threat actor information:**
+Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain
+{kill_chain_string}
+
+**Your task:**
+Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group. 
+
+Your response should be well structured and formatted using Markdown. Write in British English.
+""")
         human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
 
         # Construct the ChatPromptTemplate
@@ -220,8 +245,88 @@ try:
         else:
             response = generate_scenario(openai_api_key, messages)
             st.markdown("---")
-            st.markdown(response.content)
-            st.download_button(label="Download Scenario", data=response.content, file_name="incident_response_scenario.md", mime="text/markdown")
+            if response is not None:
+                st.session_state['scenario_generated'] = True
+                scenario_text = response.generations[0][0].text
+                st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
+                st.markdown(scenario_text)
+                st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+    else:
+            # If a scenario has been generated previously, display it
+            if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                st.markdown("---")
+                st.markdown(st.session_state['scenario_text'])
+                st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+    # Create a placeholder for the feedback message
+    feedback_placeholder = st.empty()
+
+    # Show the thumbs_up and thumbs_down buttons only when a scenario has been generated
+    st.markdown("---")
+    st.markdown("Rate the scenario to help improve this tool.")
+    if st.session_state.get('scenario_generated', True):
+        col1, col2, col3 = st.columns([0.5,0.5,5])
+        with col1:
+            thumbs_up = st.button("👍")
+            if thumbs_up:
+                try:
+                    run_id = st.session_state.get('run_id')
+                    if run_id:
+                        feedback_type_str = "positive"
+                        score = 1  # or 0
+                        comment = ""
+
+                        # Record the feedback
+                        feedback_record = client.create_feedback(
+                            run_id,
+                            feedback_type_str,
+                            score=score,
+                            comment=comment,
+                        )
+                        st.session_state.feedback = {
+                            "feedback_id": str(feedback_record.id),
+                            "score": score,
+                        }
+                        # Update the feedback message in the placeholder
+                        feedback_placeholder.info("Feedback submitted. Thank you.")
+                    else:
+                        # Update the feedback message in the placeholder
+                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
+                except Exception as e:
+                    # Update the feedback message in the placeholder
+                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
+
+        with col2:
+            thumbs_down = st.button("👎")
+            if thumbs_down:
+                try:
+                    run_id = st.session_state.get('run_id')
+                    if run_id:
+                        feedback_type_str = "negative"
+                        score = 0  # or 0
+                        comment = ""
+
+                        # Record the feedback
+                        feedback_record = client.create_feedback(
+                            run_id,
+                            feedback_type_str,
+                            score=score,
+                            comment=comment,
+                        )
+                        st.session_state.feedback = {
+                            "feedback_id": str(feedback_record.id),
+                            "score": score,
+                        }
+                        # Update the feedback message in the placeholder
+                        feedback_placeholder.info("Feedback submitted. Thank you.")
+                    else:
+                        # Update the feedback message in the placeholder
+                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
+                except Exception as e:
+                    # Update the feedback message in the placeholder
+                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
+
 except Exception as e:
     st.error("An error occurred: " + str(e))
 
