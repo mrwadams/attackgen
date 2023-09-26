@@ -289,7 +289,7 @@ try:
                             "score": score,
                         }
                         # Update the feedback message in the placeholder
-                        feedback_placeholder.info("Feedback submitted. Thank you.")
+                        feedback_placeholder.success("Feedback submitted. Thank you.")
                     else:
                         # Update the feedback message in the placeholder
                         feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
