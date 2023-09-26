@@ -5,6 +5,7 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 ## Table of Contents
 - [Star the Repo](#star-the-repo)
 - [Features](#features)
+- [Releases](#releases)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Data Setup](#data-setup)
@@ -22,10 +23,26 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Generates unique incident response scenarios based on chosen threat actor groups.
 - Allows you to specify your organisation's size and industry for a tailored scenario.
 - Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
+- 🆕 Create custom scenarios based on a selection of ATT&CK techniques.
+- 🆕 Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
 - Integrated with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 
 ![AttackGen Screenshot](./images/screenshot.jpg)
+
+## Releases
+### v0.2 (current)
+
+| What's new? | Why is it useful? |
+| ----------- | ---------------- |
+| Custom Scenarios based on ATT&CK Techniques | - For Mature Organisations: This feature is particularly beneficial if your organisation has advanced threat intelligence capabilities. For instance, if you're monitoring a newly identified or lesser-known threat actor group, you can tailor incident response testing scenarios specific to the techniques used by that group.<br><br>- Focused Testing: Alternatively, use this feature to focus your incident response testing on specific parts of the cyber kill chain or certain MITRE ATT&CK Tactics like 'Lateral Movement' or 'Exfiltration'. This is useful for organisations looking to evaluate and improve specific areas of their defence posture. |
+| User feedback on generated scenarios | - Collecting feedback is essential to track model performance over time and helps to highlight strengths and weaknesses in scenario generation tasks. |
+| Improved error handling for missing API keys | - Improved user experience. |
+| Replaced Streamlit `st.spinner` widgets with new `st.status` widget | - Provides better visibility into long running processes (i.e. scenario generation). |
+
+### v0.1
+
+Initial release.
 
 ## Requirements
 
@@ -58,7 +75,9 @@ pip install -r requirements.txt
 
 If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key.
 
-If you do not wish to use LangSmith, you can delete the LangSmith related environment variables from the top of the `pages/1_✨_Generate_Scenario.py` file.
+If you do not wish to use LangSmith, you can delete the LangSmith related environment variables from the top of the following files:
+- `pages/1_🛡️_Threat_Group_Scenarios.py`
+- `pages/2_🛠️_Custom_Scenarios.py`
 
 ## Data Setup
 
@@ -76,12 +95,23 @@ You can also try the app on [Streamlit Community Cloud](https://attackgen.stream
 
 ## Usage
 
+### Standard Scenario Generation
 1. Enter your OpenAI API Key.
 2. Select your organisation's industry and size from the dropdown menus.
-3. Select a Threat Actor Group that you want to simulate.
-4. Click on 'Generate Scenario' to create the incident response scenario.
+3. Navigate to the `Threat Group Scenarios` page.
+4. Select the Threat Actor Group that you want to simulate.
+5. Click on 'Generate Scenario' to create the incident response scenario.
+6. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
 
-Please note that generating a scenario may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
+### 🆕 Custom Scenario Generation
+1. Enter your OpenAI API Key.
+2. Select your organisation's industry and size from the dropdown menus.
+3. Navigate to the `Custom Scenario` page.
+4. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
+5. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
+6. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
+
+Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
 
 ## Contributing
 
