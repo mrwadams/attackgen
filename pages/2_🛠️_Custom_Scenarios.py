@@ -29,8 +29,8 @@ if "openai_api_key" not in st.session_state:
 else:
     openai_api_key = st.session_state["openai_api_key"]
 
-if "scenario_generated" not in st.session_state:
-    st.session_state["scenario_generated"] = False
+if "custom_scenario_generated" not in st.session_state:
+    st.session_state["custom_scenario_generated"] = False
 
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
@@ -155,24 +155,24 @@ Your response should be well structured and formatted using Markdown. Write in B
                 response = generate_scenario(openai_api_key, messages)
                 st.markdown("---")
                 if response is not None:
-                    st.session_state['scenario_generated'] = True
-                    scenario_text = response.generations[0][0].text
-                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                    st.markdown(scenario_text)
-                    st.download_button(label="Download Scenario", data=scenario_text, file_name="custom_scenario.md", mime="text/markdown")
+                    st.session_state['custom_scenario_generated'] = True
+                    custom_scenario_text = response.generations[0][0].text
+                    st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                    st.markdown(custom_scenario_text)
+                    st.download_button(label="Download Scenario", data=custom_scenario_text, file_name="custom_scenario.md", mime="text/markdown")
         else:
             # If a scenario has been generated previously, display it
-            if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+            if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
                 st.markdown("---")
-                st.markdown(st.session_state['scenario_text'])
-                st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+                st.markdown(st.session_state['custom_scenario_text'])
+                st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
         
         # Create a placeholder for the feedback message
         feedback_placeholder = st.empty()
 
         # Show the thumbs_up and thumbs_down buttons only when a scenario has been generated
         st.markdown("---")
-        if st.session_state.get('scenario_generated', True):
+        if st.session_state.get('custom_scenario_generated', True):
             st.markdown("Rate the scenario to help improve this tool.")
             col1, col2, col3 = st.columns([0.5,0.5,5])
             with col1:
@@ -197,7 +197,7 @@ Your response should be well structured and formatted using Markdown. Write in B
                                 "score": score,
                             }
                             # Update the feedback message in the placeholder
-                            feedback_placeholder.info("Feedback submitted. Thank you.")
+                            feedback_placeholder.success("Feedback submitted. Thank you.")
                         else:
                             # Update the feedback message in the placeholder
                             feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
