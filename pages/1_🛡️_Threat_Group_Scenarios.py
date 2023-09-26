@@ -264,8 +264,8 @@ try:
 
     # Show the thumbs_up and thumbs_down buttons only when a scenario has been generated
     st.markdown("---")
-    st.markdown("Rate the scenario to help improve this tool.")
     if st.session_state.get('scenario_generated', True):
+        st.markdown("Rate the scenario to help improve this tool.")
         col1, col2, col3 = st.columns([0.5,0.5,5])
         with col1:
             thumbs_up = st.button("👍")
