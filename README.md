@@ -49,6 +49,7 @@ Initial release.
 - Recent version of Python.
 - Python packages: pandas, streamlit, and any other packages necessary for the custom libraries (`langchain` and `mitreattack`).
 - OpenAI API key.
+- LangChain API key (optional) - see [LangSmith Setup](#langsmith-setup) section below for further details.
 - Data files: `enterprise-attack.json` (MITRE ATT&CK dataset in STIX format) and `groups.json`.
 
 ## Installation
@@ -73,7 +74,7 @@ pip install -r requirements.txt
 
 ## LangSmith Setup
 
-If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key.
+If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key. You'll find a secrets.toml-example file in the `.streamlit/` directory that you can use as a template for your own secrets.toml file.
 
 If you do not wish to use LangSmith, you can delete the LangSmith related environment variables from the top of the following files:
 - `pages/1_🛡️_Threat_Group_Scenarios.py`
