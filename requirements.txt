@@ -1,4 +1,5 @@
 langchain
+langchain-community
 mitreattack-python
 openai
 pandas
