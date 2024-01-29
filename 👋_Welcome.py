@@ -28,6 +28,15 @@ with st.sidebar:
     openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password", help="You can find your API key at https://platform.openai.com/account/api-keys")
     st.session_state["openai_api_key"] = openai_api_key
 
+    # Add model selection input field to the sidebar
+    model_name = st.selectbox(
+        "Select the model you would like to use:",
+        ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+        key="model",
+        help="OpenAI have moved to continuous model upgrades so `gpt-3.5-turbo`, `gpt-4` and `gpt-4-turbo-preview` point to the latest available version of each model.",
+    )
+    st.session_state["model_name"] = model_name
+
     # Add the drop-down selectors for Industry and Company Size
     industry = st.selectbox(
     "Select your company's industry:",
