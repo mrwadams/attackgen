@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import streamlit as st
 from langchain.callbacks.manager import collect_runs
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
                                SystemMessagePromptTemplate)
 from langsmith import Client
@@ -31,20 +31,21 @@ else:
 
 if "scenario_generated" not in st.session_state:
     st.session_state["scenario_generated"] = False
-    
+
+model_name = st.session_state["model_name"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
 st.set_page_config(
     page_title="Generate Scenario",
-    page_icon="🎭",
+    page_icon="🛡️",
 )
 
-def generate_scenario(openai_api_key, messages):
+def generate_scenario(openai_api_key, model_name, messages):
     try:
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
-            llm = ChatOpenAI(openai_api_key=openai_api_key, streaming=False)
+            llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
             st.write("Model initialised. Generating scenario, please wait.")
 
             with collect_runs() as cb:
@@ -236,6 +237,8 @@ try:
     if st.button('Generate Scenario'):
         if not openai_api_key:
             st.info("Please add your OpenAI API key to continue.")
+        if not model_name:
+            st.info("Please select a model to continue.")
         elif not industry:
             st.info("Please select your company's industry to continue.")
         elif not company_size:
@@ -243,7 +246,7 @@ try:
         elif techniques_df.empty:
             st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
         else:
-            response = generate_scenario(openai_api_key, messages)
+            response = generate_scenario(openai_api_key, model_name, messages)
             st.markdown("---")
             if response is not None:
                 st.session_state['scenario_generated'] = True
