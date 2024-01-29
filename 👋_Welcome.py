@@ -82,6 +82,6 @@ st.markdown("""
 
             ### Getting Started
 
-            1. Enter your OpenAI API key and select your company's industry and size from the sidebar. 
+            1. Enter your OpenAI API key, then select your preferred model, company industry, and size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             """)
