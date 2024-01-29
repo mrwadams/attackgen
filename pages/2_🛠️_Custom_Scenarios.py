@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import streamlit as st
 from langchain.callbacks.manager import collect_runs
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
                                SystemMessagePromptTemplate)
 from langsmith import Client
@@ -32,6 +32,7 @@ else:
 if "custom_scenario_generated" not in st.session_state:
     st.session_state["custom_scenario_generated"] = False
 
+model_name = st.session_state["model_name"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
@@ -72,11 +73,11 @@ def load_techniques():
 
 techniques_df = load_techniques()
 
-def generate_scenario(openai_api_key, messages):
+def generate_scenario(openai_api_key, model_name, messages):
     try:
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
-            llm = ChatOpenAI(openai_api_key=openai_api_key, streaming=False)
+            llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
             st.write("Model initialised. Generating scenario, please wait.")
 
             with collect_runs() as cb:
@@ -146,13 +147,15 @@ Your response should be well structured and formatted using Markdown. Write in B
         if st.button('Generate Scenario'):
             if not openai_api_key:
                 st.info("Please add your OpenAI API key to continue.")
+            if not model_name:
+                st.info("Please select a model to continue.")
             elif not industry:
                 st.info("Please select your company's industry to continue.")
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             else:
                 # Generate a scenario
-                response = generate_scenario(openai_api_key, messages)
+                response = generate_scenario(openai_api_key, model_name, messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['custom_scenario_generated'] = True
