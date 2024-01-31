@@ -92,11 +92,11 @@ with st.sidebar:
 
     st.sidebar.markdown("### <span style='color: #1DB954;'>About</span>", unsafe_allow_html=True)        
     
-    st.sidebar.markdown("""
-                        Created by [Matt Adams](https://www.linkedin.com/in/matthewrwadams)
-                        
-                        View the source code on [GitHub](https://github.com/mrwadams/attackgen)
-                        """)
+    st.sidebar.markdown("Created by [Matt Adams](https://www.linkedin.com/in/matthewrwadams)")
+
+    st.sidebar.markdown(
+        "⭐ Star on GitHub: [![Star on GitHub](https://img.shields.io/github/stars/mrwadams/attackgen?style=social)](https://github.com/mrwadams/attackgen)"
+    )
 
 
 
