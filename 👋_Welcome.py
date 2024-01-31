@@ -24,18 +24,50 @@ st.set_page_config(
 )
 
 with st.sidebar:
-    st.sidebar.markdown("### <span style='color: #1DB954;'>Setup</span>", unsafe_allow_html=True)     
-    openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password", help="You can find your API key at https://platform.openai.com/account/api-keys")
-    st.session_state["openai_api_key"] = openai_api_key
+    st.sidebar.markdown("### <span style='color: #1DB954;'>Setup</span>", unsafe_allow_html=True)
+    # Add toggle to select Azure OpenAI Service
+    use_azure = st.toggle('Use Azure OpenAI Service', key='toggle_azure')
+    st.session_state["use_azure"] = use_azure
+    
+    if use_azure:
+        # Add Azure OpenAI API key input field to the sidebar
+        st.session_state["AZURE_OPENAI_API_KEY"] = st.text_input(
+            "Azure OpenAI API key:",
+            type="password",
+            help="You can find your Azure OpenAI API key on the [Azure portal](https://portal.azure.com/).",
+        )
+        
+        # Add Azure OpenAI endpoint input field to the sidebar
+        st.session_state["AZURE_OPENAI_ENDPOINT"] = st.text_input(
+            "Azure OpenAI endpoint:",
+            help="Example endpoint: https://YOUR_RESOURCE_NAME.openai.azure.com/",
+        )
 
-    # Add model selection input field to the sidebar
-    model_name = st.selectbox(
-        "Select the model you would like to use:",
-        ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
-        key="model",
-        help="OpenAI have moved to continuous model upgrades so `gpt-3.5-turbo`, `gpt-4` and `gpt-4-turbo-preview` point to the latest available version of each model.",
-    )
-    st.session_state["model_name"] = model_name
+        # Add Azure OpenAI deployment name input field to the sidebar
+        st.session_state["azure_deployment"] = st.text_input(
+            "Deployment name:",
+        )
+        
+        st.info("Please note that you must use an 1106-preview model deployment.")
+
+        st.session_state["openai_api_version"] = '2023-12-01-preview' # Update this as needed
+
+        st.write(f"Azure API Version: {st.session_state.get('azure_api_version')}")
+
+    else:     
+        openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password", help="You can find your API key at https://platform.openai.com/account/api-keys")
+        st.session_state["openai_api_key"] = openai_api_key
+
+        # Add model selection input field to the sidebar
+        model_name = st.selectbox(
+            "Select the model you would like to use:",
+            ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+            key="model",
+            help="OpenAI have moved to continuous model upgrades so `gpt-3.5-turbo`, `gpt-4` and `gpt-4-turbo-preview` point to the latest available version of each model.",
+        )
+        st.session_state["model_name"] = model_name
+    
+    st.sidebar.markdown("---")
 
     # Add the drop-down selectors for Industry and Company Size
     industry = st.selectbox(

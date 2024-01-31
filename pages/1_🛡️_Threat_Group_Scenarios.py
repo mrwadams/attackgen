@@ -4,10 +4,11 @@ import pandas as pd
 import streamlit as st
 from langchain.callbacks.manager import collect_runs
 from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
+from langchain.prompts.chat import (ChatPromptTemplate, HumanMessagePromptTemplate,
                                SystemMessagePromptTemplate)
 from langsmith import Client
 from mitreattack.stix20 import MitreAttackData
+from openai import AzureOpenAI
 
 # Add environment variables for LangSmith
 os.environ["LANGCHAIN_TRACING_V2"]="true"
@@ -18,21 +19,9 @@ os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 # Initialize the LangSmith client
 client = Client()
 
-# Check if 'openai_api_key' exists in the session state
-if "openai_api_key" not in st.session_state:
-    st.error("""
-             OpenAI API key not found!
-             
-             Please go to the `Welcome` page and enter your OpenAI API key to continue.
-             """)
-    st.stop()
-else:
-    openai_api_key = st.session_state["openai_api_key"]
-
 if "scenario_generated" not in st.session_state:
     st.session_state["scenario_generated"] = False
 
-model_name = st.session_state["model_name"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
@@ -42,6 +31,7 @@ st.set_page_config(
 )
 
 def generate_scenario(openai_api_key, model_name, messages):
+    model_name = st.session_state["model_name"]
     try:
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
@@ -58,6 +48,32 @@ def generate_scenario(openai_api_key, model_name, messages):
     except Exception as e:
         st.error("An error occurred while generating the scenario: " + str(e))
         return None
+    
+def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_name, azure_api_version, messages):
+    try:
+        with st.status('Generating scenario...', expanded=True):
+            st.write("Initialising AI model.")
+
+            llm = AzureOpenAI(api_key=azure_api_key, 
+                                  azure_endpoint=azure_api_endpoint, 
+                                  api_version=azure_api_version)
+
+            st.write("Model initialised. Generating scenario, please wait.")
+
+            response = llm.chat.completions.create(
+                model = azure_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided."},
+                    {"role": "user", "content": f"**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain:\n{kill_chain_string}\n\n**Your task:** Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group.\n\nYour response should be well structured and formatted using Markdown. Write in British English."}
+                ]
+            )
+
+            st.write("Scenario generated successfully.")
+        return response
+    except Exception as e:
+        st.error("An error occurred while generating the scenario: " + str(e))
+        return None
+
 
 # Load and cache the MITRE ATT&CK data
 @st.cache_resource
@@ -234,33 +250,72 @@ st.markdown("""
             """)
 
 try:
-    if st.button('Generate Scenario'):
-        if not openai_api_key:
-            st.info("Please add your OpenAI API key to continue.")
-        if not model_name:
-            st.info("Please select a model to continue.")
-        elif not industry:
-            st.info("Please select your company's industry to continue.")
-        elif not company_size:
-            st.info("Please select your company's size to continue.")
-        elif techniques_df.empty:
-            st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
-        else:
-            response = generate_scenario(openai_api_key, model_name, messages)
-            st.markdown("---")
-            if response is not None:
-                st.session_state['scenario_generated'] = True
-                scenario_text = response.generations[0][0].text
-                st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                st.markdown(scenario_text)
-                st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
-
-    else:
-            # If a scenario has been generated previously, display it
-            if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+    if st.session_state.get('use_azure', True):
+        if st.button('Generate Scenario', key='generate_scenario_azure'):
+            azure_openai_api_key = st.session_state.get('AZURE_OPENAI_API_KEY')
+            azure_openai_endpoint = st.session_state.get('AZURE_OPENAI_ENDPOINT')
+            azure_deployment = st.session_state.get('azure_deployment')
+            openai_api_version = st.session_state.get('openai_api_version')
+            if not azure_openai_api_key:
+                st.info("Please add your Azure OpenAI Service API key to continue.")
+            if not azure_openai_endpoint:
+                st.info("Please add your Azure OpenAI Service API endpoint to continue.")
+            if not azure_deployment:
+                st.info("Please add the name of your Azure OpenAI Service Deployment to continue.")
+            elif not industry:
+                st.info("Please select your company's industry to continue.")
+            elif not company_size:
+                st.info("Please select your company's size to continue.")
+            elif techniques_df.empty:
+                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+            else:
+                response = generate_scenario_azure(azure_openai_api_key, azure_openai_endpoint, azure_deployment, openai_api_version, messages)
                 st.markdown("---")
-                st.markdown(st.session_state['scenario_text'])
-                st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                if response is not None:
+                    st.session_state['scenario_generated'] = True
+                    scenario_text = response.choices[0].message.content
+                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
+                    st.markdown(scenario_text)
+                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+                else:
+                    # If a scenario has been generated previously, display it
+                    if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                        st.markdown("---")
+                        st.markdown(st.session_state['scenario_text'])
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+
+    else: 
+        if st.button('Generate Scenario', key='generate_scenario'):
+            openai_api_key = st.session_state.get('openai_api_key')
+            model_name = st.session_state.get('model_name')
+            if not openai_api_key:
+                st.info("Please add your OpenAI API key to continue.")
+            if not model_name:
+                st.info("Please select a model to continue.")
+            elif not industry:
+                st.info("Please select your company's industry to continue.")
+            elif not company_size:
+                st.info("Please select your company's size to continue.")
+            elif techniques_df.empty:
+                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+            else:
+                response = generate_scenario(openai_api_key, model_name, messages)
+                st.markdown("---")
+                if response is not None:
+                    st.session_state['scenario_generated'] = True
+                    scenario_text = response.generations[0][0].text
+                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
+                    st.markdown(scenario_text)
+                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+                else:
+                    # If a scenario has been generated previously, display it
+                    if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                        st.markdown("---")
+                        st.markdown(st.session_state['scenario_text'])
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
     # Create a placeholder for the feedback message
     feedback_placeholder = st.empty()

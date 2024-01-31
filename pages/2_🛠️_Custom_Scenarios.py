@@ -8,6 +8,7 @@ from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
                                SystemMessagePromptTemplate)
 from langsmith import Client
 from mitreattack.stix20 import MitreAttackData
+from openai import AzureOpenAI
 
 # Add environment variables for LangSmith
 os.environ["LANGCHAIN_TRACING_V2"]="true"
@@ -18,21 +19,10 @@ os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 # Initialize the LangSmith client
 client = Client()
 
-# Check if 'openai_api_key' exists in the session state
-if "openai_api_key" not in st.session_state:
-    st.error("""
-             OpenAI API key not found!
-             
-             Please go to the `Welcome` page and enter your OpenAI API key to continue.
-             """)
-    st.stop()
-else:
-    openai_api_key = st.session_state["openai_api_key"]
 
 if "custom_scenario_generated" not in st.session_state:
     st.session_state["custom_scenario_generated"] = False
 
-model_name = st.session_state["model_name"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
 
@@ -74,6 +64,7 @@ def load_techniques():
 techniques_df = load_techniques()
 
 def generate_scenario(openai_api_key, model_name, messages):
+    model_name = st.session_state["model_name"]
     try:
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
@@ -90,6 +81,32 @@ def generate_scenario(openai_api_key, model_name, messages):
     except Exception as e:
         st.error("An error occurred while generating the scenario: " + str(e))
         return None
+    
+def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_name, azure_api_version, messages):
+    try:
+        with st.status('Generating scenario...', expanded=True):
+            st.write("Initialising AI model.")
+
+            llm = AzureOpenAI(api_key=azure_api_key, 
+                                  azure_endpoint=azure_api_endpoint, 
+                                  api_version=azure_api_version)
+
+            st.write("Model initialised. Generating scenario, please wait.")
+
+            response = llm.chat.completions.create(
+                model = azure_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided."},
+                    {"role": "user", "content": f"**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** The threat actor is known to use the following ATT&CK techniques: \n\n{selected_techniques_string}\n\n**Your task:** Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.\n\nYour response should be well structured and formatted using Markdown. Write in British English."}
+                ]
+            )
+
+            st.write("Scenario generated successfully.")
+        return response
+    except Exception as e:
+        st.error("An error occurred while generating the scenario: " + str(e))
+        return None
+    
 
 st.markdown("# <span style='color: #1DB954;'>Generate Custom Scenario🛠️</span>", unsafe_allow_html=True)
 
@@ -136,39 +153,81 @@ Your response should be well structured and formatted using Markdown. Write in B
         messages = chat_prompt.format_prompt(selected_techniques_string=selected_techniques_string, 
                                             industry=industry, 
                                             company_size=company_size).to_messages()
-        st.markdown("")
-        st.markdown("""
+except Exception as e:
+    st.error("An error occurred: " + str(e))
+
+st.markdown("")
+st.markdown("""
             ### Generate a Scenario
 
             Click the button below to generate a scenario based on the selected technique(s).
 
             It normally takes between 30-50 seconds to generate a scenario. ⏱️
             """)
-        if st.button('Generate Scenario'):
-            if not openai_api_key:
-                st.info("Please add your OpenAI API key to continue.")
-            if not model_name:
-                st.info("Please select a model to continue.")
-            elif not industry:
-                st.info("Please select your company's industry to continue.")
-            elif not company_size:
-                st.info("Please select your company's size to continue.")
-            else:
-                # Generate a scenario
-                response = generate_scenario(openai_api_key, model_name, messages)
-                st.markdown("---")
-                if response is not None:
-                    st.session_state['custom_scenario_generated'] = True
-                    custom_scenario_text = response.generations[0][0].text
-                    st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
-                    st.markdown(custom_scenario_text)
-                    st.download_button(label="Download Scenario", data=custom_scenario_text, file_name="custom_scenario.md", mime="text/markdown")
+try:
+        if st.session_state.get('use_azure', True):
+            if st.button('Generate Scenario', key="generate_scenario_azure"):
+                azure_openai_api_key = st.session_state.get('AZURE_OPENAI_API_KEY')
+                azure_openai_endpoint = st.session_state.get('AZURE_OPENAI_ENDPOINT')
+                azure_deployment = st.session_state.get('azure_deployment')
+                openai_api_version = st.session_state.get('openai_api_version')
+                if not azure_openai_api_key:
+                    st.info("Please add your Azure OpenAI Service API key to continue.")
+                if not azure_openai_endpoint:
+                    st.info("Please add your Azure OpenAI Service API endpoint to continue.")
+                if not azure_deployment:
+                    st.info("Please add the name of your Azure OpenAI Service Deployment to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                elif techniques_df.empty:
+                    st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                else:
+                    response = generate_scenario_azure(azure_openai_api_key, azure_openai_endpoint, azure_deployment, openai_api_version, messages)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['scenario_generated'] = True
+                        scenario_text = response.choices[0].message.content
+                        st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
+                        st.markdown(scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+                    else:
+                        # If a scenario has been generated previously, display it
+                        if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                            st.markdown("---")
+                            st.markdown(st.session_state['scenario_text'])
+                            st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
         else:
-            # If a scenario has been generated previously, display it
-            if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
-                st.markdown("---")
-                st.markdown(st.session_state['custom_scenario_text'])
-                st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+            if st.button('Generate Scenario', key="generate_scenario"):
+                openai_api_key = st.session_state.get('openai_api_key')
+                model_name = st.session_state.get('model_name')
+                if not openai_api_key:
+                    st.info("Please add your OpenAI API key to continue.")
+                if not model_name:
+                    st.info("Please select a model to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                else:
+                    # Generate a scenario
+                    response = generate_scenario(openai_api_key, model_name, messages)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['custom_scenario_generated'] = True
+                        custom_scenario_text = response.generations[0][0].text
+                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                        st.markdown(custom_scenario_text)
+                        st.download_button(label="Download Scenario", data=custom_scenario_text, file_name="custom_scenario.md", mime="text/markdown")
+            else:
+                # If a scenario has been generated previously, display it
+                if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                    st.markdown("---")
+                    st.markdown(st.session_state['custom_scenario_text'])
+                    st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
         
         # Create a placeholder for the feedback message
         feedback_placeholder = st.empty()
