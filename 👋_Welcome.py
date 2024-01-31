@@ -104,16 +104,26 @@ st.markdown("# <span style='color: #1DB954;'>AttackGen 👾</span>", unsafe_allo
 st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
 st.markdown("---")
 
-
 st.markdown("""          
             ### Welcome to AttackGen!
             
             The MITRE ATT&CK framework is a powerful tool for understanding the tactics, techniques, and procedures (TTPs) used by threat actors; however, it can be difficult to translate this information into realistic scenarios for testing.
 
             AttackGen solves this problem by using large language models to quickly generate attack scenarios based on a selection of a threat actor group's known techniques.
+            """)
 
+if st.session_state.get('use_azure', True):
+    st.markdown("""          
             ### Getting Started
 
-            1. Enter your OpenAI API key, then select your preferred model, company industry, and size from the sidebar. 
+            1. Enter your Azure OpenAI Service API key, endpoint, and deployment name, then select your preferred model, industry, and company size from the sidebar. 
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            """)
+
+else:
+    st.markdown("""
+            ### Getting Started
+
+            1. Enter your OpenAI API key, then select your preferred model, industry, and company size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             """)
