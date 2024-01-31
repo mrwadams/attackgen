@@ -160,7 +160,7 @@ try:
 
             # Group by 'Phase Name' and randomly select one technique from each group
             # Filter the groups to include only those that have at least one row in the LLM DataFrame
-            selected_techniques_df = (techniques_df_llm.groupby('Phase Name')
+            selected_techniques_df = (techniques_df_llm.groupby('Phase Name', observed=False)
                                         .apply(lambda x: x.sample(n=1) if len(x) > 0 else None)
                                         .reset_index(drop=True))
 
