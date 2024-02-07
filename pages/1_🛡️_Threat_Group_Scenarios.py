@@ -15,12 +15,16 @@ os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 # Add environment variables from session state for Azure OpenAI Service
-os.environ["AZURE_OPENAI_API_KEY"] = st.session_state["AZURE_OPENAI_API_KEY"]
-os.environ["AZURE_OPENAI_ENDPOINT"] = st.session_state["AZURE_OPENAI_ENDPOINT"]
-os.environ["AZURE_DEPLOYMENT"] = st.session_state["azure_deployment"]
-os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
+if "AZURE_OPENAI_API_KEY" in st.session_state:
+    os.environ["AZURE_OPENAI_API_KEY"] = st.session_state["AZURE_OPENAI_API_KEY"]
+if "AZURE_OPENAI_ENDPOINT" in st.session_state:
+    os.environ["AZURE_OPENAI_ENDPOINT"] = st.session_state["AZURE_OPENAI_ENDPOINT"]
+if "azure_deployment" in st.session_state:
+    os.environ["AZURE_DEPLOYMENT"] = st.session_state["azure_deployment"]
+if "openai_api_version" in st.session_state:
+    os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
 
-# Initialize the LangSmith client
+# Initialise the LangSmith client
 client = Client()
 
 if "scenario_generated" not in st.session_state:
@@ -33,6 +37,22 @@ st.set_page_config(
     page_title="Generate Scenario",
     page_icon="🛡️",
 )
+
+# Load and cache the MITRE ATT&CK data
+@st.cache_resource
+def load_attack_data():
+    attack_data = MitreAttackData("./data/enterprise-attack.json")
+    return attack_data
+
+attack_data = load_attack_data()
+
+# Load and cache the list of threat actor groups
+@st.cache_resource
+def load_groups():
+    groups = pd.read_json("./data/groups.json")
+    return groups
+
+groups = load_groups()
 
 def generate_scenario(openai_api_key, model_name, messages):
     model_name = st.session_state["model_name"]
@@ -87,21 +107,7 @@ def generate_scenario_azure(messages, *, run_tree: RunTree):
         return None
 
 
-# Load and cache the MITRE ATT&CK data
-@st.cache_resource
-def load_attack_data():
-    attack_data = MitreAttackData("./data/enterprise-attack.json")
-    return attack_data
 
-attack_data = load_attack_data()
-
-# Load and cache the list of threat actor groups
-@st.cache_resource
-def load_groups():
-    groups = pd.read_json("./data/groups.json")
-    return groups
-
-groups = load_groups()
 
 
 st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
