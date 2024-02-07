@@ -1,12 +1,10 @@
 import os
-
 import pandas as pd
 import streamlit as st
+from langsmith import Client, RunTree, traceable
 from langchain.callbacks.manager import collect_runs
 from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts.chat import (ChatPromptTemplate, HumanMessagePromptTemplate,
-                               SystemMessagePromptTemplate)
-from langsmith import Client
+from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from mitreattack.stix20 import MitreAttackData
 from openai import AzureOpenAI
 
@@ -15,6 +13,12 @@ os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
+
+# Add environment variables from session state for Azure OpenAI Service
+os.environ["AZURE_OPENAI_API_KEY"] = st.session_state["AZURE_OPENAI_API_KEY"]
+os.environ["AZURE_OPENAI_ENDPOINT"] = st.session_state["AZURE_OPENAI_ENDPOINT"]
+os.environ["AZURE_DEPLOYMENT"] = st.session_state["azure_deployment"]
+os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
 
 # Initialize the LangSmith client
 client = Client()
@@ -48,9 +52,15 @@ def generate_scenario(openai_api_key, model_name, messages):
     except Exception as e:
         st.error("An error occurred while generating the scenario: " + str(e))
         return None
-    
-def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_name, azure_api_version, messages):
+
+@traceable(run_type="llm", name="Threat Group Scenario (Azure OpenAI)", tags=["azure", "threat_group_scenario"])    
+def generate_scenario_azure(messages, *, run_tree: RunTree):
     try:
+        azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
+        azure_api_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        azure_deployment_name = os.getenv('AZURE_DEPLOYMENT')
+        azure_api_version = os.getenv('OPENAI_API_VERSION')
+
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
 
@@ -69,9 +79,11 @@ def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_
             )
 
             st.write("Scenario generated successfully.")
+            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
         return response
     except Exception as e:
-        st.error("An error occurred while generating the scenario: " + str(e))
+        st.error(f"An error occurred while generating the scenario: {str(e)}")
+        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
         return None
 
 
@@ -252,15 +264,11 @@ st.markdown("""
 try:
     if st.session_state.get('use_azure', True):
         if st.button('Generate Scenario', key='generate_scenario_azure'):
-            azure_openai_api_key = st.session_state.get('AZURE_OPENAI_API_KEY')
-            azure_openai_endpoint = st.session_state.get('AZURE_OPENAI_ENDPOINT')
-            azure_deployment = st.session_state.get('azure_deployment')
-            openai_api_version = st.session_state.get('openai_api_version')
-            if not azure_openai_api_key:
+            if not os.environ["AZURE_OPENAI_API_KEY"]:
                 st.info("Please add your Azure OpenAI Service API key to continue.")
-            if not azure_openai_endpoint:
+            if not os.environ["AZURE_OPENAI_ENDPOINT"]:
                 st.info("Please add your Azure OpenAI Service API endpoint to continue.")
-            if not azure_deployment:
+            if not os.environ["AZURE_DEPLOYMENT"]:
                 st.info("Please add the name of your Azure OpenAI Service Deployment to continue.")
             elif not industry:
                 st.info("Please select your company's industry to continue.")
@@ -269,7 +277,7 @@ try:
             elif techniques_df.empty:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
-                response = generate_scenario_azure(azure_openai_api_key, azure_openai_endpoint, azure_deployment, openai_api_version, messages)
+                response = generate_scenario_azure(messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
