@@ -1,12 +1,10 @@
 import os
-
 import pandas as pd
 import streamlit as st
+from langsmith import Client, RunTree, traceable
 from langchain.callbacks.manager import collect_runs
 from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
-                               SystemMessagePromptTemplate)
-from langsmith import Client
+from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from mitreattack.stix20 import MitreAttackData
 from openai import AzureOpenAI
 
@@ -16,9 +14,18 @@ os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
-# Initialize the LangSmith client
-client = Client()
+# Add environment variables from session state for Azure OpenAI Service
+if "AZURE_OPENAI_API_KEY" in st.session_state:
+    os.environ["AZURE_OPENAI_API_KEY"] = st.session_state["AZURE_OPENAI_API_KEY"]
+if "AZURE_OPENAI_ENDPOINT" in st.session_state:
+    os.environ["AZURE_OPENAI_ENDPOINT"] = st.session_state["AZURE_OPENAI_ENDPOINT"]
+if "azure_deployment" in st.session_state:
+    os.environ["AZURE_DEPLOYMENT"] = st.session_state["azure_deployment"]
+if "openai_api_version" in st.session_state:
+    os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
 
+# Initialise the LangSmith client
+client = Client()
 
 if "custom_scenario_generated" not in st.session_state:
     st.session_state["custom_scenario_generated"] = False
@@ -81,9 +88,15 @@ def generate_scenario(openai_api_key, model_name, messages):
     except Exception as e:
         st.error("An error occurred while generating the scenario: " + str(e))
         return None
-    
-def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_name, azure_api_version, messages):
+
+@traceable(run_type="llm", name="Custom Scenario (Azure OpenAI)", tags=["azure", "custom_scenario"])     
+def generate_scenario_azure(messages, *, run_tree: RunTree):
     try:
+        azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
+        azure_api_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        azure_deployment_name = os.getenv('AZURE_DEPLOYMENT')
+        azure_api_version = os.getenv('OPENAI_API_VERSION')
+
         with st.status('Generating scenario...', expanded=True):
             st.write("Initialising AI model.")
 
@@ -102,9 +115,11 @@ def generate_scenario_azure(azure_api_key, azure_api_endpoint, azure_deployment_
             )
 
             st.write("Scenario generated successfully.")
+            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
         return response
     except Exception as e:
-        st.error("An error occurred while generating the scenario: " + str(e))
+        st.error(f"An error occurred while generating the scenario: {str(e)}")
+        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
         return None
     
 
@@ -166,42 +181,36 @@ st.markdown("""
             """)
 try:
         if st.session_state.get('use_azure', True):
-            if st.button('Generate Scenario', key="generate_scenario_azure"):
-                azure_openai_api_key = st.session_state.get('AZURE_OPENAI_API_KEY')
-                azure_openai_endpoint = st.session_state.get('AZURE_OPENAI_ENDPOINT')
-                azure_deployment = st.session_state.get('azure_deployment')
-                openai_api_version = st.session_state.get('openai_api_version')
-                if not azure_openai_api_key:
+            if st.button('Generate Scenario', key='generate_custom_scenario_azure'):
+                if not os.environ["AZURE_OPENAI_API_KEY"]:
                     st.info("Please add your Azure OpenAI Service API key to continue.")
-                if not azure_openai_endpoint:
+                if not os.environ["AZURE_OPENAI_ENDPOINT"]:
                     st.info("Please add your Azure OpenAI Service API endpoint to continue.")
-                if not azure_deployment:
+                if not os.environ["AZURE_DEPLOYMENT"]:
                     st.info("Please add the name of your Azure OpenAI Service Deployment to continue.")
                 elif not industry:
                     st.info("Please select your company's industry to continue.")
                 elif not company_size:
                     st.info("Please select your company's size to continue.")
-                elif techniques_df.empty:
-                    st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
                 else:
-                    response = generate_scenario_azure(azure_openai_api_key, azure_openai_endpoint, azure_deployment, openai_api_version, messages)
-                    st.markdown("---")
-                    if response is not None:
-                        st.session_state['scenario_generated'] = True
-                        scenario_text = response.choices[0].message.content
-                        st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                        st.markdown(scenario_text)
-                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                        response = generate_scenario_azure(messages)
+                        st.markdown("---")
+                        if response is not None:
+                            st.session_state['custom_scenario_generated'] = True
+                            custom_scenario_text = response.choices[0].message.content
+                            st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                            st.markdown(custom_scenario_text)
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
-                    else:
-                        # If a scenario has been generated previously, display it
-                        if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
-                            st.markdown("---")
-                            st.markdown(st.session_state['scenario_text'])
-                            st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                        else:
+                            # If a scenario has been generated previously, display it
+                            if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                                st.markdown("---")
+                                st.markdown(st.session_state['custom_scenario_text'])
+                                st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
         else:
-            if st.button('Generate Scenario', key="generate_scenario"):
+            if st.button('Generate Scenario', key="generate_custom_scenario"):
                 openai_api_key = st.session_state.get('openai_api_key')
                 model_name = st.session_state.get('model_name')
                 if not openai_api_key:
