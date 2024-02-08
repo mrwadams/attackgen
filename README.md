@@ -23,15 +23,28 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Generates unique incident response scenarios based on chosen threat actor groups.
 - Allows you to specify your organisation's size and industry for a tailored scenario.
 - Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
-- 🆕 Create custom scenarios based on a selection of ATT&CK techniques.
-- 🆕 Capture user feedback on the quality of the generated scenarios.
+- Create custom scenarios based on a selection of ATT&CK techniques.
+- Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
+- 🆕 Use either the OpenAI API or Azure OpenAI Service to generate incident response scenarios.
+- 🆕 Select from several models available from the OpenAI API endpoint.
 - Integrated with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 
 ![AttackGen Screenshot](./images/screenshot.jpg)
 
 ## Releases
-### v0.2 (current)
+
+### v0.3 (current)
+
+| What's new? | Why is it useful? |
+| ----------- | ---------------- |
+| Azure OpenAI Service Integration | - Enhanced Integration: Users can now choose to utilise OpenAI 1106-preview models hosted on the Azure OpenAI Service, in addition to the standard OpenAI API. This integration offers a seamless and secure solution for incorporating AttackGen into existing Azure ecosystems, leveraging established commercial and confidentiality agreements.<br><br>- Improved Data Security: Running AttackGen from Azure ensures that application descriptions and other data remain within the Azure environment, making it ideal for organizations that handle sensitive data in their threat models. |
+| LangSmith for Azure OpenAI Service | - Enhanced Debugging: LangSmith tracing is now available for scenarios generated using the Azure OpenAI Service. This feature provides a powerful tool for debugging, testing, and monitoring of model performance, allowing users to gain insights into the model's decision-making process and identify potential issues with the generated scenarios.<br><br>- User Feedback: LangSmith also captures user feedback on the quality of scenarios generated using the Azure OpenAI Service, providing valuable insights into model performance and user satisfaction. |
+| Model Selection for OpenAI API | - Flexible Model Options: Users can now select from several models available from the OpenAI API endpoint, such as `gpt-4-turbo-preview`. This allows for greater customization and experimentation with different language models, enabling users to find the most suitable model for their specific use case. |
+
+
+
+### v0.2
 
 | What's new? | Why is it useful? |
 | ----------- | ---------------- |
@@ -97,20 +110,22 @@ You can also try the app on [Streamlit Community Cloud](https://attackgen.stream
 ## Usage
 
 ### Standard Scenario Generation
-1. Enter your OpenAI API Key.
-2. Select your organisation's industry and size from the dropdown menus.
-3. Navigate to the `Threat Group Scenarios` page.
-4. Select the Threat Actor Group that you want to simulate.
-5. Click on 'Generate Scenario' to create the incident response scenario.
-6. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
+1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
+2. Enter your OpenAI API key, or the API key and deployment details for your model on the Azure OpenAI Service.
+3. Select your organisatin's industry and size from the dropdown menus.
+4. Navigate to the `Threat Group Scenarios` page.
+5. Select the Threat Actor Group that you want to simulate.
+6. Click on 'Generate Scenario' to create the incident response scenario.
+7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
 
-### 🆕 Custom Scenario Generation
-1. Enter your OpenAI API Key.
-2. Select your organisation's industry and size from the dropdown menus.
-3. Navigate to the `Custom Scenario` page.
-4. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
-5. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
-6. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
+### Custom Scenario Generation
+1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
+2. Enter your OpenAI API Key, or the API key and deployment details for your model on the Azure OpenAI Service.
+3. Select your organisation's industry and size from the dropdown menus.
+4. Navigate to the `Custom Scenario` page.
+5. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
+6. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
+7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
 
 Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
 
