@@ -47,12 +47,9 @@ with st.sidebar:
         st.session_state["azure_deployment"] = st.text_input(
             "Deployment name:",
         )
-        
-        st.info("Please note that you must use an 1106-preview model deployment.")
 
-        st.session_state["openai_api_version"] = '2023-12-01-preview' # Update this as needed
-
-        st.write(f"Azure API Version: {st.session_state.get('azure_api_version')}")
+        # Add API version dropdown selector to the sidebar
+        st.session_state["openai_api_version"] = st.selectbox("API version:", ["2023-12-01-preview", "2023-05-15"], key="api_version", help="Select OpenAI API version used by your deployment.")
 
     else:     
         openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password", help="You can find your API key at https://platform.openai.com/account/api-keys")
