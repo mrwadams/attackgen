@@ -28,6 +28,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Downloadable scenarios in Markdown format.
 - 🆕 Use either the OpenAI API or Azure OpenAI Service to generate incident response scenarios.
 - 🆕 Select from several models available from the OpenAI API endpoint.
+- 🆕 Available as a Docker container image for easy deployment.
 - Integrated with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 
 ![AttackGen Screenshot](./images/screenshot.jpg)
@@ -41,6 +42,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Azure OpenAI Service Integration | - Enhanced Integration: Users can now choose to utilise OpenAI models deployed on the Azure OpenAI Service, in addition to the standard OpenAI API. This integration offers a seamless and secure solution for incorporating AttackGen into existing Azure ecosystems, leveraging established commercial and confidentiality agreements.<br><br>- Improved Data Security: Running AttackGen from Azure ensures that application descriptions and other data remain within the Azure environment, making it ideal for organizations that handle sensitive data in their threat models. |
 | LangSmith for Azure OpenAI Service | - Enhanced Debugging: LangSmith tracing is now available for scenarios generated using the Azure OpenAI Service. This feature provides a powerful tool for debugging, testing, and monitoring of model performance, allowing users to gain insights into the model's decision-making process and identify potential issues with the generated scenarios.<br><br>- User Feedback: LangSmith also captures user feedback on the quality of scenarios generated using the Azure OpenAI Service, providing valuable insights into model performance and user satisfaction. |
 | Model Selection for OpenAI API | - Flexible Model Options: Users can now select from several models available from the OpenAI API endpoint, such as `gpt-4-turbo-preview`. This allows for greater customization and experimentation with different language models, enabling users to find the most suitable model for their specific use case. |
+| Docker Container Image | - Easy Deployment: AttackGen is now available as a Docker container image, making it easier to deploy and run the application in a consistent and reproducible environment. This feature is particularly useful for users who want to run AttackGen in a containerised environment, or for those who want to deploy the application on a cloud platform. |
 
 
 
@@ -67,8 +69,9 @@ Initial release.
 
 ## Installation
 
-1. Clone the repository:
+### Option 1: Cloning the Repository
 
+1. Clone this repository:
 ```
 git clone https://github.com/mrwadams/attackgen.git
 ```
@@ -83,6 +86,14 @@ cd attackgen
 
 ```
 pip install -r requirements.txt
+```
+
+### Option 2: Using Docker
+
+1. Pull the Docker container image from Docker Hub:
+
+```
+docker pull mrwadams/attackgen
 ```
 
 ## LangSmith Setup
