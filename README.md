@@ -120,7 +120,28 @@ You can also try the app on [Streamlit Community Cloud](https://attackgen.stream
 
 ## Usage
 
-### Standard Scenario Generation
+### Running AttackGen
+
+#### Option 1: Running the Streamlit App Locally
+1. Run the Streamlit app:
+```
+streamlit run 👋_Welcome.py
+```
+2. Open your web browser and navigate to the URL provided by Streamlit.
+3. Use the app to generate standard or custom incident response scenarios (see below for details).
+
+#### Option 2: Using the Docker Container Image
+1. Run the Docker container:
+```
+docker run -p 8501:8501 mrwadams/attackgen
+```
+This command will start the container and map port 8501 (default for Streamlit apps) from the container to your host machine.
+2. Open your web browser and navigate to `http://localhost:8501`.
+3. Use the app to generate standard or custom incident response scenarios (see below for details).
+
+### Generating Scenarios
+
+#### Standard Scenario Generation
 1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
 2. Enter your OpenAI API key, or the API key and deployment details for your model on the Azure OpenAI Service.
 3. Select your organisatin's industry and size from the dropdown menus.
@@ -129,7 +150,7 @@ You can also try the app on [Streamlit Community Cloud](https://attackgen.stream
 6. Click on 'Generate Scenario' to create the incident response scenario.
 7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
 
-### Custom Scenario Generation
+#### Custom Scenario Generation
 1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
 2. Enter your OpenAI API Key, or the API key and deployment details for your model on the Azure OpenAI Service.
 3. Select your organisation's industry and size from the dropdown menus.
