@@ -26,16 +26,23 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Create custom scenarios based on a selection of ATT&CK techniques.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- 🆕 Use either the OpenAI API or Azure OpenAI Service to generate incident response scenarios.
-- 🆕 Select from several models available from the OpenAI API endpoint.
-- 🆕 Available as a Docker container image for easy deployment.
-- Integrated with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
+- 🆕 Use the OpenAI API, Azure OpenAI Service, Mistral API, or locally hosted Ollama models to generate incident response scenarios.
+- Available as a Docker container image for easy deployment.
+- Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 
-![AttackGen Screenshot](./images/screenshot.jpg)
+![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
 
-### v0.3 (current)
+### v0.4 (current)
+
+| What's new? | Why is it useful? |
+| ----------- | ---------------- |
+| Mistral API Integration | - Alternative Model Provider: Users can now leverage the Mistral AI models to generate incident response scenarios. This integration provides an alternative to the OpenAI and Azure OpenAI Service models, allowing users to explore and compare the performance of different language models for their specific use case. |
+| Local Model Support using Ollama | - Local Model Hosting: AttackGen now supports the use of locally hosted LLMs via an integration with Ollama. This feature is particularly useful for organisations with strict data privacy requirements or those who prefer to keep their data on-premises. Please note that this feature is not available for users of the AttackGen version hosted on Streamlit Community Cloud at https://attackgen.streamlit.app |
+| Optional LangSmith Integration | - Improved Flexibility: The integration with LangSmith is now optional. If no LangChain API key is provided, users will see an informative message indicating that the run won't be logged by LangSmith, rather than an error being thrown. This change improves the overall user experience and allows users to continue using AttackGen without the need for LangSmith. |
+
+### v0.3
 
 | What's new? | Why is it useful? |
 | ----------- | ---------------- |
