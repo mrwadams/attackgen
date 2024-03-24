@@ -12,7 +12,9 @@ from openai import AzureOpenAI
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
+
+if "LANGCHAIN_API_KEY" in st.secrets:
+    os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 # Add environment variables from session state for Azure OpenAI Service
 if "AZURE_OPENAI_API_KEY" in st.session_state:
@@ -24,8 +26,10 @@ if "azure_deployment" in st.session_state:
 if "openai_api_version" in st.session_state:
     os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
 
-# Initialise the LangSmith client
-client = Client()
+# Initialise the LangSmith client if an API key is available
+api_key = os.getenv('LANGSMITH_API_KEY')    
+
+client = Client(api_key=api_key) if api_key else None
 
 if "custom_scenario_generated" not in st.session_state:
     st.session_state["custom_scenario_generated"] = False
@@ -172,6 +176,8 @@ except Exception as e:
     st.error("An error occurred: " + str(e))
 
 st.markdown("")
+
+# Display the scenario generation section
 st.markdown("""
             ### Generate a Scenario
 
@@ -238,73 +244,78 @@ try:
                     st.markdown(st.session_state['custom_scenario_text'])
                     st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
         
+            # Display an info message if no API key is set
+            if 'LANGCHAIN_API_KEY' not in st.secrets:
+                st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")             
+
         # Create a placeholder for the feedback message
         feedback_placeholder = st.empty()
 
         # Show the thumbs_up and thumbs_down buttons only when a scenario has been generated
         st.markdown("---")
         if st.session_state.get('custom_scenario_generated', True):
-            st.markdown("Rate the scenario to help improve this tool.")
-            col1, col2, col3 = st.columns([0.5,0.5,5])
-            with col1:
-                thumbs_up = st.button("👍")
-                if thumbs_up:
-                    try:
-                        run_id = st.session_state.get('run_id')
-                        if run_id:
-                            feedback_type_str = "positive"
-                            score = 1  # or 0
-                            comment = ""
+            if client is not None: # Only show the feedback buttons if LangSmith is enabled
+                st.markdown("Rate the scenario to help improve this tool.")
+                col1, col2, col3 = st.columns([0.5,0.5,5])
+                with col1:
+                    thumbs_up = st.button("👍")
+                    if thumbs_up:
+                        try:
+                            run_id = st.session_state.get('run_id')
+                            if run_id:
+                                feedback_type_str = "positive"
+                                score = 1  # or 0
+                                comment = ""
 
-                            # Record the feedback
-                            feedback_record = client.create_feedback(
-                                run_id,
-                                feedback_type_str,
-                                score=score,
-                                comment=comment,
-                            )
-                            st.session_state.feedback = {
-                                "feedback_id": str(feedback_record.id),
-                                "score": score,
-                            }
+                                # Record the feedback
+                                feedback_record = client.create_feedback(
+                                    run_id,
+                                    feedback_type_str,
+                                    score=score,
+                                    comment=comment,
+                                )
+                                st.session_state.feedback = {
+                                    "feedback_id": str(feedback_record.id),
+                                    "score": score,
+                                }
+                                # Update the feedback message in the placeholder
+                                feedback_placeholder.success("Feedback submitted. Thank you.")
+                            else:
+                                # Update the feedback message in the placeholder
+                                feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
+                        except Exception as e:
                             # Update the feedback message in the placeholder
-                            feedback_placeholder.success("Feedback submitted. Thank you.")
-                        else:
-                            # Update the feedback message in the placeholder
-                            feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                    except Exception as e:
-                        # Update the feedback message in the placeholder
-                        feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
+                            feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
 
-            with col2:
-                thumbs_down = st.button("👎")
-                if thumbs_down:
-                    try:
-                        run_id = st.session_state.get('run_id')
-                        if run_id:
-                            feedback_type_str = "negative"
-                            score = 0  # or 0
-                            comment = ""
+                with col2:
+                    thumbs_down = st.button("👎")
+                    if thumbs_down:
+                        try:
+                            run_id = st.session_state.get('run_id')
+                            if run_id:
+                                feedback_type_str = "negative"
+                                score = 0  # or 0
+                                comment = ""
 
-                            # Record the feedback
-                            feedback_record = client.create_feedback(
-                                run_id,
-                                feedback_type_str,
-                                score=score,
-                                comment=comment,
-                            )
-                            st.session_state.feedback = {
-                                "feedback_id": str(feedback_record.id),
-                                "score": score,
-                            }
+                                # Record the feedback
+                                feedback_record = client.create_feedback(
+                                    run_id,
+                                    feedback_type_str,
+                                    score=score,
+                                    comment=comment,
+                                )
+                                st.session_state.feedback = {
+                                    "feedback_id": str(feedback_record.id),
+                                    "score": score,
+                                }
+                                # Update the feedback message in the placeholder
+                                feedback_placeholder.success("Feedback submitted. Thank you.")
+                            else:
+                                # Update the feedback message in the placeholder
+                                feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
+                        except Exception as e:
                             # Update the feedback message in the placeholder
-                            feedback_placeholder.success("Feedback submitted. Thank you.")
-                        else:
-                            # Update the feedback message in the placeholder
-                            feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                    except Exception as e:
-                        # Update the feedback message in the placeholder
-                        feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
+                            feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
                 
                 
 except Exception as e:
