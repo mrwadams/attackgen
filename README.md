@@ -100,9 +100,7 @@ docker pull mrwadams/attackgen
 
 If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key. You'll find a `secrets.toml-example` file in the `.streamlit/` directory that you can use as a template for your own secrets.toml file.
 
-If you do not wish to use LangSmith, you can delete the LangSmith related environment variables from the top of the following files:
-- `pages/1_🛡️_Threat_Group_Scenarios.py`
-- `pages/2_🛠️_Custom_Scenarios.py`
+If you do not wish to use LangSmith, you must still have a `.streamlit/secrets.toml` file in place, but you can leave the `LANGCHAIN_API_KEY` field empty.
 
 ## Data Setup
 
@@ -148,7 +146,7 @@ This command will start the container and map port 8501 (default for Streamlit a
 4. Navigate to the `Threat Group Scenarios` page.
 5. Select the Threat Actor Group that you want to simulate.
 6. Click on 'Generate Scenario' to create the incident response scenario.
-7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
+7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 #### Custom Scenario Generation
 1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
@@ -157,7 +155,7 @@ This command will start the container and map port 8501 (default for Streamlit a
 4. Navigate to the `Custom Scenario` page.
 5. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
 6. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
-7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario.
+7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
 
