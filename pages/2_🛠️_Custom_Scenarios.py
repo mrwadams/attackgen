@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 from langsmith import Client, RunTree, traceable
 from langchain.callbacks.manager import collect_runs
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from mitreattack.stix20 import MitreAttackData
 from openai import AzureOpenAI

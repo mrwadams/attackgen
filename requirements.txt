@@ -1,5 +1,5 @@
 langchain
-langchain-community
+langchain-openai
 langsmith
 mitreattack-python
 openai
