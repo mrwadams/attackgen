@@ -1,4 +1,6 @@
 langchain
+langchain-core
+langchain-mistralai
 langchain-openai
 langsmith
 mitreattack-python

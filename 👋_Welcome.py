@@ -16,20 +16,49 @@ to view it, please see https://www.gnu.org/licenses/
 """
 
 import streamlit as st
+import requests
 
+# ------------------ Streamlit UI Configuration ------------------ #
 
 st.set_page_config(
     page_title="AttackGen",
     page_icon="👾",
 )
 
+
+# ------------------ Sidebar ------------------ #
+
 with st.sidebar:
     st.sidebar.markdown("### <span style='color: #1DB954;'>Setup</span>", unsafe_allow_html=True)
-    # Add toggle to select Azure OpenAI Service
-    use_azure = st.toggle('Use Azure OpenAI Service', key='toggle_azure')
-    st.session_state["use_azure"] = use_azure
-    
-    if use_azure:
+    # Add model selection input field to the sidebar
+    model_provider = st.selectbox(
+        "Select your preferred model provider:",
+        ["OpenAI API", "Azure OpenAI Service", "Mistral API", "Ollama"],
+        key="model_provider",
+        help="Select the model provider you would like to use. This will determine the models available for selection.",
+    )
+
+    # Save the selected model provider to the session state
+    st.session_state["chosen_model_provider"] = model_provider
+
+    if model_provider == "OpenAI API":
+        # Add OpenAI API key input field to the sidebar
+        st.session_state["openai_api_key"] = st.text_input(
+            "Enter your OpenAI API key:",
+            type="password",
+            help="You can find your OpenAI API key on the [OpenAI dashboard](https://platform.openai.com/account/api-keys).",
+        )
+
+        # Add model selection input field to the sidebar
+        model_name = st.selectbox(
+            "Select the model you would like to use:",
+            ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+            key="selected_model",
+            help="OpenAI have moved to continuous model upgrades so `gpt-3.5-turbo`, `gpt-4` and `gpt-4-turbo-preview` point to the latest available version of each model.",
+        )
+        st.session_state["model_name"] = model_name
+
+    if model_provider == "Azure OpenAI Service":
         # Add Azure OpenAI API key input field to the sidebar
         st.session_state["AZURE_OPENAI_API_KEY"] = st.text_input(
             "Azure OpenAI API key:",
@@ -47,24 +76,47 @@ with st.sidebar:
         st.session_state["azure_deployment"] = st.text_input(
             "Deployment name:",
         )
-
+        
         # Add API version dropdown selector to the sidebar
         st.session_state["openai_api_version"] = st.selectbox("API version:", ["2023-12-01-preview", "2023-05-15"], key="api_version", help="Select OpenAI API version used by your deployment.")
 
-    else:     
-        openai_api_key = st.text_input("Enter your OpenAI API Key:", type="password", help="You can find your API key at https://platform.openai.com/account/api-keys")
-        st.session_state["openai_api_key"] = openai_api_key
+    if model_provider == "Mistral API":
+        # Add Mistral API key input field to the sidebar
+        st.session_state["MISTRAL_API_KEY"] = st.text_input(
+            "Enter your Mistral API key:",
+            type="password",
+            help="You can generate a Mistral API key in the [Mistral console](https://console.mistral.ai/api-keys/).",
+        )
 
         # Add model selection input field to the sidebar
-        model_name = st.selectbox(
+        st.session_state["mistral_model"] = st.selectbox(
             "Select the model you would like to use:",
-            ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
-            key="model",
-            help="OpenAI have moved to continuous model upgrades so `gpt-3.5-turbo`, `gpt-4` and `gpt-4-turbo-preview` point to the latest available version of each model.",
+            ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "open-mixtral-8x7b" ],
+            key="selected_model",
         )
-        st.session_state["model_name"] = model_name
-    
-    st.sidebar.markdown("---")
+
+
+    if model_provider == "Ollama":
+        # Make a request to the Ollama API to get the list of available models
+        try:
+            response = requests.get("http://localhost:11434/api/tags")
+            response.raise_for_status()  # Raises a HTTPError if the status is 4xx, 5xx
+        except requests.exceptions.RequestException as e:
+            st.error("Ollama not found, please use another model provider.")
+            response = None
+
+        if response:
+            data = response.json()
+            available_models = [model["name"] for model in data["models"]]
+            # Add model selection input field to the sidebar
+            ollama_model = st.selectbox(
+            "Select the model you would like to use:",
+            available_models,
+            key="selected_model",
+            )
+            st.session_state["ollama_model"] = ollama_model
+
+    st.markdown("""---""")
 
     # Add the drop-down selectors for Industry and Company Size
     industry = st.selectbox(
@@ -96,6 +148,7 @@ with st.sidebar:
     )
 
 
+# ------------------ Main App UI ------------------ #
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen 👾</span>", unsafe_allow_html=True)
 st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
@@ -109,11 +162,28 @@ st.markdown("""
             AttackGen solves this problem by using large language models to quickly generate attack scenarios based on a selection of a threat actor group's known techniques.
             """)
 
-if st.session_state.get('use_azure', True):
+if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Azure OpenAI Service API key, endpoint, and deployment name, then select your preferred model, industry, and company size from the sidebar. 
+            1. Enter the details of your Azure OpenAI Service model deployment, including the API key, endpoint, deployment name, and API version. 
+            2. Select your industry and company size from the sidebar. 
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            """)
+    
+elif st.session_state.get('chosen_model_provider') == "Mistral API":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Enter your Mistral API key, then select your preferred model, industry, and company size from the sidebar. 
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            """)
+
+elif st.session_state.get('chosen_model_provider') == "Ollama":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Select your locally hosted model from the sidebar, then enter the details of the application you would like to threat model.
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             """)
 

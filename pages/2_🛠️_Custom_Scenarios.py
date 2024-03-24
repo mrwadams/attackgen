@@ -1,17 +1,29 @@
 import os
 import pandas as pd
 import streamlit as st
-from langsmith import Client, RunTree, traceable
+
 from langchain.callbacks.manager import collect_runs
+from langchain_community.llms import Ollama
+from langchain_core.messages import HumanMessage
+from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
 from openai import AzureOpenAI
+
+
+# ------------------ Streamlit UI Configuration ------------------ #
 
 # Add environment variables for LangSmith
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
+
+# Initialise the LangSmith client if an API key is available
+api_key = os.getenv('LANGSMITH_API_KEY')    
+
+client = Client(api_key=api_key) if api_key else None
 
 if "LANGCHAIN_API_KEY" in st.secrets:
     os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
@@ -26,21 +38,32 @@ if "azure_deployment" in st.session_state:
 if "openai_api_version" in st.session_state:
     os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
 
-# Initialise the LangSmith client if an API key is available
-api_key = os.getenv('LANGSMITH_API_KEY')    
+# Add environment variables from session state for Mistral API
+if "MISTRAL_API_KEY" in st.session_state:
+    os.environ["MISTRAL_API_KEY"] = st.session_state["MISTRAL_API_KEY"]
+if "mistral_model" in st.session_state:
+    os.environ["MISTRAL_MODEL"] = st.session_state["mistral_model"]
 
-client = Client(api_key=api_key) if api_key else None
+# Add environment variables from session state for Ollama
+if "ollama_model" in st.session_state:
+    os.environ["OLLAMA_MODEL"] = st.session_state["ollama_model"]
 
-if "custom_scenario_generated" not in st.session_state:
-    st.session_state["custom_scenario_generated"] = False
-
+# Get the model provider and other required session state variables
+model_provider = st.session_state["chosen_model_provider"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
+
+# Set the default value for the custom_scenario_generated session state variable
+if "custom_scenario_generated" not in st.session_state:
+    st.session_state["custom_scenario_generated"] = False
 
 st.set_page_config(
     page_title="Generate Custom Scenario",
     page_icon="🛠️",
 )
+
+
+# ------------------ Helper Functions ------------------ #
 
 # Load and cache the MITRE ATT&CK data
 @st.cache_resource
@@ -126,6 +149,58 @@ def generate_scenario_azure(messages, *, run_tree: RunTree):
         st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
         return None
     
+@traceable(run_type="llm", name="Custom Scenario (Mistral API)", tags=["mistral", "custom_scenario"])    
+def generate_scenario_mistral(mistral_api_key, messages, *, run_tree: RunTree):
+    try:
+        mistral_api_key = os.getenv('MISTRAL_API_KEY')
+        model = os.getenv('MISTRAL_MODEL')
+
+        with st.status('Generating scenario...', expanded=True):
+            st.write("Initialising AI model.")
+
+            llm = ChatMistralAI(mistral_api_key=mistral_api_key) 
+
+            st.write("Model initialised. Generating scenario, please wait.")
+
+            messages = [HumanMessage(content= f"You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided.\n\n**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** The threat actor is known to use the following ATT&CK techniques: \n\n{selected_techniques_string}\n\n**Your task:** Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.\n\nYour response should be well structured and formatted using Markdown. Write in British English.")]
+
+            response = llm.invoke(messages, model=model)
+
+            st.write("Scenario generated successfully.")
+            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+        return response
+    except Exception as e:
+        st.error(f"An error occurred while generating the scenario: {str(e)}")
+        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+        return None
+
+@traceable(run_type="llm", name="Custom Scenario (Ollama)", tags=["ollama", "custom_scenario"])    
+def generate_scenario_ollama(model, *, run_tree: RunTree):
+    try:
+        model = os.getenv('OLLAMA_MODEL')
+
+        with st.status('Generating scenario...', expanded=True):
+            st.write("Initialising AI model.")
+
+            llm = Ollama(model=model) 
+
+            st.write("Model initialised. Generating scenario, please wait.")
+
+            messages = [HumanMessage(content= f"You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided.\n\n**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** The threat actor is known to use the following ATT&CK techniques: \n\n{selected_techniques_string}\n\n**Your task:** Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.\n\nYour response should be well structured and formatted using Markdown. Write in British English.")]
+
+            response = llm.invoke(messages, model=model)
+
+            st.write("Scenario generated successfully.")
+            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+        return response
+    except Exception as e:
+        st.error(f"An error occurred while generating the scenario: {str(e)}")
+        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+        return None
+
+
+# ------------------ Streamlit UI ------------------ #
+    
 
 st.markdown("# <span style='color: #1DB954;'>Generate Custom Scenario🛠️</span>", unsafe_allow_html=True)
 
@@ -183,10 +258,10 @@ st.markdown("""
 
             Click the button below to generate a scenario based on the selected technique(s).
 
-            It normally takes between 30-50 seconds to generate a scenario. ⏱️
+            It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
             """)
 try:
-        if st.session_state.get('use_azure', True):
+        if model_provider == "Azure OpenAI Service":
             if st.button('Generate Scenario', key='generate_custom_scenario_azure'):
                 if not os.environ["AZURE_OPENAI_API_KEY"]:
                     st.info("Please add your Azure OpenAI Service API key to continue.")
@@ -215,6 +290,60 @@ try:
                                 st.markdown(st.session_state['custom_scenario_text'])
                                 st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
+        elif model_provider == "Mistral API":
+            if st.button('Generate Scenario', key='generate_custom_scenario_mistral'):
+                if not os.environ["MISTRAL_API_KEY"]:
+                    st.info("Please add your Mistral API key to continue.")
+                if not os.environ["MISTRAL_MODEL"]:
+                    st.info("Please select a model to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                else:
+                    mistral_api_key = st.session_state.get('mistral_api_key')
+                    model_name = os.getenv('MISTRAL_MODEL')
+                    response = generate_scenario_mistral(mistral_api_key, model_name)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['custom_scenario_generated'] = True
+                        custom_scenario_text = response.content
+                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                        st.markdown(custom_scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+                    else:
+                        # If a scenario has been generated previously, display it
+                        if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                            st.markdown("---")
+                            st.markdown(st.session_state['custom_scenario_text'])
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+        
+        elif model_provider == "Ollama":
+            if st.button('Generate Scenario', key='generate_custom_scenario_ollama'):
+                if not os.environ["OLLAMA_MODEL"]:
+                    st.info("Please select a model to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                else:
+                    model = os.getenv('OLLAMA_MODEL')
+                    response = generate_scenario_ollama(model)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['custom_scenario_generated'] = True
+                        custom_scenario_text = response
+                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                        st.markdown(custom_scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+                    else:
+                        # If a scenario has been generated previously, display it
+                        if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                            st.markdown("---")
+                            st.markdown(st.session_state['custom_scenario_text'])
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
         else:
             if st.button('Generate Scenario', key="generate_custom_scenario"):
                 openai_api_key = st.session_state.get('openai_api_key')
