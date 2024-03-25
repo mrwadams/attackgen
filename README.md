@@ -41,6 +41,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Mistral API Integration | - Alternative Model Provider: Users can now leverage the Mistral AI models to generate incident response scenarios. This integration provides an alternative to the OpenAI and Azure OpenAI Service models, allowing users to explore and compare the performance of different language models for their specific use case. |
 | Local Model Support using Ollama | - Local Model Hosting: AttackGen now supports the use of locally hosted LLMs via an integration with Ollama. This feature is particularly useful for organisations with strict data privacy requirements or those who prefer to keep their data on-premises. Please note that this feature is not available for users of the AttackGen version hosted on Streamlit Community Cloud at https://attackgen.streamlit.app |
 | Optional LangSmith Integration | - Improved Flexibility: The integration with LangSmith is now optional. If no LangChain API key is provided, users will see an informative message indicating that the run won't be logged by LangSmith, rather than an error being thrown. This change improves the overall user experience and allows users to continue using AttackGen without the need for LangSmith. |
+| Various Bug Fixes and Improvements | - Enhanced User Experience: This release includes several bug fixes and improvements to the user interface, making AttackGen more user-friendly and robust. |
 
 ### v0.3
 
