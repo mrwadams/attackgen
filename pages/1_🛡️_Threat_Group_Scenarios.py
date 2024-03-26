@@ -25,12 +25,12 @@ api_key = os.getenv('LANGSMITH_API_KEY') # TODO: Test if this is required since 
 
 client = Client(api_key=api_key) if api_key else None
 
+# Initialise the LangSmith client conditionally based on the presence of an API key
 if "LANGCHAIN_API_KEY" in st.secrets:
     langchain_api_key = st.secrets["LANGCHAIN_API_KEY"]
     client = Client(api_key=langchain_api_key)
 else:
     client = None
-    st.error("LangChain API key is missing. Please configure it in st.secrets.")
 
 # Add environment variables from session state for Azure OpenAI Service
 if "AZURE_OPENAI_API_KEY" in st.session_state:
@@ -84,107 +84,196 @@ def load_groups():
 
 groups = load_groups()
 
-def generate_scenario(openai_api_key, model_name, messages):
-    model_name = st.session_state["model_name"]
-    try:
-        with st.status('Generating scenario...', expanded=True):
-            st.write("Initialising AI model.")
-            llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
-            st.write("Model initialised. Generating scenario, please wait.")
+def generate_scenario_wrapper(openai_api_key, model_name, messages):
+    if client is not None:  # If LangChain client has been initialized
+        @traceable(run_type="llm", name="Threat Group Scenario", tags=["openai", "threat_group_scenario"], client=client)
+        def generate_scenario(openai_api_key, model_name, messages, *, run_tree: RunTree):
+            model_name = st.session_state["model_name"]
+            try:
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.generate(messages=[messages])
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error("An error occurred while generating the scenario: " + str(e))
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+    else:  # If LangChain client has not been initialized
+        def generate_scenario(openai_api_key, model_name, messages):
+            model_name = st.session_state["model_name"]
+            try:
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.generate(messages=[messages])
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error("An error occurred while generating the scenario: " + str(e))
+                return None
+    
+    return generate_scenario(openai_api_key, model_name, messages)
 
-            with collect_runs() as cb:
-                response = llm.generate(messages=[messages])
-                run_id1 = cb.traced_runs[0].id # Get run_id from the callback
+def generate_scenario_azure_wrapper(messages):
+    if client is not None:  # LangSmith client has been initialised
+        @traceable(run_type="llm", name="Threat Group Scenario (Azure OpenAI)", tags=["azure", "threat_group_scenario"], client=client if client is not None else None)
+        def generate_scenario_azure(messages, *, run_tree: RunTree):
+            try:
+                azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
+                azure_api_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+                azure_deployment_name = os.getenv('AZURE_DEPLOYMENT')
+                azure_api_version = os.getenv('OPENAI_API_VERSION')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = AzureOpenAI(api_key=azure_api_key,
+                                      azure_endpoint=azure_api_endpoint,
+                                      api_version=azure_api_version)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    
+                    # Convert message objects to the expected format
+                    formatted_messages = []
+                    for message in messages:
+                        if hasattr(message, 'role') and hasattr(message, 'content'):
+                            role = message.role
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        elif hasattr(message, 'type') and hasattr(message, 'content'):
+                            role = message.type
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        else:
+                            raise ValueError(f"Unsupported message format: {message}")
+                    
+                    response = llm.chat.completions.create(
+                        model=azure_deployment_name,
+                        messages=formatted_messages
+                    )
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+    else:  # LangSmith client has not been initialised
+        def generate_scenario_azure(messages):
+            try:
+                azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
+                azure_api_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+                azure_deployment_name = os.getenv('AZURE_DEPLOYMENT')
+                azure_api_version = os.getenv('OPENAI_API_VERSION')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = AzureOpenAI(api_key=azure_api_key,
+                                      azure_endpoint=azure_api_endpoint,
+                                      api_version=azure_api_version)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    
+                    # Convert message objects to the expected format
+                    formatted_messages = []
+                    for message in messages:
+                        if hasattr(message, 'role') and hasattr(message, 'content'):
+                            role = message.role
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        elif hasattr(message, 'type') and hasattr(message, 'content'):
+                            role = message.type
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        else:
+                            raise ValueError(f"Unsupported message format: {message}")
+                    
+                    response = llm.chat.completions.create(
+                        model=azure_deployment_name,
+                        messages=formatted_messages
+                    )
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+    return generate_scenario_azure(messages)
 
-            st.write("Scenario generated successfully.")
-            st.session_state['run_id'] = run_id1 # Store the run ID in the session state
-        return response
-    except Exception as e:
-        st.error("An error occurred while generating the scenario: " + str(e))
-        return None
+def generate_scenario_mistral_wrapper(mistral_api_key, model_name, messages):
+    if client is not None: # If LangSmith client has been initialised
+        @traceable(run_type="llm", name="Threat Group Scenario (Mistral API)", tags=["mistral", "threat_group_scenario"], client=client)
+        def generate_scenario_mistral(mistral_api_key, model_name, messages, *, run_tree: RunTree):
+            try:
+                mistral_api_key = os.getenv('MISTRAL_API_KEY')
+                model = os.getenv('MISTRAL_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatMistralAI(mistral_api_key=mistral_api_key)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages, model=model)
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id) # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id) # Ensure run_id is updated even on failure
+                return None
+    else: # If LangSmith client has not been initialised
+        def generate_scenario_mistral(mistral_api_key, model_name, messages):
+            try:
+                mistral_api_key = os.getenv('MISTRAL_API_KEY')
+                model = os.getenv('MISTRAL_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatMistralAI(mistral_api_key=mistral_api_key)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages, model=model)
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+    
+    return generate_scenario_mistral(mistral_api_key, model_name, messages)
 
-@traceable(run_type="llm", name="Threat Group Scenario (Azure OpenAI)", tags=["azure", "threat_group_scenario"])    
-def generate_scenario_azure(messages, *, run_tree: RunTree):
-    try:
-        azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
-        azure_api_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
-        azure_deployment_name = os.getenv('AZURE_DEPLOYMENT')
-        azure_api_version = os.getenv('OPENAI_API_VERSION')
+def generate_scenario_ollama_wrapper(model):
+    if client is not None: # If LangSmith client has been initialised
+        @traceable(run_type="llm", name="Threat Group Scenario (Ollama)", tags=["ollama", "threat_group_scenario"], client=client)
+        def generate_scenario_ollama(model, *, run_tree: RunTree):
+            try:
+                model = os.getenv('OLLAMA_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = Ollama(model=model)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages, model=model)
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+    else: # If LangSmith client has not been initialised
+        def generate_scenario_ollama(model):
+            try:
+                model = os.getenv('OLLAMA_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = Ollama(model=model)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages, model=model)
+                    st.write("Scenario generated successfully.")
+                return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
 
-        with st.status('Generating scenario...', expanded=True):
-            st.write("Initialising AI model.")
-
-            llm = AzureOpenAI(api_key=azure_api_key, 
-                                  azure_endpoint=azure_api_endpoint, 
-                                  api_version=azure_api_version)
-
-            st.write("Model initialised. Generating scenario, please wait.")
-
-            response = llm.chat.completions.create(
-                model = azure_deployment_name,
-                messages=[
-                    {"role": "system", "content": "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided."},
-                    {"role": "user", "content": f"**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain:\n{kill_chain_string}\n\n**Your task:** Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group.\n\nYour response should be well structured and formatted using Markdown. Write in British English."}
-                ]
-            )
-
-            st.write("Scenario generated successfully.")
-            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
-        return response
-    except Exception as e:
-        st.error(f"An error occurred while generating the scenario: {str(e)}")
-        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
-        return None
-
-@traceable(run_type="llm", name="Threat Group Scenario (Mistral API)", tags=["mistral", "threat_group_scenario"])    
-def generate_scenario_mistral(mistral_api_key, messages, *, run_tree: RunTree):
-    try:
-        mistral_api_key = os.getenv('MISTRAL_API_KEY')
-        model = os.getenv('MISTRAL_MODEL')
-
-        with st.status('Generating scenario...', expanded=True):
-            st.write("Initialising AI model.")
-
-            llm = ChatMistralAI(mistral_api_key=mistral_api_key) 
-
-            st.write("Model initialised. Generating scenario, please wait.")
-
-            messages = [HumanMessage(content= f"You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided.\n\n**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain:\n{kill_chain_string}\n\n**Your task:** Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group.\n\nYour response should be well structured and formatted using Markdown. Write in British English.")]
-
-            response = llm.invoke(messages, model=model)
-
-            st.write("Scenario generated successfully.")
-            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
-        return response
-    except Exception as e:
-        st.error(f"An error occurred while generating the scenario: {str(e)}")
-        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
-        return None
-
-@traceable(run_type="llm", name="Threat Group Scenario (Ollama)", tags=["ollama", "threat_group_scenario"])    
-def generate_scenario_ollama(model, *, run_tree: RunTree):
-    try:
-        model = os.getenv('OLLAMA_MODEL')
-
-        with st.status('Generating scenario...', expanded=True):
-            st.write("Initialising AI model.")
-
-            llm = Ollama(model=model) 
-
-            st.write("Model initialised. Generating scenario, please wait.")
-
-            messages = [HumanMessage(content= f"You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided.\n\n**Background information:** The company operates in the '{industry}' industry and is of size '{company_size}'.\n\n**Threat actor information:** Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain:\n{kill_chain_string}\n\n**Your task:** Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group.\n\nYour response should be well structured and formatted using Markdown. Write in British English.")]
-
-            response = llm.invoke(messages, model=model)
-
-            st.write("Scenario generated successfully.")
-            st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
-        return response
-    except Exception as e:
-        st.error(f"An error occurred while generating the scenario: {str(e)}")
-        st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
-        return None
-
+    return generate_scenario_ollama(model)
 
 # ------------------ Streamlit UI ------------------ #
 
@@ -364,7 +453,7 @@ try:
             elif techniques_df.empty:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
-                response = generate_scenario_azure(messages)
+                response = generate_scenario_azure_wrapper(messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
@@ -395,7 +484,7 @@ try:
             else:
                 mistral_api_key = st.session_state.get('mistral_api_key')
                 model_name = os.getenv('MISTRAL_MODEL')
-                response = generate_scenario_mistral(mistral_api_key, model_name)
+                response = generate_scenario_mistral_wrapper(mistral_api_key, model_name, messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
@@ -423,7 +512,7 @@ try:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
                 model = os.getenv('OLLAMA_MODEL')
-                response = generate_scenario_ollama(model)
+                response = generate_scenario_ollama_wrapper(model)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
@@ -454,7 +543,7 @@ try:
             elif techniques_df.empty:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
-                response = generate_scenario(openai_api_key, model_name, messages)
+                response = generate_scenario_wrapper(openai_api_key, model_name, messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
@@ -469,9 +558,10 @@ try:
                         st.markdown("---")
                         st.markdown(st.session_state['scenario_text'])
                         st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
-        # Display an info message if no API key is set
-        if 'LANGCHAIN_API_KEY' not in st.secrets:
-            st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")                
+    
+    # Display an info message if no API key is set
+    if 'LANGCHAIN_API_KEY' not in st.secrets:
+        st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")                
 
     # Create a placeholder for the feedback message
     feedback_placeholder = st.empty()
