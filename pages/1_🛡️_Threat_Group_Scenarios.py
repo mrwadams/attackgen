@@ -84,15 +84,17 @@ def load_groups():
 
 groups = load_groups()
 
-def generate_scenario_wrapper(openai_api_key, model_name, messages):
+def generate_scenario_wrapper(openai_api_key,openai_endpoint, model_name, messages):
     if client is not None:  # If LangChain client has been initialized
         @traceable(run_type="llm", name="Threat Group Scenario", tags=["openai", "threat_group_scenario"], client=client)
-        def generate_scenario(openai_api_key, model_name, messages, *, run_tree: RunTree):
+        def generate_scenario(openai_api_key,openai_endpoint, model_name, messages, *, run_tree: RunTree):
             model_name = st.session_state["model_name"]
             try:
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
-                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, 
+                                     base_url=openai_endpoint,
+                                     model_name=model_name, streaming=False)
                     st.write("Model initialised. Generating scenario, please wait.")
                     response = llm.generate(messages=[messages])
                     st.write("Scenario generated successfully.")
@@ -103,12 +105,14 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                 st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
                 return None
     else:  # If LangChain client has not been initialized
-        def generate_scenario(openai_api_key, model_name, messages):
+        def generate_scenario(openai_api_key,openai_endpoint, model_name, messages):
             model_name = st.session_state["model_name"]
             try:
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
-                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, 
+                                     base_url=openai_endpoint,
+                                     model_name=model_name, streaming=False)
                     st.write("Model initialised. Generating scenario, please wait.")
                     response = llm.generate(messages=[messages])
                     st.write("Scenario generated successfully.")
@@ -117,7 +121,7 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                 st.error("An error occurred while generating the scenario: " + str(e))
                 return None
     
-    return generate_scenario(openai_api_key, model_name, messages)
+    return generate_scenario(openai_api_key,openai_endpoint,model_name, messages)
 
 def generate_scenario_azure_wrapper(messages):
     if client is not None:  # LangSmith client has been initialised
@@ -531,9 +535,12 @@ try:
     else: 
         if st.button('Generate Scenario', key='generate_scenario'):
             openai_api_key = st.session_state.get('openai_api_key')
+            openai_endpoint = st.session_state.get('openai_api_endpoint')
             model_name = st.session_state.get('model_name')
             if not openai_api_key:
                 st.info("Please add your OpenAI API key to continue.")
+            if not openai_endpoint:
+                st.info("Please add your OpenAI API endpoint to continue.")
             if not model_name:
                 st.info("Please select a model to continue.")
             elif not industry:
@@ -543,7 +550,7 @@ try:
             elif techniques_df.empty:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
-                response = generate_scenario_wrapper(openai_api_key, model_name, messages)
+                response = generate_scenario_wrapper(openai_api_key,openai_endpoint, model_name, messages)
                 st.markdown("---")
                 if response is not None:
                     st.session_state['scenario_generated'] = True
