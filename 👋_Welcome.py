@@ -48,6 +48,11 @@ with st.sidebar:
             type="password",
             help="You can find your OpenAI API key on the [OpenAI dashboard](https://platform.openai.com/account/api-keys).",
         )
+        
+        st.session_state["openai_api_endpoint"] = st.text_input(
+            "Enter your OpenAI API endpoint:",
+            help="Example endpoint: https://api.openai.com",
+        )
 
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
