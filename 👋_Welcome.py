@@ -51,7 +51,7 @@ with st.sidebar:
         
         st.session_state["openai_api_endpoint"] = st.text_input(
             "Enter your OpenAI API endpoint:",
-            help="Example endpoint: https://api.openai.com",
+            help="Example endpoint: https://api.openai.com/v1",
         )
 
         # Add model selection input field to the sidebar
