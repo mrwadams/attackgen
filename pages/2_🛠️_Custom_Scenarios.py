@@ -66,6 +66,14 @@ st.set_page_config(
     page_icon="🛠️",
 )
 
+# ------------------ Incident Response Templates ------------------ #
+incident_response_templates = {
+    "Phishing Attack": ["Spearphishing Attachment (T1193)", "User Execution (T1204)", "Browser Extensions (T1176)", "Credentials from Password Stores (T1555)", "Input Capture (T1056)", "Exfiltration Over C2 Channel (T1041)"],
+    "Ransomware Attack": ["Exploit Public-Facing Application (T1190)", "Windows Management Instrumentation (T1047)", "Create Account (T1136)", "Process Injection (T1055)", "Data Encrypted for Impact (T1486)"],
+    "Malware Infection": ["Supply Chain Compromise (T1195)", "Command and Scripting Interpreter (T1059)", "Registry Run Keys / Startup Folder (T1060)", "Obfuscated Files or Information (T1027)", "Remote Services (T1021)", "Data Destruction (T1485)"],
+    "Insider Threat": ["Valid Accounts (T1078)", "Account Manipulation (T1098)", "Exploitation for Privilege Escalation (T1068)", "Data Staged (T1074)", "Scheduled Transfer (T1029)", "Account Access Removal (T1531)"],
+}
+
 
 # ------------------ Helper Functions ------------------ #
 
@@ -292,6 +300,15 @@ def generate_scenario_ollama_wrapper(model):
 
     return generate_scenario_ollama(model)
 
+def template_selection(template):
+    if template in incident_response_templates:
+        template_techniques = incident_response_templates[template]
+        # Filter techniques_df to get only those in the preset
+        filtered_techniques = techniques_df[techniques_df['Display Name'].isin(template_techniques)]
+        selected_techniques = filtered_techniques['Display Name'].tolist()
+        # Update the session state directly
+        st.session_state['selected_techniques'] = selected_techniques
+
 
 # ------------------ Streamlit UI ------------------ #
     
@@ -300,19 +317,42 @@ st.markdown("# <span style='color: #1DB954;'>Generate Custom Scenario🛠️</sp
 
 st.markdown("""
             ### Select ATT&CK Techniques
+            """)
 
-            Use the multi-select box below to select the ATT&CK techniques that you would like to include in a custom incident response testing scenario.
+with st.expander("Use a Template (Optional)"):
+    st.markdown("""
+                Select a template to quickly generate a custom scenario based on a predefined set of ATT&CK techniques.
+                """)
+
+    # Dropdown for selecting the incident response template
+    selected_template = st.selectbox(
+        "Select a template",
+        options=[""] + list(incident_response_templates.keys()),  # Add an empty option for no selection
+        format_func=lambda x: "Select a template" if x == "" else x  # Display placeholder text
+    )
+
+    # Automatically update selected techniques when a template is chosen
+    if selected_template:
+        template_selection(selected_template)
+st.markdown("")
+st.markdown(""" 
+            Use the multi-select box below to add or update the ATT&CK techniques that you would like to include in a custom incident response testing scenario.
             """)
 
 selected_techniques = []
 if not techniques_df.empty:
-    selected_techniques = st.multiselect("Select ATT&CK techniques for the scenario",
-                                         sorted(techniques_df['Display Name'].unique()), placeholder="Select Techniques", label_visibility="hidden")
+    selected_techniques = st.multiselect(
+        "Select ATT&CK techniques for the scenario",
+        sorted(techniques_df['Display Name'].unique()),
+        default=st.session_state.get('selected_techniques', []), 
+        placeholder="Select Techniques", 
+        label_visibility="hidden")
     st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T1556` or `Phishing`).")
     
 try:
     if len(selected_techniques) > 0:
-        selected_techniques_string = ', '.join(selected_techniques)
+        selected_techniques_string = '\n'.join(selected_techniques)
+        template_info = f"This is a '{selected_template}' scenario." if selected_template else ""
 
         # Create System Message Template
         system_template = "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided."
@@ -321,16 +361,17 @@ try:
         # Create Human Message Template
         human_template = ("""
 **Background information:**
-The company operates in the '{industry}' industry and is of size '{company_size}'. 
+The company operates in the '{industry}' industry and is of size '{company_size}'.
 
 **Threat actor information:**
+{template_info}
 The threat actor is known to use the following ATT&CK techniques:
 {selected_techniques_string}
 
 **Your task:**
 Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques. 
 
-Your response should be well structured and formatted using Markdown. Write in British English.
+Your response should be well structured and formatted using Markdown.
 """)
         human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
 
@@ -340,7 +381,8 @@ Your response should be well structured and formatted using Markdown. Write in B
         # Format the prompt
         messages = chat_prompt.format_prompt(selected_techniques_string=selected_techniques_string, 
                                             industry=industry, 
-                                            company_size=company_size).to_messages()
+                                            company_size=company_size,
+                                            template_info=template_info).to_messages()
 except Exception as e:
     st.error("An error occurred: " + str(e))
 
