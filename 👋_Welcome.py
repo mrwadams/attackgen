@@ -168,7 +168,8 @@ if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
 
             1. Enter the details of your Azure OpenAI Service model deployment, including the API key, endpoint, deployment name, and API version. 
             2. Select your industry and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
 elif st.session_state.get('chosen_model_provider') == "Mistral API":
@@ -177,6 +178,7 @@ elif st.session_state.get('chosen_model_provider') == "Mistral API":
 
             1. Enter your Mistral API key, then select your preferred model, industry, and company size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
 elif st.session_state.get('chosen_model_provider') == "Ollama":
@@ -185,6 +187,7 @@ elif st.session_state.get('chosen_model_provider') == "Ollama":
 
             1. Select your locally hosted model from the sidebar, then enter the details of the application you would like to threat model.
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
 else:
@@ -193,4 +196,5 @@ else:
 
             1. Enter your OpenAI API key, then select your preferred model, industry, and company size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
