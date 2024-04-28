@@ -5,6 +5,7 @@ import streamlit as st
 from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
@@ -41,6 +42,12 @@ if "azure_deployment" in st.session_state:
     os.environ["AZURE_DEPLOYMENT"] = st.session_state["azure_deployment"]
 if "openai_api_version" in st.session_state:
     os.environ["OPENAI_API_VERSION"] = st.session_state["openai_api_version"]
+
+# Add environment variables from session state for Google AI API
+if "GOOGLE_API_KEY" in st.session_state:
+    os.environ["GOOGLE_API_KEY"] = st.session_state["GOOGLE_API_KEY"]
+if "google_model" in st.session_state:
+    os.environ["GOOGLE_MODEL"] = st.session_state["google_model"]
 
 # Add environment variables from session state for Mistral API
 if "MISTRAL_API_KEY" in st.session_state:
@@ -202,6 +209,43 @@ def generate_scenario_azure_wrapper(messages):
                 st.error(f"An error occurred while generating the scenario: {str(e)}")
                 return None
     return generate_scenario_azure(messages)
+
+def generate_scenario_google_wrapper(google_api_key, model, messages):
+    if client is not None: # If LangSmith client has been initialised
+        @traceable(run_type="llm", name="Threat Group Scenario (Google AI API)", tags=["google", "threat_group_scenario"], client=client)
+        def generate_scenario_google(google_api_key, model, messages, *, run_tree: RunTree):
+            try:
+                google_api_key = os.getenv('GOOGLE_API_KEY')
+                model = os.getenv('GOOGLE_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatGoogleGenerativeAI(google_api_key=google_api_key, model=model)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages)
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id) # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id) # Ensure run_id is updated even on failure
+                return None
+    else: # If LangSmith client has not been initialised
+        def generate_scenario_google(google_api_key, model, messages):
+            try:
+                google_api_key = os.getenv('GOOGLE_API_KEY')
+                model = os.getenv('GOOGLE_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = ChatGoogleGenerativeAI(google_api_key=google_api_key, model=model)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages)
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+    
+    return generate_scenario_google(google_api_key, model, messages)
 
 def generate_scenario_mistral_wrapper(mistral_api_key, model_name, messages):
     if client is not None: # If LangSmith client has been initialised
@@ -458,6 +502,40 @@ try:
                 if response is not None:
                     st.session_state['scenario_generated'] = True
                     scenario_text = response.choices[0].message.content
+                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
+                    st.markdown(scenario_text)
+                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+                    st.session_state['last_scenario'] = True
+                    st.session_state['last_scenario_text'] = scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+
+                else:
+                    # If a scenario has been generated previously, display it
+                    if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                        st.markdown("---")
+                        st.markdown(st.session_state['scenario_text'])
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
+    elif model_provider == "Google AI API":
+        if st.button('Generate Scenario', key='generate_scenario_google'):
+            if not os.environ["GOOGLE_API_KEY"]:
+                st.info("Please add your Google AI API key to continue.")
+            if not os.environ["GOOGLE_MODEL"]:
+                st.info("Please select a model to continue.")
+            elif not industry:
+                st.info("Please select your company's industry to continue.")
+            elif not company_size:
+                st.info("Please select your company's size to continue.")
+            elif techniques_df.empty:
+                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+            else:
+                google_api_key = st.session_state.get('google_api_key')
+                model_name = os.getenv('GOOGLE_MODEL')
+                response = generate_scenario_google_wrapper(google_api_key, model_name, messages)
+                st.markdown("---")
+                if response is not None:
+                    st.session_state['scenario_generated'] = True
+                    scenario_text = response.content
                     st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
                     st.markdown(scenario_text)
                     st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")

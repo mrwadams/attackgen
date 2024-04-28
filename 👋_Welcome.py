@@ -33,7 +33,7 @@ with st.sidebar:
     # Add model selection input field to the sidebar
     model_provider = st.selectbox(
         "Select your preferred model provider:",
-        ["OpenAI API", "Azure OpenAI Service", "Mistral API", "Ollama"],
+        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Ollama"],
         key="model_provider",
         help="Select the model provider you would like to use. This will determine the models available for selection.",
     )
@@ -79,6 +79,21 @@ with st.sidebar:
         
         # Add API version dropdown selector to the sidebar
         st.session_state["openai_api_version"] = st.selectbox("API version:", ["2023-12-01-preview", "2023-05-15"], key="api_version", help="Select OpenAI API version used by your deployment.")
+
+    if model_provider == "Google AI API":
+        # Add Google API key input field to the sidebar
+        st.session_state["GOOGLE_API_KEY"] = st.text_input(
+            "Enter your Google AI API key:",
+            type="password",
+            help="You can generate a Google AI API key in the [Google AI Studio](https://makersuite.google.com/app/apikey).",
+        )
+
+        # Add model selection input field to the sidebar
+        st.session_state["google_model"] = st.selectbox(
+            "Select the model you would like to use:",
+            ["gemini-1.0-pro", "gemini-1.5-pro-latest"],
+            key="selected_model",
+        )
 
     if model_provider == "Mistral API":
         # Add Mistral API key input field to the sidebar
@@ -170,6 +185,15 @@ if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
             2. Select your industry and company size from the sidebar. 
             3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
+            """)
+    
+elif st.session_state.get('chosen_model_provider') == "Google AI API":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Enter your Google AI API key, then select your preferred model, industry, and company size from the sidebar. 
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
 elif st.session_state.get('chosen_model_provider') == "Mistral API":

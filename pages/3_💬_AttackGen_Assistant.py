@@ -4,6 +4,7 @@ import streamlit as st
 from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
@@ -77,6 +78,21 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 messages=formatted_messages
             )
             return response.choices[0].message.content
+        elif model_provider == "Google AI API":
+            google_api_key = os.getenv('GOOGLE_API_KEY')
+            model = os.getenv('GOOGLE_MODEL')
+            llm = ChatGoogleGenerativeAI(google_api_key=google_api_key, model=model)
+            messages = [
+                SystemMessagePromptTemplate.from_template("""
+                You are an AI assistant that helps users update and ask questions about their incident response scenario.
+                Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                """).format(),
+                HumanMessagePromptTemplate.from_template(
+                    "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+            ]
+            response = llm.invoke(messages)
+            return response.content
         elif model_provider == "Mistral API":
             mistral_api_key = os.getenv('MISTRAL_API_KEY')
             model = os.getenv('MISTRAL_MODEL')

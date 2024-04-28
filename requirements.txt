@@ -1,5 +1,6 @@
 langchain
 langchain-core
+langchain-google-genai
 langchain-mistralai
 langchain-openai
 langsmith
