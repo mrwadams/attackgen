@@ -419,6 +419,9 @@ try:
                             st.markdown(custom_scenario_text)
                             st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
+                            st.session_state['last_scenario'] = True
+                            st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+
                         else:
                             # If a scenario has been generated previously, display it
                             if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
@@ -448,6 +451,9 @@ try:
                         st.markdown(custom_scenario_text)
                         st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+
                     else:
                         # If a scenario has been generated previously, display it
                         if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
@@ -473,6 +479,9 @@ try:
                         st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
                         st.markdown(custom_scenario_text)
                         st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
 
                     else:
                         # If a scenario has been generated previously, display it
@@ -502,6 +511,9 @@ try:
                         st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
                         st.markdown(custom_scenario_text)
                         st.download_button(label="Download Scenario", data=custom_scenario_text, file_name="custom_scenario.md", mime="text/markdown")
+
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
             else:
                 # If a scenario has been generated previously, display it
                 if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
