@@ -36,7 +36,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
-### v0.5 (current)
+### v0.5.1
+| What's new? | Why is it useful? |
+| ----------- | ---------------- |
+| GPT-4o Model Support | - Enhanced Model Options: AttackGen now supports the use of OpenAI's GPT-4o model. GPT4-o is OpenAI's leading model, able to generate scenarios twice as fast as GPT-4 for half the cost. |
+
+### v0.5
 | What's new? | Why is it useful? |
 | ----------- | ---------------- |
 | AttackGen Assistant | - Iterative Scenario Refinement: The new chat interface allows users to interact with their generated incident response scenarios, making it easy to update and ask questions about the scenario without having to regenerate it from scratch. This feature enables an iterative approach to scenario development, where users can refine and improve their scenarios based on the AI assistant's responses.<br><br>- Contextual Assistance: The AI assistant responds to user queries based on the context of the generated scenario and the conversation history. This ensures that the assistant's responses are relevant and helpful in refining the scenario. |
