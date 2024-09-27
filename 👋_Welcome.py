@@ -52,9 +52,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+            ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview", "o1-mini"],
             key="selected_model",
-            help="GPT-4o and GPT-4o mini are OpenAI's latest models and are recommended.",
+            help="GPT-4o and GPT-4o mini are OpenAI's latest models and are recommended. o1-preview and o1-mini are new models available for testing.",
         )
         st.session_state["model_name"] = model_name
 

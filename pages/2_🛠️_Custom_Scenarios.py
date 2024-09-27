@@ -124,7 +124,19 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
             try:
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
-                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    
+                    # Check if the model is o1-preview or o1-mini
+                    if model_name in ["o1-preview", "o1-mini"]:
+                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
+                        # Remove the 'system' message and combine it with the first 'human' message
+                        human_messages = [msg for msg in messages if msg.type == 'human']
+                        if human_messages:
+                            system_content = next((msg.content for msg in messages if msg.type == 'system'), '')
+                            human_messages[0].content = f"{system_content}\n\n{human_messages[0].content}"
+                        messages = human_messages
+                    else:
+                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    
                     st.write("Model initialised. Generating scenario, please wait.")
                     response = llm.generate(messages=[messages])
                     st.write("Scenario generated successfully.")
@@ -140,7 +152,19 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
             try:
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
-                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    
+                    # Check if the model is o1-preview or o1-mini
+                    if model_name in ["o1-preview", "o1-mini"]:
+                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
+                        # Remove the 'system' message and combine it with the first 'human' message
+                        human_messages = [msg for msg in messages if msg.type == 'human']
+                        if human_messages:
+                            system_content = next((msg.content for msg in messages if msg.type == 'system'), '')
+                            human_messages[0].content = f"{system_content}\n\n{human_messages[0].content}"
+                        messages = human_messages
+                    else:
+                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    
                     st.write("Model initialised. Generating scenario, please wait.")
                     response = llm.generate(messages=[messages])
                     st.write("Scenario generated successfully.")

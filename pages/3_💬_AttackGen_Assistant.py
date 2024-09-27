@@ -122,15 +122,29 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
         else:
             openai_api_key = st.session_state.get('openai_api_key')
             model_name = st.session_state.get('model_name')
-            llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name)
-            messages = [
-                SystemMessagePromptTemplate.from_template(
-                    "You are an AI assistant that helps users update and ask questions about their incident response scenario."
-                ).format(),
-                HumanMessagePromptTemplate.from_template(
-                    "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
-                ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
-            ]
+            
+            if model_name in ["o1-preview", "o1-mini"]:
+                llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, temperature=1)
+                system_content = """
+                You are an AI assistant that helps users update and ask questions about their incident response scenario.
+                Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                """
+                messages = [
+                    HumanMessagePromptTemplate.from_template(
+                        f"{system_content}\n\nHere is the scenario that the user previously generated:\n\n{{input_scenario}}\n\nChat history:\n{{chat_history}}\n\nUser: {{user_input}}"
+                    ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+                ]
+            else:
+                llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name)
+                messages = [
+                    SystemMessagePromptTemplate.from_template(
+                        "You are an AI assistant that helps users update and ask questions about their incident response scenario."
+                    ).format(),
+                    HumanMessagePromptTemplate.from_template(
+                        "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                    ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+                ]
+            
             response = llm.generate(messages=[messages]).generations[0][0].text
             return response
 
