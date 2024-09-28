@@ -8,10 +8,6 @@
         "url": "https://attack.mitre.org/groups/G0130/"
     },
     {
-        "group": "ALLANITE",
-        "url": "https://attack.mitre.org/groups/G1000/"
-    },
-    {
         "group": "Andariel",
         "url": "https://attack.mitre.org/groups/G0138/"
     },

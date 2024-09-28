@@ -78,18 +78,19 @@ st.set_page_config(
 # Load and cache the MITRE ATT&CK data
 @st.cache_resource
 def load_attack_data():
-    attack_data = MitreAttackData("./data/enterprise-attack.json")
-    return attack_data
+    enterprise_data = MitreAttackData("./data/enterprise-attack.json")
+    ics_data = MitreAttackData("./data/ics-attack.json")
+    return {"enterprise": enterprise_data, "ics": ics_data}
 
 attack_data = load_attack_data()
 
-# Load and cache the list of threat actor groups
 @st.cache_resource
-def load_groups():
-    groups = pd.read_json("./data/groups.json")
+def load_groups(matrix):
+    if matrix == "Enterprise":
+        groups = pd.read_json("./data/groups.json")
+    else:  # ICS
+        groups = pd.read_json("./data/groups_ics.json")
     return groups
-
-groups = load_groups()
 
 def generate_scenario_wrapper(openai_api_key, model_name, messages):
     if client is not None:  # If LangChain client has been initialized
@@ -355,8 +356,23 @@ st.markdown("""
             You can then optionally view all of the Enterprise ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
             """)
 
-selected_group_alias = st.selectbox("Select a threat actor group for the scenario",
-                                     sorted(groups['group'].unique()),placeholder="Select Group", index=17, label_visibility="hidden") # Set APT41 as the default group as the default group has no Enterprise ATT&CK techniques
+# Load groups based on the current matrix
+matrix = st.session_state.get("matrix", "Enterprise")
+groups = load_groups(matrix)
+
+# Get the list of group names
+group_names = sorted(groups['group'].unique())
+
+# Set a default index that works for both Enterprise and ICS
+default_index = 0 if len(group_names) > 0 else None
+
+selected_group_alias = st.selectbox(
+    "Select a threat actor group for the scenario",
+    group_names,
+    index=default_index,
+    placeholder="Select Group",
+    label_visibility="hidden"
+)
 
 phase_name_order = ['Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence', 
                     'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement', 
@@ -375,11 +391,12 @@ try:
 
     if selected_group_alias != "Select Group":
         # Get the group by the selected alias
-        group = attack_data.get_groups_by_alias(selected_group_alias)
+        matrix = st.session_state.get("matrix", "Enterprise")
+        group = attack_data[matrix.lower()].get_groups_by_alias(selected_group_alias)
         group_url = groups[groups['group'] == selected_group_alias]['url'].values[0]
 
         # Display the URL as a clickable link
-        st.markdown( f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
+        st.markdown(f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
 
         # Check if the group was found
         if group:
@@ -387,7 +404,7 @@ try:
             group_stix_id = group[0].id
 
             # Get all techniques used by the group
-            techniques = attack_data.get_techniques_used_by_group(group_stix_id)
+            techniques = attack_data[matrix.lower()].get_techniques_used_by_group(group_stix_id)
 
             # Check if there are any techniques for the group
             if not techniques:
@@ -403,7 +420,7 @@ try:
             techniques_df['Technique Name'] = techniques_df_llm['Technique Name'] = techniques_df['object'].apply(lambda x: x['name'])
 
             # Add a 'ATT&CK ID' column to both DataFrames
-            techniques_df['ATT&CK ID'] = techniques_df_llm['ATT&CK ID'] = techniques_df['object'].apply(lambda x: attack_data.get_attack_id(x['id']))
+            techniques_df['ATT&CK ID'] = techniques_df_llm['ATT&CK ID'] = techniques_df['object'].apply(lambda x: attack_data[matrix.lower()].get_attack_id(x['id']))
 
             # Add a 'Phase Name' column to both DataFrames
             techniques_df['Phase Name'] = techniques_df_llm['Phase Name'] = techniques_df['object'].apply(lambda x: x['kill_chain_phases'][0]['phase_name'])
@@ -471,11 +488,11 @@ try:
 The company operates in the '{industry}' industry and is of size '{company_size}'. 
                     
 **Threat actor information:**
-Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain
+Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain from the MITRE ATT&CK {matrix} Matrix:
 {kill_chain_string}
 
 **Your task:**
-Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group. 
+Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group, focusing on the {matrix} environment. 
 
 Your response should be well structured and formatted using Markdown. Write in British English.
 """)
@@ -488,7 +505,8 @@ Your response should be well structured and formatted using Markdown. Write in B
         messages = chat_prompt.format_prompt(selected_group_alias=selected_group_alias, 
                                             kill_chain_string=kill_chain_string, 
                                             industry=industry, 
-                                            company_size=company_size).to_messages()
+                                            company_size=company_size, 
+                                            matrix=matrix).to_messages()
 
 # Error handling for group selection
 except Exception as e:

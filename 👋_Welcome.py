@@ -133,6 +133,13 @@ with st.sidebar:
 
     st.markdown("""---""")
 
+    matrix = st.sidebar.radio(
+        "Select MITRE ATT&CK Matrix:",
+        ["Enterprise", "ICS"],
+        key="selected_matrix"
+    )
+    st.session_state["matrix"] = matrix
+
     # Add the drop-down selectors for Industry and Company Size
     industry = st.selectbox(
     "Select your company's industry:",

@@ -1,0 +1,30 @@
+[
+    {
+        "group": "ALLANITE",
+        "url": "https://attack.mitre.org/groups/G1000/"
+    },
+    {
+        "group": "APT33",
+        "url": "https://attack.mitre.org/groups/G0064/"
+    },
+    {
+        "group": "CyberAv3ngers",
+        "url": "https://attack.mitre.org/groups/G1027/"
+    },
+    {
+        "group": "Dragonfly",
+        "url": "https://attack.mitre.org/groups/G0035/"
+    },
+    {
+        "group": "Lazarus Group",
+        "url": "https://attack.mitre.org/groups/G0032/"
+    },
+    {
+        "group": "OilRig",
+        "url": "https://attack.mitre.org/groups/G0049/"
+    },
+    {
+        "group": "TEMP.Veles",
+        "url": "https://attack.mitre.org/groups/G0088/"
+    }
+]

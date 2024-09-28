@@ -63,6 +63,7 @@ if "ollama_model" in st.session_state:
 model_provider = st.session_state["chosen_model_provider"]
 industry = st.session_state["industry"]
 company_size = st.session_state["company_size"]
+matrix = st.session_state["matrix"]
 
 # Set the default value for the custom_scenario_generated session state variable
 if "custom_scenario_generated" not in st.session_state:
@@ -75,10 +76,18 @@ st.set_page_config(
 
 # ------------------ Incident Response Templates ------------------ #
 incident_response_templates = {
-    "Phishing Attack": ["Spearphishing Attachment (T1193)", "User Execution (T1204)", "Browser Extensions (T1176)", "Credentials from Password Stores (T1555)", "Input Capture (T1056)", "Exfiltration Over C2 Channel (T1041)"],
-    "Ransomware Attack": ["Exploit Public-Facing Application (T1190)", "Windows Management Instrumentation (T1047)", "Create Account (T1136)", "Process Injection (T1055)", "Data Encrypted for Impact (T1486)"],
-    "Malware Infection": ["Supply Chain Compromise (T1195)", "Command and Scripting Interpreter (T1059)", "Registry Run Keys / Startup Folder (T1060)", "Obfuscated Files or Information (T1027)", "Remote Services (T1021)", "Data Destruction (T1485)"],
-    "Insider Threat": ["Valid Accounts (T1078)", "Account Manipulation (T1098)", "Exploitation for Privilege Escalation (T1068)", "Data Staged (T1074)", "Scheduled Transfer (T1029)", "Account Access Removal (T1531)"],
+    "Enterprise": {
+        "Phishing Attack": ["Spearphishing Attachment (T1193)", "User Execution (T1204)", "Browser Extensions (T1176)", "Credentials from Password Stores (T1555)", "Input Capture (T1056)", "Exfiltration Over C2 Channel (T1041)"],
+        "Ransomware Attack": ["Exploit Public-Facing Application (T1190)", "Windows Management Instrumentation (T1047)", "Create Account (T1136)", "Process Injection (T1055)", "Data Encrypted for Impact (T1486)"],
+        "Malware Infection": ["Supply Chain Compromise (T1195)", "Command and Scripting Interpreter (T1059)", "Registry Run Keys / Startup Folder (T1060)", "Obfuscated Files or Information (T1027)", "Remote Services (T1021)", "Data Destruction (T1485)"],
+        "Insider Threat": ["Valid Accounts (T1078)", "Account Manipulation (T1098)", "Exploitation for Privilege Escalation (T1068)", "Data Staged (T1074)", "Scheduled Transfer (T1029)", "Account Access Removal (T1531)"],
+    },
+    "ICS": {
+        "Remote Access Exploitation": ["External Remote Services (T0822)", "Exploit Public-Facing Application (T0819)", "Remote Services (T0886)", "Wireless Compromise (T0860)"],
+        "ICS Data Manipulation": ["Modify Controller Tasking (T0821)", "Manipulate I/O Image (T0835)", "Modify Alarm Settings (T0838)", "Modify Parameter (T0836)"],
+        "Denial of Service": ["Denial of Service (T0814)", "Activate Firmware Update Mode (T0800)", "Brute Force I/O (T0806)", "Block Command Message (T0803)"],
+        "ICS Reconnaissance": ["Network Sniffing (T0842)", "Remote System Discovery (T0846)", "Network Connection Enumeration (T0840)", "Program Upload (T0845)"],
+    }
 }
 
 
@@ -87,8 +96,9 @@ incident_response_templates = {
 # Load and cache the MITRE ATT&CK data
 @st.cache_resource
 def load_attack_data():
-    attack_data = MitreAttackData("./data/enterprise-attack.json")
-    return attack_data
+    enterprise_data = MitreAttackData("./data/enterprise-attack.json")
+    ics_data = MitreAttackData("./data/ics-attack.json")
+    return {"enterprise": enterprise_data, "ics": ics_data}
 
 attack_data = load_attack_data()
 
@@ -96,7 +106,8 @@ attack_data = load_attack_data()
 @st.cache_resource
 def load_techniques():
     try:
-        techniques = attack_data.get_techniques()
+        matrix = st.session_state.get("matrix", "Enterprise")
+        techniques = attack_data[matrix.lower()].get_techniques()
         techniques_list = []
         for technique in techniques:
             for reference in technique.external_references:
@@ -368,14 +379,18 @@ def generate_scenario_ollama_wrapper(model):
 
     return generate_scenario_ollama(model)
 
-def template_selection(template):
-    if template in incident_response_templates:
-        template_techniques = incident_response_templates[template]
-        # Filter techniques_df to get only those in the preset
-        filtered_techniques = techniques_df[techniques_df['Display Name'].isin(template_techniques)]
-        selected_techniques = filtered_techniques['Display Name'].tolist()
-        # Update the session state directly
-        st.session_state['selected_techniques'] = selected_techniques
+def template_selection(template, matrix):
+    try:
+        if template in incident_response_templates[matrix]:
+            template_techniques = incident_response_templates[matrix][template]
+            matrix_techniques = attack_data[matrix.lower()].get_techniques()
+            matrix_technique_names = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in matrix_techniques]
+            selected_techniques = [tech for tech in template_techniques if tech in matrix_technique_names]
+            st.session_state['selected_techniques'] = selected_techniques
+        else:
+            st.write(f"Template {template} not found in {matrix} matrix")
+    except Exception as e:
+        st.error(f"An error occurred in template_selection: {str(e)}")
 
 
 # ------------------ Streamlit UI ------------------ #
@@ -392,16 +407,19 @@ with st.expander("Use a Template (Optional)"):
                 Select a template to quickly generate a custom scenario based on a predefined set of ATT&CK techniques.
                 """)
 
+    # Get the current matrix from the session state
+    matrix = st.session_state.get("matrix", "Enterprise")
+
     # Dropdown for selecting the incident response template
     selected_template = st.selectbox(
         "Select a template",
-        options=[""] + list(incident_response_templates.keys()),  # Add an empty option for no selection
+        options=[""] + list(incident_response_templates[matrix].keys()),  # Add an empty option for no selection
         format_func=lambda x: "Select a template" if x == "" else x  # Display placeholder text
     )
 
     # Automatically update selected techniques when a template is chosen
     if selected_template:
-        template_selection(selected_template)
+        template_selection(selected_template, matrix)
 st.markdown("")
 st.markdown(""" 
             Use the multi-select box below to add or update the ATT&CK techniques that you would like to include in a custom incident response testing scenario.
@@ -409,13 +427,16 @@ st.markdown("""
 
 selected_techniques = []
 if not techniques_df.empty:
-    selected_techniques = st.multiselect(
-        "Select ATT&CK techniques for the scenario",
-        sorted(techniques_df['Display Name'].unique()),
-        default=st.session_state.get('selected_techniques', []), 
-        placeholder="Select Techniques", 
-        label_visibility="hidden")
-    st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T1556` or `Phishing`).")
+    matrix = st.session_state.get("matrix", "Enterprise")
+    techniques = attack_data[matrix.lower()].get_techniques()
+    technique_options = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in techniques]
+    selected_techniques = st.multiselect("Select ATT&CK Techniques", options=technique_options, default=st.session_state.get('selected_techniques', []))
+    if matrix == "Enterprise":
+        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T1556` or `Phishing`).")
+    elif matrix == "ICS":
+        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T0814` or `Denial of Service`).")
+    else:
+        st.info("📝 Techniques are searchable by either their name or technique ID.")
     
 try:
     if len(selected_techniques) > 0:
@@ -433,7 +454,7 @@ The company operates in the '{industry}' industry and is of size '{company_size}
 
 **Threat actor information:**
 {template_info}
-The threat actor is known to use the following ATT&CK techniques:
+The threat actor is known to use the following ATT&CK techniques from the {matrix} Matrix:
 {selected_techniques_string}
 
 **Your task:**
@@ -450,9 +471,10 @@ Your response should be well structured and formatted using Markdown.
         messages = chat_prompt.format_prompt(selected_techniques_string=selected_techniques_string, 
                                             industry=industry, 
                                             company_size=company_size,
-                                            template_info=template_info).to_messages()
+                                            template_info=template_info,
+                                            matrix=matrix).to_messages()
 except Exception as e:
-    st.error("An error occurred: " + str(e))
+    st.error(f"An error occurred: {str(e)}")
 
 st.markdown("")
 
