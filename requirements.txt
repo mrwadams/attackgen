@@ -8,5 +8,6 @@ langsmith
 mitreattack-python
 openai
 pandas
+python-dotenv
 setuptools
 streamlit

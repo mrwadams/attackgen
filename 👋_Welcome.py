@@ -17,6 +17,11 @@ to view it, please see https://www.gnu.org/licenses/
 
 import streamlit as st
 import requests
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ------------------ Streamlit UI Configuration ------------------ #
 
@@ -42,12 +47,18 @@ with st.sidebar:
     st.session_state["chosen_model_provider"] = model_provider
 
     if model_provider == "OpenAI API":
-        # Add OpenAI API key input field to the sidebar
-        st.session_state["openai_api_key"] = st.text_input(
-            "Enter your OpenAI API key:",
-            type="password",
-            help="You can find your OpenAI API key on the [OpenAI dashboard](https://platform.openai.com/account/api-keys).",
-        )
+        # Check if OpenAI API key is in environment variables
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            # Add OpenAI API key input field to the sidebar if not in environment
+            st.session_state["openai_api_key"] = st.text_input(
+                "Enter your OpenAI API key:",
+                type="password",
+                help="You can find your OpenAI API key on the [OpenAI dashboard](https://platform.openai.com/account/api-keys).",
+            )
+        else:
+            st.session_state["openai_api_key"] = openai_api_key
+            st.success("API key loaded from .env")
 
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
@@ -59,34 +70,58 @@ with st.sidebar:
         st.session_state["model_name"] = model_name
 
     if model_provider == "Azure OpenAI Service":
-        # Add Azure OpenAI API key input field to the sidebar
-        st.session_state["AZURE_OPENAI_API_KEY"] = st.text_input(
-            "Azure OpenAI API key:",
-            type="password",
-            help="You can find your Azure OpenAI API key on the [Azure portal](https://portal.azure.com/).",
-        )
+        # Check if Azure OpenAI API key is in environment variables
+        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        if not azure_api_key:
+            # Add Azure OpenAI API key input field to the sidebar if not in environment
+            st.session_state["AZURE_OPENAI_API_KEY"] = st.text_input(
+                "Azure OpenAI API key:",
+                type="password",
+                help="You can find your Azure OpenAI API key on the [Azure portal](https://portal.azure.com/).",
+            )
+        else:
+            st.session_state["AZURE_OPENAI_API_KEY"] = azure_api_key
+            st.success("API key loaded from .env")
         
-        # Add Azure OpenAI endpoint input field to the sidebar
-        st.session_state["AZURE_OPENAI_ENDPOINT"] = st.text_input(
-            "Azure OpenAI endpoint:",
-            help="Example endpoint: https://YOUR_RESOURCE_NAME.openai.azure.com/",
-        )
+        # Check if Azure OpenAI endpoint is in environment variables
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        if not azure_endpoint:
+            # Add Azure OpenAI endpoint input field to the sidebar if not in environment
+            st.session_state["AZURE_OPENAI_ENDPOINT"] = st.text_input(
+                "Azure OpenAI endpoint:",
+                help="Example endpoint: https://YOUR_RESOURCE_NAME.openai.azure.com/",
+            )
+        else:
+            st.session_state["AZURE_OPENAI_ENDPOINT"] = azure_endpoint
+            st.success("Endpoint loaded from .env")
 
         # Add Azure OpenAI deployment name input field to the sidebar
-        st.session_state["azure_deployment"] = st.text_input(
-            "Deployment name:",
-        )
+        azure_deployment = os.getenv("AZURE_DEPLOYMENT")
+        if not azure_deployment:
+            st.session_state["AZURE_DEPLOYMENT"] = st.text_input(
+                "Deployment name:",
+                help="This is the name of your Azure OpenAI deployment.",
+            )
+        else:
+            st.session_state["AZURE_DEPLOYMENT"] = azure_deployment
+            st.success("Deployment name loaded from .env")
         
         # Add API version dropdown selector to the sidebar
         st.session_state["openai_api_version"] = st.selectbox("API version:", ["2023-12-01-preview", "2023-05-15"], key="api_version", help="Select OpenAI API version used by your deployment.")
 
     if model_provider == "Google AI API":
-        # Add Google API key input field to the sidebar
-        st.session_state["GOOGLE_API_KEY"] = st.text_input(
-            "Enter your Google AI API key:",
-            type="password",
-            help="You can generate a Google AI API key in the [Google AI Studio](https://makersuite.google.com/app/apikey).",
-        )
+        # Check if Google API key is in environment variables
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key:
+            # Add Google API key input field to the sidebar if not in environment
+            st.session_state["GOOGLE_API_KEY"] = st.text_input(
+                "Enter your Google AI API key:",
+                type="password",
+                help="You can generate a Google AI API key in the [Google AI Studio](https://makersuite.google.com/app/apikey).",
+            )
+        else:
+            st.session_state["GOOGLE_API_KEY"] = google_api_key
+            st.success("API key loaded from .env")
 
         # Add model selection input field to the sidebar
         st.session_state["google_model"] = st.selectbox(
@@ -96,12 +131,18 @@ with st.sidebar:
         )
 
     if model_provider == "Mistral API":
-        # Add Mistral API key input field to the sidebar
-        st.session_state["MISTRAL_API_KEY"] = st.text_input(
-            "Enter your Mistral API key:",
-            type="password",
-            help="You can generate a Mistral API key in the [Mistral console](https://console.mistral.ai/api-keys/).",
-        )
+        # Check if Mistral API key is in environment variables
+        mistral_api_key = os.getenv("MISTRAL_API_KEY")
+        if not mistral_api_key:
+            # Add Mistral API key input field to the sidebar if not in environment
+            st.session_state["MISTRAL_API_KEY"] = st.text_input(
+                "Enter your Mistral API key:",
+                type="password",
+                help="You can generate a Mistral API key in the [Mistral console](https://console.mistral.ai/api-keys/).",
+            )
+        else:
+            st.session_state["MISTRAL_API_KEY"] = mistral_api_key
+            st.success("API key loaded from .env")
 
         # Add model selection input field to the sidebar
         st.session_state["mistral_model"] = st.selectbox(
@@ -109,7 +150,6 @@ with st.sidebar:
             ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "open-mixtral-8x7b" ],
             key="selected_model",
         )
-
 
     if model_provider == "Ollama":
         # Make a request to the Ollama API to get the list of available models
