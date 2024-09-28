@@ -1,3 +1,4 @@
 .gitignore
+.env
 venv/
 .streamlit/secrets.toml
