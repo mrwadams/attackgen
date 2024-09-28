@@ -22,19 +22,31 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 - Generates unique incident response scenarios based on chosen threat actor groups.
 - Allows you to specify your organisation's size and industry for a tailored scenario.
+- Supports both Enterprise and ICS (Industrial Control Systems) MITRE ATT&CK matrices.
 - Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
 - Create custom scenarios based on a selection of ATT&CK techniques.
-- 🆕 Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents.
-- 🆕 AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
+- Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents.
+- AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- Use the OpenAI API, Azure OpenAI Service, 🆕 Google AI API, Mistral API, or locally hosted Ollama models to generate incident response scenarios.
+- Use the OpenAI API (including new 'reasoning' models), Azure OpenAI Service, Google AI API, Mistral API, or locally hosted Ollama models to generate incident response scenarios.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
+- Secure credential management using .env file for API keys and secrets.
 
 ![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
+
+### v0.6
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Support for OpenAI's new 'reasoning' models | - Enhanced Scenario Generation: AttackGen now supports OpenAI's new 'reasoning' models (o1-preview and o1-mini), enabling the generation of highly detailed and nuanced incident response scenarios. These models offer improved coherence and depth in scenario creation. |
+| MITRE ATT&CK ICS matrix support | - Expanded Scope: AttackGen now supports generating incident response testing scenarios using the MITRE ATT&CK ICS (Industrial Control Systems) matrix, in addition to the Enterprise matrix. This allows users to create scenarios tailored to industrial and critical infrastructure environments. |
+| Updated ATT&CK source data to v15.1 | - Latest Threat Intelligence: The tool now uses the most up-to-date MITRE ATT&CK data (v15.1), ensuring that generated scenarios reflect the latest known tactics, techniques, and procedures used by threat actors. |
+| Updated threat actor groups data | - Comprehensive Coverage: The groups data has been updated to include the latest groups tracked in MITRE ATT&CK, such as Scattered Spider. This ensures that users can generate scenarios based on the most current threat actor information available. |
+| Loading API keys / secrets from a .env file | - Enhanced Security: Users can now store their API keys and other sensitive information in a .env file, improving security and making it easier to manage credentials across different environments. |
+
 
 ### v0.5.2
 | What's new? | Why is it useful? |
@@ -96,9 +108,10 @@ Initial release.
 
 - Recent version of Python.
 - Python packages: pandas, streamlit, and any other packages necessary for the custom libraries (`langchain` and `mitreattack`).
-- OpenAI API key.
+- OpenAI API key (or API key for your chosen model provider).
 - LangChain API key (optional) - see [LangSmith Setup](#langsmith-setup) section below for further details.
-- Data files: `enterprise-attack.json` (MITRE ATT&CK dataset in STIX format) and `groups.json`.
+- Data files: `enterprise-attack.json` and `ics-attack.json` (MITRE ATT&CK datasets in STIX format), and `groups.json`.
+- `.env` file for storing API keys and secrets (see [Installation](#installation) section for details).
 
 ## Installation
 
