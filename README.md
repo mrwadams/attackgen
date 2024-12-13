@@ -157,7 +157,7 @@ Download the latest version of the MITRE ATT&CK dataset in STIX format from [her
 After the data setup, you can run AttackGen with the following command:
 
 ```
-streamlit run 👋_Welcome.py
+streamlit run 00_👋_Welcome.py
 ```
 
 You can also try the app on [Streamlit Community Cloud](https://attackgen.streamlit.app/).
@@ -169,7 +169,7 @@ You can also try the app on [Streamlit Community Cloud](https://attackgen.stream
 #### Option 1: Running the Streamlit App Locally
 1. Run the Streamlit app:
 ```
-streamlit run 👋_Welcome.py
+streamlit run 00_👋_Welcome.py
 ```
 2. Open your web browser and navigate to the URL provided by Streamlit.
 3. Use the app to generate standard or custom incident response scenarios (see below for details).

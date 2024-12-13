@@ -17,4 +17,4 @@ EXPOSE 8501
 HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 
 # Configure the container to run as an executable
-ENTRYPOINT ["streamlit", "run", "👋_Welcome.py", "--server.port=8501", "--server.address=0.0.0.0"]
+ENTRYPOINT ["streamlit", "run", "00_👋_Welcome.py", "--server.port=8501", "--server.address=0.0.0.0"]
