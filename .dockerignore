@@ -1,4 +1,10 @@
+# Version control
 .gitignore
+
+# Environment and virtual environments
 .env
 venv/
+
+# Development and configuration
+.devcontainer/
 .streamlit/secrets.toml
