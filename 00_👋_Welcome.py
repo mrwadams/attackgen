@@ -38,7 +38,7 @@ with st.sidebar:
     # Add model selection input field to the sidebar
     model_provider = st.selectbox(
         "Select your preferred model provider:",
-        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Ollama"],
+        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Groq API", "Ollama"],
         key="model_provider",
         help="Select the model provider you would like to use. This will determine the models available for selection.",
     )
@@ -128,6 +128,28 @@ with st.sidebar:
             "Select the model you would like to use:",
             ["gemini-1.5-pro-latest", "gemini-1.5-pro"],
             key="selected_model",
+        )
+
+    if model_provider == "Groq API":
+        # Check if Groq API key is in environment variables
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if not groq_api_key:
+            # Add Groq API key input field to the sidebar if not in environment
+            st.session_state["GROQ_API_KEY"] = st.text_input(
+                "Enter your Groq API key:",
+                type="password",
+                help="You can find your Groq API key in the [Groq Console](https://console.groq.com/keys).",
+            )
+        else:
+            st.session_state["GROQ_API_KEY"] = groq_api_key
+            st.success("API key loaded from .env")
+
+        # Add model selection input field to the sidebar
+        st.session_state["groq_model"] = st.selectbox(
+            "Select the model you would like to use:",
+            ["llama-3.3-70b-versatile", "deepseek-r1-distill-llama-70b"],
+            key="selected_model",
+            help="Llama 3.3 70B is recommended for best performance. DeepSeek R1 is a reasoning model available for testing.",
         )
 
     if model_provider == "Mistral API":
@@ -257,6 +279,15 @@ elif st.session_state.get('chosen_model_provider') == "Ollama":
             ### Getting Started
 
             1. Select your locally hosted model from the sidebar, then enter the details of the application you would like to threat model.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
+            """)
+
+elif st.session_state.get('chosen_model_provider') == "Groq API":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Enter your Groq API key, then select your preferred model, industry, and company size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)

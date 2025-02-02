@@ -1,16 +1,18 @@
 import os
 import pandas as pd
 import streamlit as st
+import re
+
 from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
-from openai import AzureOpenAI
+from openai import OpenAI
 
 # ------------------ Streamlit UI ------------------ #
 
@@ -108,6 +110,60 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             ]
             response = llm.invoke(messages, model=model)
             return response.content
+        elif model_provider == "Groq API":
+            groq_api_key = os.getenv('GROQ_API_KEY')
+            model = os.getenv('GROQ_MODEL')
+            llm = OpenAI(
+                api_key=groq_api_key,
+                base_url="https://api.groq.com/openai/v1",
+            )
+            messages = [
+                SystemMessagePromptTemplate.from_template("""
+                You are an AI assistant that helps users update and ask questions about their incident response scenario.
+                Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                """).format(),
+                HumanMessagePromptTemplate.from_template(
+                    "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+            ]
+            formatted_messages = []
+            for message in messages:
+                if hasattr(message, 'role') and hasattr(message, 'content'):
+                    role = message.role
+                    if role == 'human':
+                        role = 'user'
+                    formatted_messages.append({"role": role, "content": message.content})
+                elif hasattr(message, 'type') and hasattr(message, 'content'):
+                    role = message.type
+                    if role == 'human':
+                        role = 'user'
+                    formatted_messages.append({"role": role, "content": message.content})
+                else:
+                    raise ValueError(f"Unsupported message format: {message}")
+            
+            response = llm.chat.completions.create(
+                model=model,
+                messages=formatted_messages
+            )
+            content = response.choices[0].message.content
+            
+            # Check if this is DeepSeek output with thinking tags
+            if re.search(r'<think>(.*?)</think>', content, re.DOTALL):
+                # Extract the thinking content and the rest of the response
+                thinking_match = re.search(r'<think>(.*?)</think>', content, re.DOTALL)
+                thinking_content = thinking_match.group(1).strip()
+                response_text = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                
+                # Display thinking content in an expander
+                with st.expander("View Model's Reasoning"):
+                    st.markdown(thinking_content)
+                
+                # Clean up the response text by removing code block markers if present
+                response_text = re.sub(r'^```\w*\n|```$', '', response_text, flags=re.MULTILINE).strip()
+                return response_text
+            else:
+                # If no thinking tags, clean up and return the entire content
+                return re.sub(r'^```\w*\n|```$', '', content, flags=re.MULTILINE).strip()
         elif model_provider == "Ollama":
             model = os.getenv('OLLAMA_MODEL')
             llm = Ollama(model=model)

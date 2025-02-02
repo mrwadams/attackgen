@@ -1,17 +1,18 @@
 import os
 import pandas as pd
 import streamlit as st
+import re
 
 from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureOpenAI
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
-from openai import AzureOpenAI
+from openai import OpenAI
 
 
 # ------------------ Streamlit UI Configuration ------------------ #
@@ -54,6 +55,12 @@ if "MISTRAL_API_KEY" in st.session_state:
     os.environ["MISTRAL_API_KEY"] = st.session_state["MISTRAL_API_KEY"]
 if "mistral_model" in st.session_state:
     os.environ["MISTRAL_MODEL"] = st.session_state["mistral_model"]
+
+# Add environment variables from session state for Groq API
+if "GROQ_API_KEY" in st.session_state:
+    os.environ["GROQ_API_KEY"] = st.session_state["GROQ_API_KEY"]
+if "groq_model" in st.session_state:
+    os.environ["GROQ_MODEL"] = st.session_state["groq_model"]
 
 # Add environment variables from session state for Ollama
 if "ollama_model" in st.session_state:
@@ -344,6 +351,89 @@ def generate_scenario_mistral_wrapper(mistral_api_key, model_name, messages):
     
     return generate_scenario_mistral(mistral_api_key, model_name, messages)
 
+def generate_scenario_groq_wrapper(groq_api_key, model_name, messages):
+    if client is not None: # If LangSmith client has been initialised
+        @traceable(run_type="llm", name="Custom Scenario (Groq API)", tags=["groq", "custom_scenario"], client=client)
+        def generate_scenario_groq(groq_api_key, model_name, messages, *, run_tree: RunTree):
+            try:
+                groq_api_key = os.getenv('GROQ_API_KEY')
+                model = os.getenv('GROQ_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = OpenAI(
+                        api_key=groq_api_key,
+                        base_url="https://api.groq.com/openai/v1",
+                    )
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    
+                    # Convert message objects to the expected format
+                    formatted_messages = []
+                    for message in messages:
+                        if hasattr(message, 'role') and hasattr(message, 'content'):
+                            role = message.role
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        elif hasattr(message, 'type') and hasattr(message, 'content'):
+                            role = message.type
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        else:
+                            raise ValueError(f"Unsupported message format: {message}")
+                    
+                    response = llm.chat.completions.create(
+                        model=model,
+                        messages=formatted_messages
+                    )
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+    else: # If LangSmith client has not been initialised
+        def generate_scenario_groq(groq_api_key, model_name, messages):
+            try:
+                groq_api_key = os.getenv('GROQ_API_KEY')
+                model = os.getenv('GROQ_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    llm = OpenAI(
+                        api_key=groq_api_key,
+                        base_url="https://api.groq.com/openai/v1",
+                    )
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    
+                    # Convert message objects to the expected format
+                    formatted_messages = []
+                    for message in messages:
+                        if hasattr(message, 'role') and hasattr(message, 'content'):
+                            role = message.role
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        elif hasattr(message, 'type') and hasattr(message, 'content'):
+                            role = message.type
+                            if role == 'human':
+                                role = 'user'  # Replace 'human' with 'user'
+                            formatted_messages.append({"role": role, "content": message.content})
+                        else:
+                            raise ValueError(f"Unsupported message format: {message}")
+                    
+                    response = llm.chat.completions.create(
+                        model=model,
+                        messages=formatted_messages
+                    )
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+    
+    return generate_scenario_groq(groq_api_key, model_name, messages)
+
 def generate_scenario_ollama_wrapper(model):
     if client is not None: # If LangSmith client has been initialised
         @traceable(run_type="llm", name="Threat Group Scenario (Ollama)", tags=["ollama", "threat_group_scenario"], client=client)
@@ -598,6 +688,56 @@ try:
                     if response is not None:
                         st.session_state['custom_scenario_generated'] = True
                         custom_scenario_text = response
+                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                        st.markdown(custom_scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+
+                    else:
+                        # If a scenario has been generated previously, display it
+                        if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                            st.markdown("---")
+                            st.markdown(st.session_state['custom_scenario_text'])
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+        elif model_provider == "Groq API":
+            if st.button('Generate Scenario', key='generate_custom_scenario_groq'):
+                if not os.environ["GROQ_API_KEY"]:
+                    st.info("Please add your Groq API key to continue.")
+                if not os.environ["GROQ_MODEL"]:
+                    st.info("Please select a model to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                else:
+                    groq_api_key = st.session_state.get('GROQ_API_KEY')
+                    model_name = os.getenv('GROQ_MODEL')
+                    response = generate_scenario_groq_wrapper(groq_api_key, model_name, messages)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['custom_scenario_generated'] = True
+                        content = response.choices[0].message.content
+                        
+                        # Check if this is DeepSeek output with thinking tags
+                        if re.search(r'<think>(.*?)</think>', content, re.DOTALL):
+                            # Extract the thinking content and the rest of the scenario
+                            thinking_match = re.search(r'<think>(.*?)</think>', content, re.DOTALL)
+                            thinking_content = thinking_match.group(1).strip()
+                            custom_scenario_text = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                            
+                            # Display thinking content in an expander
+                            with st.expander("View Model's Reasoning"):
+                                st.markdown(thinking_content)
+                        else:
+                            # If no thinking tags, use the entire content as the scenario
+                            custom_scenario_text = content
+                        
+                        # Clean up the scenario text by removing code block markers if present
+                        custom_scenario_text = re.sub(r'^```\w*\n|```$', '', custom_scenario_text, flags=re.MULTILINE).strip()
+                        
                         st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
                         st.markdown(custom_scenario_text)
                         st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
