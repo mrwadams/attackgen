@@ -29,7 +29,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- Use the OpenAI API (including new 'reasoning' models), Azure OpenAI Service, Google AI API, Mistral API, or locally hosted Ollama models to generate incident response scenarios.
+- Use the OpenAI API (including new 'reasoning' models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models to generate incident response scenarios.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 - Secure credential management using .env file for API keys and secrets.
@@ -37,6 +37,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
+
+### v0.7
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Groq API Integration | - Enhanced Performance: AttackGen now supports Groq's high-performance API, providing access to models like llama-3.3-70b-versatile and deepseek-r1-distill-llama-70b. This integration offers fast inference times while maintaining high-quality scenario generation.<br><br>- Improved Model Output Display: For models like DeepSeek that provide reasoning alongside their output, AttackGen now displays this reasoning in a collapsible expander widget. This allows users to view the model's thought process when desired while keeping the main scenario output clean and focused. |
+| Updated OpenAI Model Support | - Latest Models: AttackGen now supports OpenAI's latest o3 reasoning model and the GA (general availability) version of the o1 model, replacing the previous preview version. These updates provide access to more stable and improved models for scenario generation. |
 
 ### v0.6
 | What's new? | Why is it useful? |
@@ -186,22 +192,24 @@ This command will start the container and map port 8501 (default for Streamlit a
 ### Generating Scenarios
 
 #### Standard Scenario Generation
-1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
-2. Enter your OpenAI API key, or the API key and deployment details for your model on the Azure OpenAI Service.
-3. Select your organisatin's industry and size from the dropdown menus.
-4. Navigate to the `Threat Group Scenarios` page.
-5. Select the Threat Actor Group that you want to simulate.
-6. Click on 'Generate Scenario' to create the incident response scenario.
-7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
+1. Choose whether to use the OpenAI API, Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models.
+2. Enter your API key for the chosen model provider, or the API key and deployment details for your model on the Azure OpenAI Service.
+3. Select your preferred model from the dropdown.
+4. Select your organisation's industry and size from the dropdown menus.
+5. Navigate to the `Threat Group Scenarios` page.
+6. Select the Threat Actor Group that you want to simulate.
+7. Click on 'Generate Scenario' to create the incident response scenario.
+8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 #### Custom Scenario Generation
-1. Choose whether to use the OpenAI API or the Azure OpenAI Service.
-2. Enter your OpenAI API Key, or the API key and deployment details for your model on the Azure OpenAI Service.
-3. Select your organisation's industry and size from the dropdown menus.
-4. Navigate to the `Custom Scenario` page.
-5. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
-6. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
-7. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
+1. Choose whether to use the OpenAI API, Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models.
+2. Enter your API key for the chosen model provider, or the API key and deployment details for your model on the Azure OpenAI Service.
+3. Select your preferred model from the dropdown.
+4. Select your organisation's industry and size from the dropdown menus.
+5. Navigate to the `Custom Scenario` page.
+6. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
+7. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
+8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
 
