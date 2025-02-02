@@ -102,7 +102,7 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                     st.write("Initialising AI model.")
                     
                     # Check if the model is o1-preview or o1-mini
-                    if model_name in ["o1-preview", "o1-mini"]:
+                    if model_name in ["o3-mini", "o1", "o1-mini"]:
                         llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
                         # Remove the 'system' message and combine it with the first 'human' message
                         human_messages = [msg for msg in messages if msg.type == 'human']
@@ -130,7 +130,7 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                     st.write("Initialising AI model.")
                     
                     # Check if the model is o1-preview or o1-mini
-                    if model_name in ["o1-preview", "o1-mini"]:
+                    if model_name in ["o3-mini,","o1", "o1-mini"]:
                         llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
                         # Remove the 'system' message and combine it with the first 'human' message
                         human_messages = [msg for msg in messages if msg.type == 'human']

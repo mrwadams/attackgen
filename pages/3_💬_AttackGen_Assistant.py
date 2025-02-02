@@ -123,7 +123,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             openai_api_key = st.session_state.get('openai_api_key')
             model_name = st.session_state.get('model_name')
             
-            if model_name in ["o1-preview", "o1-mini"]:
+            if model_name in ["o3-mini","o1", "o1-mini"]:
                 llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, temperature=1)
                 system_content = """
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
