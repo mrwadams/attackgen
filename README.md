@@ -29,7 +29,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- Use the OpenAI API (including new 'reasoning' models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models to generate incident response scenarios.
+- Use the OpenAI API (including new 'reasoning' models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, locally hosted Ollama models, or custom OpenAI-compatible API endpoints to generate incident response scenarios.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 - Secure credential management using .env file for API keys and secrets.
@@ -37,6 +37,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
+
+### v0.8
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Custom OpenAI-Compatible API Endpoints | - Increased Flexibility: AttackGen now supports custom OpenAI-compatible API endpoints like Anyscale, Together AI, or any self-hosted compatible API. This feature allows users to leverage a wider range of models and services beyond the officially supported providers.<br><br>- Self-Hosting Support: Organizations with their own deployments of OpenAI-compatible models can now connect AttackGen directly to these endpoints.<br><br>- Control Over Model Selection: Users can specify the base URL, model name, and API key for any compatible service, providing greater control over which models and endpoints are used for scenario generation. |
+| Updated Model Selection | - Access to Latest Models: The OpenAI model selection now includes GPT-4.5-preview, offering early access to cutting-edge capabilities.<br><br>- Expanded Gemini Support: Added support for the latest Gemini 2.5 Pro Preview, 2.0 Flash, and 2.0 Flash Lite models. |
 
 ### v0.7
 | What's new? | Why is it useful? |
@@ -53,6 +59,8 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Updated threat actor groups data | - Comprehensive Coverage: The groups data has been updated to include the latest groups tracked in MITRE ATT&CK, such as Scattered Spider. This ensures that users can generate scenarios based on the most current threat actor information available. |
 | Loading API keys / secrets from a .env file | - Enhanced Security: Users can now store their API keys and other sensitive information in a .env file, improving security and making it easier to manage credentials across different environments. |
 
+<details>
+  <summary>Click to view release notes for earlier versions.</summary>
 
 ### v0.5.2
 | What's new? | Why is it useful? |
@@ -71,9 +79,6 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | AttackGen Assistant | - Iterative Scenario Refinement: The new chat interface allows users to interact with their generated incident response scenarios, making it easy to update and ask questions about the scenario without having to regenerate it from scratch. This feature enables an iterative approach to scenario development, where users can refine and improve their scenarios based on the AI assistant's responses.<br><br>- Contextual Assistance: The AI assistant responds to user queries based on the context of the generated scenario and the conversation history. This ensures that the assistant's responses are relevant and helpful in refining the scenario. |
 | Quick Start Templates for Custom Scenarios | - Quick Scenario Generation: Users can now quickly generate custom incident response scenarios based on predefined templates for common types of cyber incidents, such as phishing attacks, ransomware attacks, malware infections, and insider threats. This feature makes it easier to create realistic scenarios without having to select individual ATT&CK techniques.<br><br>- Streamlined Workflow: The template selection is integrated seamlessly into the custom scenario generation process. Users can choose a template, which automatically populates the relevant ATT&CK techniques, and then further customize the scenario if needed. |
 | Google AI API Integration  | - Expanded Model Options: AttackGen now supports the use of Google's Gemini models for generating incident response scenarios. This integration expands the range of high-quality models available to users, allowing them to leverage Google's AI capabilities for creating realistic and diverse scenarios. |
-
-<details>
-  <summary>Click to view release notes for earlier versions.</summary>
 
 ### v0.4
 
