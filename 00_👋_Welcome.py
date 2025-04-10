@@ -61,7 +61,7 @@ with st.sidebar:
 
         st.session_state["custom_base_url"] = st.text_input(
             "Enter the base URL:",
-            help="Enter the base URL for your custom provider (e.g., http://localhost:1234). For some servers like LM Studio, you might need to include /v1 (e.g., http://localhost:1234/v1). Must be OpenAI API compatible.",
+            help="Enter the base URL for your custom provider (e.g., http://localhost:1234/v1). Must be OpenAI API compatible.",
         )
 
     if model_provider == "OpenAI API":

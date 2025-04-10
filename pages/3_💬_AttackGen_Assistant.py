@@ -175,7 +175,54 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             llm_result = llm.generate(prompts=[prompt])
             response = llm_result.generations[0][0].text
             return response
-        else:
+        elif model_provider == "Custom":
+            # Fetch custom provider details from session state
+            custom_api_key = st.session_state.get('custom_api_key')
+            custom_model_name = st.session_state.get('custom_model_name')
+            custom_base_url = st.session_state.get('custom_base_url')
+
+            if not custom_base_url:
+                return "Error: Custom Base URL not set in sidebar."
+            if not custom_model_name:
+                return "Error: Custom Model Name not set in sidebar."
+
+            # Conditionally prepare client arguments
+            client_args = {
+                "base_url": custom_base_url,
+            }
+            if custom_api_key:
+                client_args["api_key"] = custom_api_key
+
+            try:
+                llm = OpenAI(**client_args)
+
+                # Prepare messages in OpenAI format
+                messages_for_api = [
+                    {
+                        "role": "system",
+                        "content": "You are an AI assistant that helps users update and ask questions about their incident response scenario. Only respond to questions or requests relating to the scenario, or incident response testing in general."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                    }
+                ]
+
+                response = llm.chat.completions.create(
+                    model=custom_model_name,
+                    messages=messages_for_api,
+                    temperature=0.7, # Match previous curl example
+                    # max_tokens=-1, # Consider if needed, OpenAI default is usually fine
+                    stream=False
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                # import traceback
+                st.error(f"Error communicating with Custom API: {e}")
+                # st.text(traceback.format_exc())
+                return "Error: Failed to get response from Custom API."
+
+        else: # Default to OpenAI API
             openai_api_key = st.session_state.get('openai_api_key')
             model_name = st.session_state.get('model_name')
             
