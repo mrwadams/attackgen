@@ -38,13 +38,31 @@ with st.sidebar:
     # Add model selection input field to the sidebar
     model_provider = st.selectbox(
         "Select your preferred model provider:",
-        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Groq API", "Ollama"],
+        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Groq API", "Ollama", "Custom"],
         key="model_provider",
         help="Select the model provider you would like to use. This will determine the models available for selection.",
     )
 
     # Save the selected model provider to the session state
     st.session_state["chosen_model_provider"] = model_provider
+
+    if model_provider == "Custom":
+        # Add input fields for custom API configuration
+        st.session_state["custom_api_key"] = st.text_input(
+            "Enter your API key:",
+            type="password",
+            help="Enter the API key for your custom model provider.",
+        )
+
+        st.session_state["custom_model_name"] = st.text_input(
+            "Enter the model name:",
+            help="Enter the model name for your custom model provider.",
+        )
+
+        st.session_state["custom_base_url"] = st.text_input(
+            "Enter the base URL:",
+            help="Enter the base URL for your custom provider (e.g., http://localhost:1234). For some servers like LM Studio, you might need to include /v1 (e.g., http://localhost:1234/v1). Must be OpenAI API compatible.",
+        )
 
     if model_provider == "OpenAI API":
         # Check if OpenAI API key is in environment variables
@@ -290,6 +308,16 @@ elif st.session_state.get('chosen_model_provider') == "Groq API":
             1. Enter your Groq API key, then select your preferred model, industry, and company size from the sidebar. 
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
+            """)
+    
+elif st.session_state.get('chosen_model_provider') == "Custom":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Enter your custom model provider's API key (if required), base URL, and model name.
+            2. Select your industry and company size from the sidebar. 
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
 else:

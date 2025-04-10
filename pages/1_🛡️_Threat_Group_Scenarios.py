@@ -66,6 +66,14 @@ if "groq_model" in st.session_state:
 if "ollama_model" in st.session_state:
     os.environ["OLLAMA_MODEL"] = st.session_state["ollama_model"]
 
+# Add environment variables from session state for OpenAI API
+if "OPENAI_API_KEY" in st.session_state:
+    os.environ["OPENAI_API_KEY"] = st.session_state["OPENAI_API_KEY"]
+if "openai_model" in st.session_state:
+    os.environ["OPENAI_MODEL"] = st.session_state["openai_model"]
+if "openai_base_url" in st.session_state:
+    os.environ["OPENAI_BASE_URL"] = st.session_state["openai_base_url"]
+
 # Get the model provider and other required session state variables
 model_provider = st.session_state["chosen_model_provider"]
 industry = st.session_state["industry"]
@@ -434,6 +442,119 @@ def generate_scenario_groq_wrapper(groq_api_key, model_name, messages):
     
     return generate_scenario_groq(groq_api_key, model_name, messages)
 
+# Modify the OpenAI client to use a custom base URL if provided
+def generate_scenario_openai_wrapper(messages):
+    base_url = st.session_state.get('custom_base_url')
+    openai_api_key = st.session_state.get('custom_api_key')
+    model = st.session_state.get('custom_model_name')
+
+    if not base_url:
+        st.error("Custom base URL must be set for the custom model provider.")
+        return None
+    if not model:
+        st.error("Custom model name must be set for the custom model provider.")
+        return None
+    # API key might be optional for some local endpoints, so no explicit check here
+
+    # Convert LangChain message objects to the expected dictionary format
+    formatted_messages = []
+    for message in messages:
+        if hasattr(message, 'role') and hasattr(message, 'content'):
+            role = message.role
+            if role == 'human':
+                role = 'user'  # Replace 'human' with 'user'
+            formatted_messages.append({"role": role, "content": message.content})
+        elif hasattr(message, 'type') and hasattr(message, 'content'):
+            role = message.type
+            if role == 'human':
+                role = 'user'  # Replace 'human' with 'user'
+            formatted_messages.append({"role": role, "content": message.content})
+        else:
+            # Attempt to handle SystemMessagePromptTemplate and HumanMessagePromptTemplate if needed
+            if hasattr(message, 'prompt') and hasattr(message.prompt, 'template'):
+                 # This case might need more specific handling depending on how templates are used
+                 # For now, we'll skip templates assuming 'messages' are already formatted instances
+                 st.warning(f"Skipping message template of type {type(message)}")
+                 continue
+            else:
+                 st.error(f"Unsupported message format: {type(message)} - {message}")
+                 return None # Stop processing if message format is wrong
+
+    if not formatted_messages:
+        st.error("No valid messages found to send to the model.")
+        return None
+
+    if client is not None:  # If LangChain client has been initialized
+        @traceable(run_type="llm", name="Threat Group Scenario (Custom)", tags=["custom", "threat_group_scenario"], client=client)
+        def generate_scenario_custom(formatted_messages_arg, *, run_tree: RunTree):
+            try:
+                # Re-fetch variables inside traceable function scope if necessary, though session_state should be accessible
+                custom_api_key = st.session_state.get('custom_api_key')
+                custom_model = st.session_state.get('custom_model_name')
+                custom_base_url = st.session_state.get('custom_base_url')
+
+                with st.status('Generating scenario with custom model...', expanded=True):
+                    st.write("Initialising custom AI model.")
+
+                    # Conditionally prepare client arguments
+                    client_args = {
+                        "base_url": custom_base_url,
+                    }
+                    if custom_api_key: # Only add api_key if it's not empty
+                        client_args["api_key"] = custom_api_key
+
+                    llm = OpenAI(**client_args)
+
+                    response = llm.chat.completions.create(
+                        model=custom_model,
+                        messages=formatted_messages_arg, # Use the formatted messages
+                        temperature=0.7,
+                        max_tokens=-1,
+                        stream=False
+                    )
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+        return generate_scenario_custom(formatted_messages)
+
+    else:  # If LangChain client has not been initialized
+        def generate_scenario_custom_no_trace(formatted_messages_arg):
+            try:
+                # Fetch variables directly from session state
+                current_api_key = st.session_state.get('custom_api_key')
+                current_model = st.session_state.get('custom_model_name')
+                current_base_url = st.session_state.get('custom_base_url')
+
+                with st.status('Generating scenario with custom model...', expanded=True):
+                    st.write("Initialising custom AI model.")
+
+                    # Conditionally prepare client arguments
+                    client_args = {
+                        "base_url": current_base_url,
+                    }
+                    if current_api_key: # Only add api_key if it's not empty
+                        client_args["api_key"] = current_api_key
+
+                    llm = OpenAI(**client_args)
+
+                    response = llm.chat.completions.create(
+                        model=current_model,
+                        messages=formatted_messages_arg,
+                        temperature=0.7,
+                        max_tokens=-1,
+                        stream=False
+                    )
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+        return generate_scenario_custom_no_trace(formatted_messages)
+
 # ------------------ Streamlit UI ------------------ #
 
 st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
@@ -799,40 +920,61 @@ try:
                         st.markdown(st.session_state['scenario_text'])
                         st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
-    else: 
-        if st.button('Generate Scenario', key='generate_scenario'):
-            openai_api_key = st.session_state.get('openai_api_key')
-            model_name = st.session_state.get('model_name')
-            if not openai_api_key:
-                st.info("Please add your OpenAI API key to continue.")
-            if not model_name:
-                st.info("Please select a model to continue.")
+    elif model_provider == "Custom":
+        if st.button('Generate Scenario', key='generate_scenario_custom'):
+            # Check for required custom settings
+            if not st.session_state.get('custom_base_url'):
+                st.info("Please set the Custom Base URL in the sidebar.")
+            elif not st.session_state.get('custom_model_name'):
+                st.info("Please set the Custom Model Name in the sidebar.")
             elif not industry:
-                st.info("Please select your company's industry to continue.")
+                st.info("Please select your company\'s industry to continue.")
             elif not company_size:
-                st.info("Please select your company's size to continue.")
+                st.info("Please select your company\'s size to continue.")
             elif techniques_df.empty:
                 st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
             else:
-                response = generate_scenario_wrapper(openai_api_key, model_name, messages)
+                # Call the wrapper function (it now reads custom settings from session_state)
+                response = generate_scenario_openai_wrapper(messages)
                 st.markdown("---")
                 if response is not None:
-                    st.session_state['scenario_generated'] = True
-                    scenario_text = response.generations[0][0].text
-                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                    st.markdown(scenario_text)
-                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                    try:
+                        # Add more robust checking for the response structure
+                        if hasattr(response, 'choices') and response.choices:
+                            first_choice = response.choices[0]
+                            if hasattr(first_choice, 'message') and first_choice.message:
+                                if hasattr(first_choice.message, 'content') and first_choice.message.content:
+                                    st.session_state['scenario_generated'] = True
+                                    scenario_text = first_choice.message.content
+                                    st.session_state['scenario_text'] = scenario_text
+                                    st.markdown(scenario_text)
+                                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
-                    st.session_state['last_scenario'] = True
-                    st.session_state['last_scenario_text'] = scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+                                    st.session_state['last_scenario'] = True
+                                    st.session_state['last_scenario_text'] = scenario_text
+                                else:
+                                    st.error("Error processing response: 'content' attribute missing from message.")
+                                    st.json(response.model_dump_json(indent=2)) # Display raw response
+                            else:
+                                st.error("Error processing response: 'message' attribute missing from the first choice.")
+                                st.json(response.model_dump_json(indent=2)) # Display raw response
+                        else:
+                            st.error("Error processing response: 'choices' list is missing or empty.")
+                            st.json(response.model_dump_json(indent=2)) # Display raw response
+                    except Exception as processing_error:
+                        st.error(f"An error occurred while processing the scenario response: {processing_error}")
+                        st.text("Raw response object:")
+                        st.json(response.model_dump_json(indent=2)) # Display raw response on processing error
 
                 else:
-                    # If a scenario has been generated previously, display it
+                    # Response was None, likely due to an error during generation (already logged by the wrapper)
+                    st.warning("Scenario generation failed. Check the error message above.")
+                    # Optionally display previous scenario if needed
                     if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
-                        st.markdown("---")
+                        st.markdown("Displaying previously generated scenario:")
                         st.markdown(st.session_state['scenario_text'])
                         st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
-    
+
     # Display an info message if no API key is set
     if 'LANGCHAIN_API_KEY' not in st.secrets:
         st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")                
