@@ -42,7 +42,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
 | Custom OpenAI-Compatible API Endpoints | - Increased Flexibility: AttackGen now supports custom OpenAI-compatible API endpoints like Anyscale, Together AI, or any self-hosted compatible API. This feature allows users to leverage a wider range of models and services beyond the officially supported providers.<br><br>- Self-Hosting Support: Organizations with their own deployments of OpenAI-compatible models can now connect AttackGen directly to these endpoints.<br><br>- Control Over Model Selection: Users can specify the base URL, model name, and API key for any compatible service, providing greater control over which models and endpoints are used for scenario generation. |
-| Updated Model Selection | - Access to Latest Models: The OpenAI model selection now includes GPT-4.5-preview, offering early access to cutting-edge capabilities.<br><br>- Expanded Gemini Support: Added support for the latest Gemini 2.5 Pro Preview, 2.0 Flash, and 2.0 Flash Lite models. |
+| Updated Model Selection | - Access to Latest Models: The OpenAI model selection now includes the new GPT-4.1 series models (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano), offering improved performance in coding, instruction following, and long context tasks.<br><br>- Expanded Gemini Support: Added support for the latest Gemini 2.5 Pro Preview, 2.0 Flash, and 2.0 Flash Lite models. |
 
 ### v0.7
 | What's new? | Why is it useful? |

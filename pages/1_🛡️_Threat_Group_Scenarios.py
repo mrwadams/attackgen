@@ -446,12 +446,12 @@ def generate_scenario_groq_wrapper(groq_api_key, model_name, messages):
 def generate_scenario_openai_wrapper(messages):
     base_url = st.session_state.get('custom_base_url')
     openai_api_key = st.session_state.get('custom_api_key')
-    model = st.session_state.get('custom_model_name')
+    model_name = st.session_state.get('model_name') or os.environ.get('OPENAI_MODEL')
 
     if not base_url:
         st.error("Custom base URL must be set for the custom model provider.")
         return None
-    if not model:
+    if not model_name:
         st.error("Custom model name must be set for the custom model provider.")
         return None
     # API key might be optional for some local endpoints, so no explicit check here
@@ -490,7 +490,7 @@ def generate_scenario_openai_wrapper(messages):
             try:
                 # Re-fetch variables inside traceable function scope if necessary, though session_state should be accessible
                 custom_api_key = st.session_state.get('custom_api_key')
-                custom_model = st.session_state.get('custom_model_name')
+                custom_model = st.session_state.get('model_name') or os.environ.get('OPENAI_MODEL')
                 custom_base_url = st.session_state.get('custom_base_url')
 
                 with st.status('Generating scenario with custom model...', expanded=True):
@@ -526,7 +526,7 @@ def generate_scenario_openai_wrapper(messages):
             try:
                 # Fetch variables directly from session state
                 current_api_key = st.session_state.get('custom_api_key')
-                current_model = st.session_state.get('custom_model_name')
+                current_model = st.session_state.get('model_name') or os.environ.get('OPENAI_MODEL')
                 current_base_url = st.session_state.get('custom_base_url')
 
                 with st.status('Generating scenario with custom model...', expanded=True):
@@ -920,12 +920,50 @@ try:
                         st.markdown(st.session_state['scenario_text'])
                         st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
+    elif model_provider == "OpenAI API":
+        if st.button('Generate Scenario', key='generate_scenario_openai'):
+            openai_api_key = st.session_state.get('openai_api_key') or os.environ.get('OPENAI_API_KEY')
+            model_name = st.session_state.get('model_name') or os.environ.get('OPENAI_MODEL')
+            if not openai_api_key:
+                st.info("Please add your OpenAI API key to continue.")
+            elif not model_name:
+                st.info("Please select a model to continue.")
+            elif not industry:
+                st.info("Please select your company's industry to continue.")
+            elif not company_size:
+                st.info("Please select your company's size to continue.")
+            elif techniques_df.empty:
+                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+            else:
+                response = generate_scenario_wrapper(openai_api_key, model_name, messages)
+                st.markdown("---")
+                if response is not None:
+                    try:
+                        # LangChain returns generations[0][0].text for ChatOpenAI
+                        scenario_text = response.generations[0][0].text if hasattr(response, 'generations') else str(response)
+                        st.session_state['scenario_generated'] = True
+                        st.session_state['scenario_text'] = scenario_text
+                        st.markdown(scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = scenario_text
+                    except Exception as processing_error:
+                        st.error(f"An error occurred while processing the scenario response: {processing_error}")
+                        st.text("Raw response object:")
+                        st.json(str(response))
+                else:
+                    st.warning("Scenario generation failed. Check the error message above.")
+                    if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
+                        st.markdown("Displaying previously generated scenario:")
+                        st.markdown(st.session_state['scenario_text'])
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+
     elif model_provider == "Custom":
         if st.button('Generate Scenario', key='generate_scenario_custom'):
             # Check for required custom settings
             if not st.session_state.get('custom_base_url'):
                 st.info("Please set the Custom Base URL in the sidebar.")
-            elif not st.session_state.get('custom_model_name'):
+            elif not st.session_state.get('model_name'):
                 st.info("Please set the Custom Model Name in the sidebar.")
             elif not industry:
                 st.info("Please select your company\'s industry to continue.")
