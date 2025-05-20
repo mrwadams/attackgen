@@ -1,5 +1,6 @@
 # Virtual Environment
 venv/
+.venv/
 
 # Configuration and Secrets
 .streamlit/secrets.toml

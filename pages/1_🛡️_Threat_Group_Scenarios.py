@@ -3,9 +3,7 @@ import pandas as pd
 import streamlit as st
 import re
 
-from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
-from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI, AzureOpenAI
@@ -21,11 +19,6 @@ from openai import OpenAI
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-
-# Initialise the LangSmith client if an API key is available
-api_key = os.getenv('LANGSMITH_API_KEY') # TODO: Test if this is required since LANGCHAIN_API_KEY is set below
-
-client = Client(api_key=api_key) if api_key else None
 
 # Initialise the LangSmith client conditionally based on the presence of an API key
 if "LANGCHAIN_API_KEY" in st.secrets:
@@ -145,7 +138,7 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                     st.write("Initialising AI model.")
                     
                     # Check if the model is o1-preview or o1-mini
-                    if model_name in ["o3-mini,","o1", "o1-mini"]:
+                    if model_name in ["o3-mini", "o1", "o1-mini"]:
                         llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
                         # Remove the 'system' message and combine it with the first 'human' message
                         human_messages = [msg for msg in messages if msg.type == 'human']

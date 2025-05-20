@@ -3,9 +3,7 @@ import pandas as pd
 import streamlit as st
 import re
 
-from langchain.callbacks.manager import collect_runs
 from langchain_community.llms import Ollama
-from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI, AzureOpenAI
@@ -21,11 +19,6 @@ from openai import OpenAI
 os.environ["LANGCHAIN_TRACING_V2"]="true"
 os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-
-# Initialise the LangSmith client if an API key is available
-api_key = os.getenv('LANGSMITH_API_KEY')    
-
-client = Client(api_key=api_key) if api_key else None
 
 # Initialise the LangChain client conditionally based on the presence of the secret
 if "LANGCHAIN_API_KEY" in st.secrets:
