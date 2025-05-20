@@ -650,9 +650,14 @@ try:
 
             # Group by 'Phase Name' and randomly select one technique from each group
             # Filter the groups to include only those that have at least one row in the LLM DataFrame
-            selected_techniques_df = (techniques_df_llm.groupby('Phase Name', observed=False)
-                                        .apply(lambda x: x.sample(n=1) if len(x) > 0 else None)
-                                        .reset_index(drop=True))
+            selected_techniques_df = (
+                techniques_df_llm.groupby('Phase Name', observed=False)  # Use default group_keys behavior
+                .apply(
+                    lambda x: x.sample(n=1) if not x.empty else pd.DataFrame(columns=x.columns),
+                    include_groups=False  # This ensures x in lambda doesn't have grouping columns
+                )
+                .reset_index()  # This will bring 'Phase Name' from the index into a column
+            )
 
             # Sort the DataFrame by the 'Phase Name' column
             techniques_df = techniques_df.sort_values('Phase Name')
