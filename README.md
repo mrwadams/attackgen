@@ -38,6 +38,13 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.9
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Expanded Model Support | - Latest OpenAI Reasoning Models: AttackGen now supports OpenAI's newest reasoning models including o4-mini (the latest reasoning model), o3/o3-mini, and o1-pro (enhanced reasoning capabilities). These models excel at complex scenario generation requiring deep logical thinking.<br><br>- GPT-4.1 Series: Added support for the GPT-4.1 series models (gpt-4.1, gpt-4.1-mini, and gpt-4.1-nano), offering the latest improvements in general AI capabilities with lighter alternatives for cost-sensitive use cases.<br><br>- Updated Google AI Models: Refreshed the Google AI model selection to include the latest Gemini 2.5 preview models (gemini-2.5-flash-preview-05-20 and gemini-2.5-pro-preview-05-06) alongside Gemini 2.0 models, providing access to the most recent improvements in Google's AI technology.<br><br>- Improved Model Organization: Reorganized model selection dropdowns to prioritize newer models and updated descriptions to clearly distinguish between different model types and capabilities. |
+| Enhanced Technique Selection Logic | - More Robust Group Handling: Fixed an issue where empty threat actor groups could cause errors during technique selection. The tool now properly handles empty groups by returning an empty DataFrame, ensuring stable operation even with limited threat actor data.<br><br>- Phase Name Preservation: Improved the technique selection process to properly include 'Phase Name' in the output, maintaining the kill chain phase information throughout the scenario generation process. This ensures generated scenarios maintain proper context about which phase of an attack each technique belongs to. |
+| Development Environment Improvements | - Enhanced .gitignore: Added support for `.venv` virtual environment directories in addition to `venv`, accommodating different developer preferences and Python environment management tools.<br><br>- Code Cleanup: Removed unused imports across scenario generation scripts, improving code maintainability and reducing potential confusion. |
+
 ### v0.8
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
@@ -50,6 +57,9 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Groq API Integration | - Enhanced Performance: AttackGen now supports Groq's high-performance API, providing access to models like llama-3.3-70b-versatile and deepseek-r1-distill-llama-70b. This integration offers fast inference times while maintaining high-quality scenario generation.<br><br>- Improved Model Output Display: For models like DeepSeek that provide reasoning alongside their output, AttackGen now displays this reasoning in a collapsible expander widget. This allows users to view the model's thought process when desired while keeping the main scenario output clean and focused. |
 | Updated OpenAI Model Support | - Latest Models: AttackGen now supports OpenAI's latest o3 reasoning model and the GA (general availability) version of the o1 model, replacing the previous preview version. These updates provide access to more stable and improved models for scenario generation. |
 
+<details>
+  <summary>Click to view release notes for earlier versions.</summary>
+
 ### v0.6
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
@@ -58,9 +68,6 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Updated ATT&CK source data to v15.1 | - Latest Threat Intelligence: The tool now uses the most up-to-date MITRE ATT&CK data (v15.1), ensuring that generated scenarios reflect the latest known tactics, techniques, and procedures used by threat actors. |
 | Updated threat actor groups data | - Comprehensive Coverage: The groups data has been updated to include the latest groups tracked in MITRE ATT&CK, such as Scattered Spider. This ensures that users can generate scenarios based on the most current threat actor information available. |
 | Loading API keys / secrets from a .env file | - Enhanced Security: Users can now store their API keys and other sensitive information in a .env file, improving security and making it easier to manage credentials across different environments. |
-
-<details>
-  <summary>Click to view release notes for earlier versions.</summary>
 
 ### v0.5.2
 | What's new? | Why is it useful? |

@@ -81,9 +81,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o3-mini", "o1", "o1-mini"],
+            ["o4-mini", "o3", "o3-mini", "o1", "o1-pro", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o"],
             key="selected_model",
-            help="GPT-4.1 is OpenAI's latest and most capable model, with gpt-4.1-mini and gpt-4.1-nano offering lighter alternatives. GPT-4o and o-series models are also available for specific use cases.",
+            help="O-series models are OpenAI's reasoning models, with o4-mini being the latest. GPT-4.1 is OpenAI's most capable general model, with lighter alternatives available. o1-pro offers enhanced reasoning capabilities.",
         )
         st.session_state["model_name"] = model_name
 
@@ -144,7 +144,7 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         st.session_state["google_model"] = st.selectbox(
             "Select the model you would like to use:",
-            ["gemini-2.5-pro-preview-03-25", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+            ["gemini-2.5-flash-preview-05-20", "gemini-2.5-pro-preview-05-06", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
             key="selected_model",
         )
 
