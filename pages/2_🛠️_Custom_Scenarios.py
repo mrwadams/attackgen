@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import re
 
+from langchain_anthropic import ChatAnthropic
 from langchain_community.llms import Ollama
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
@@ -66,6 +67,12 @@ if "custom_model_name" in st.session_state:
     os.environ["CUSTOM_MODEL_NAME"] = st.session_state["custom_model_name"]
 if "custom_base_url" in st.session_state:
     os.environ["CUSTOM_BASE_URL"] = st.session_state["custom_base_url"]
+
+# Add environment variables from session state for Anthropic API
+if "ANTHROPIC_API_KEY" in st.session_state:
+    os.environ["ANTHROPIC_API_KEY"] = st.session_state["ANTHROPIC_API_KEY"]
+if "anthropic_model" in st.session_state:
+    os.environ["ANTHROPIC_MODEL"] = st.session_state["anthropic_model"]
 
 # Get the model provider and other required session state variables
 model_provider = st.session_state["chosen_model_provider"]
@@ -473,6 +480,57 @@ def generate_scenario_ollama_wrapper(model):
 
     return generate_scenario_ollama(model)
 
+def generate_scenario_anthropic_wrapper(anthropic_api_key, model_name, messages):
+    if client is not None:  # If LangSmith client has been initialised
+        @traceable(run_type="llm", name="Custom Scenario (Anthropic)", tags=["anthropic", "custom_scenario"], client=client)
+        def generate_scenario_anthropic(anthropic_api_key, model_name, messages, *, run_tree: RunTree):
+            try:
+                anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+                model = os.getenv('ANTHROPIC_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    # Set max_tokens based on the model
+                    max_tokens = 8192  # Default for Haiku
+                    if "opus-4" in model:
+                        max_tokens = 32000
+                    elif "sonnet-4" in model or "3-7-sonnet" in model:
+                        max_tokens = 64000
+                    
+                    llm = ChatAnthropic(anthropic_api_key=anthropic_api_key, model_name=model, temperature=0.7, max_tokens=max_tokens)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages)
+                    st.write("Scenario generated successfully.")
+                    st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                st.session_state['run_id'] = str(run_tree.id)  # Ensure run_id is updated even on failure
+                return None
+    else:  # If LangSmith client has not been initialised
+        def generate_scenario_anthropic(anthropic_api_key, model_name, messages):
+            try:
+                anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+                model = os.getenv('ANTHROPIC_MODEL')
+                with st.status('Generating scenario...', expanded=True):
+                    st.write("Initialising AI model.")
+                    # Set max_tokens based on the model
+                    max_tokens = 8192  # Default for Haiku
+                    if "opus-4" in model:
+                        max_tokens = 32000
+                    elif "sonnet-4" in model or "3-7-sonnet" in model:
+                        max_tokens = 64000
+                    
+                    llm = ChatAnthropic(anthropic_api_key=anthropic_api_key, model_name=model, temperature=0.7, max_tokens=max_tokens)
+                    st.write("Model initialised. Generating scenario, please wait.")
+                    response = llm.invoke(messages)
+                    st.write("Scenario generated successfully.")
+                    return response
+            except Exception as e:
+                st.error(f"An error occurred while generating the scenario: {str(e)}")
+                return None
+    
+    return generate_scenario_anthropic(anthropic_api_key, model_name, messages)
+
 # Wrapper for Custom OpenAI-compatible endpoints
 def generate_custom_scenario_openai_wrapper(messages):
     base_url = st.session_state.get('custom_base_url')
@@ -809,6 +867,40 @@ try:
                     if response is not None:
                         st.session_state['custom_scenario_generated'] = True
                         custom_scenario_text = response
+                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
+                        st.markdown(custom_scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+
+                    else:
+                        # If a scenario has been generated previously, display it
+                        if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:
+                            st.markdown("---")
+                            st.markdown(st.session_state['custom_scenario_text'])
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+
+        elif model_provider == "Anthropic API":
+            if st.button('Generate Scenario', key='generate_custom_scenario_anthropic'):
+                if not os.environ["ANTHROPIC_API_KEY"]:
+                    st.info("Please add your Anthropic API key to continue.")
+                if not os.environ["ANTHROPIC_MODEL"]:
+                    st.info("Please select a model to continue.")
+                elif not industry:
+                    st.info("Please select your company's industry to continue.")
+                elif not company_size:
+                    st.info("Please select your company's size to continue.")
+                elif not selected_techniques:
+                    st.info("Please select at least one ATT&CK technique.")
+                else:
+                    anthropic_api_key = st.session_state.get('anthropic_api_key')
+                    model_name = os.getenv('ANTHROPIC_MODEL')
+                    response = generate_scenario_anthropic_wrapper(anthropic_api_key, model_name, messages)
+                    st.markdown("---")
+                    if response is not None:
+                        st.session_state['custom_scenario_generated'] = True
+                        custom_scenario_text = response.content
                         st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
                         st.markdown(custom_scenario_text)
                         st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")

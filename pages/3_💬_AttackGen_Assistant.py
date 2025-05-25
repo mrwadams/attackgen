@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import re
 
+from langchain_anthropic import ChatAnthropic
 from langchain_community.llms import Ollama
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
@@ -170,6 +171,28 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             llm_result = llm.generate(prompts=[prompt])
             response = llm_result.generations[0][0].text
             return response
+        elif model_provider == "Anthropic API":
+            anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+            model = os.getenv('ANTHROPIC_MODEL')
+            # Set max_tokens based on the model
+            max_tokens = 8192  # Default for Haiku
+            if "opus-4" in model:
+                max_tokens = 32000
+            elif "sonnet-4" in model or "3-7-sonnet" in model:
+                max_tokens = 64000
+            
+            llm = ChatAnthropic(anthropic_api_key=anthropic_api_key, model_name=model, temperature=0.7, max_tokens=max_tokens)
+            messages = [
+                SystemMessagePromptTemplate.from_template("""
+                You are an AI assistant that helps users update and ask questions about their incident response scenario.
+                Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                """).format(),
+                HumanMessagePromptTemplate.from_template(
+                    "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+            ]
+            response = llm.invoke(messages)
+            return response.content
         elif model_provider == "Custom":
             # Fetch custom provider details from session state
             custom_api_key = st.session_state.get('custom_api_key')

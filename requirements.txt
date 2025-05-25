@@ -1,4 +1,6 @@
+anthropic
 langchain
+langchain-anthropic
 langchain-core
 langchain-community
 langchain-google-genai

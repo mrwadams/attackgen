@@ -38,7 +38,7 @@ with st.sidebar:
     # Add model selection input field to the sidebar
     model_provider = st.selectbox(
         "Select your preferred model provider:",
-        ["OpenAI API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Groq API", "Ollama", "Custom"],
+        ["OpenAI API", "Anthropic API", "Azure OpenAI Service", "Google AI API", "Mistral API", "Groq API", "Ollama", "Custom"],
         key="model_provider",
         help="Select the model provider you would like to use. This will determine the models available for selection.",
     )
@@ -86,6 +86,29 @@ with st.sidebar:
             help="O-series models are OpenAI's reasoning models, with o4-mini being the latest. GPT-4.1 is OpenAI's most capable general model, with lighter alternatives available. o1-pro offers enhanced reasoning capabilities.",
         )
         st.session_state["model_name"] = model_name
+
+    if model_provider == "Anthropic API":
+        # Check if Anthropic API key is in environment variables
+        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not anthropic_api_key:
+            # Add Anthropic API key input field to the sidebar if not in environment
+            st.session_state["anthropic_api_key"] = st.text_input(
+                "Enter your Anthropic API key:",
+                type="password",
+                help="You can find your Anthropic API key on the [Anthropic console](https://console.anthropic.com/account/keys).",
+            )
+        else:
+            st.session_state["anthropic_api_key"] = anthropic_api_key
+            st.success("API key loaded from .env")
+
+        # Add model selection input field to the sidebar
+        model_name = st.selectbox(
+            "Select the model you would like to use:",
+            ["claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-latest", "claude-3-5-haiku-latest"],
+            key="selected_model",
+            help="Claude Opus 4 is Anthropic's most capable model for complex tasks. Claude Sonnet 4 offers a balance of performance and cost. Claude 3.7 Sonnet and Claude 3.5 Haiku are optimized for specific use cases.",
+        )
+        st.session_state["anthropic_model"] = model_name
 
     if model_provider == "Azure OpenAI Service":
         # Check if Azure OpenAI API key is in environment variables
@@ -272,6 +295,15 @@ if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
             2. Select your industry and company size from the sidebar. 
             3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
+            """)
+    
+elif st.session_state.get('chosen_model_provider') == "Anthropic API":
+    st.markdown("""          
+            ### Getting Started
+
+            1. Enter your Anthropic API key, then select your preferred Claude model, industry, and company size from the sidebar. 
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
 elif st.session_state.get('chosen_model_provider') == "Google AI API":
