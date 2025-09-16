@@ -116,20 +116,11 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
                     
-                    # Check if the model is o1-preview or o1-mini
-                    if model_name in ["o3-mini", "o1", "o1-mini"]:
-                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
-                        # Remove the 'system' message and combine it with the first 'human' message
-                        human_messages = [msg for msg in messages if msg.type == 'human']
-                        if human_messages:
-                            system_content = next((msg.content for msg in messages if msg.type == 'system'), '')
-                            human_messages[0].content = f"{system_content}\n\n{human_messages[0].content}"
-                        messages = human_messages
-                    else:
-                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    # All models use the unified Responses API
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, output_version="responses/v1")
                     
                     st.write("Model initialised. Generating scenario, please wait.")
-                    response = llm.generate(messages=[messages])
+                    response = llm.invoke(messages)
                     st.write("Scenario generated successfully.")
                     st.session_state['run_id'] = str(run_tree.id)  # Store the run ID in the session state
                     return response
@@ -144,20 +135,11 @@ def generate_scenario_wrapper(openai_api_key, model_name, messages):
                 with st.status('Generating scenario...', expanded=True):
                     st.write("Initialising AI model.")
                     
-                    # Check if the model is o1-preview or o1-mini
-                    if model_name in ["o3-mini", "o1", "o1-mini"]:
-                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, temperature=1.0)
-                        # Remove the 'system' message and combine it with the first 'human' message
-                        human_messages = [msg for msg in messages if msg.type == 'human']
-                        if human_messages:
-                            system_content = next((msg.content for msg in messages if msg.type == 'system'), '')
-                            human_messages[0].content = f"{system_content}\n\n{human_messages[0].content}"
-                        messages = human_messages
-                    else:
-                        llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False)
+                    # All models use the unified Responses API
+                    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, streaming=False, output_version="responses/v1")
                     
                     st.write("Model initialised. Generating scenario, please wait.")
-                    response = llm.generate(messages=[messages])
+                    response = llm.invoke(messages)
                     st.write("Scenario generated successfully.")
                     return response
             except Exception as e:
@@ -746,7 +728,7 @@ try:
         kill_chain_string = "\n".join(kill_chain)
 
         # Create System Message Template
-        system_template = "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided."
+        system_template = "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided. Format your response using proper Markdown syntax with headers, bullet points, and formatting for readability."
         system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
 
         # Create Human Message Template
@@ -1029,8 +1011,14 @@ try:
                 st.markdown("---")
                 if response is not None:
                     try:
-                        # LangChain returns generations[0][0].text for ChatOpenAI
-                        scenario_text = response.generations[0][0].text if hasattr(response, 'generations') else str(response)
+                        # Extract text content from Responses API structured response
+                        if isinstance(response.content, list):
+                            # Find text blocks in the structured response
+                            text_blocks = [block.get('text', '') for block in response.content if block.get('type') == 'text']
+                            scenario_text = '\n'.join(text_blocks)
+                        else:
+                            scenario_text = response.content
+                        
                         st.session_state['scenario_generated'] = True
                         st.session_state['scenario_text'] = scenario_text
                         st.markdown(scenario_text)

@@ -29,7 +29,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- Use the OpenAI API (including new 'reasoning' models), Anthropic API (Claude models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, locally hosted Ollama models, or custom OpenAI-compatible API endpoints to generate incident response scenarios.
+- Use the OpenAI API, Anthropic API (Claude models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, locally hosted Ollama models, or custom OpenAI-compatible API endpoints to generate incident response scenarios.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 - Secure credential management using .env file for API keys and secrets.
@@ -37,6 +37,13 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
+
+### v0.10
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| OpenAI Responses API Integration | - Next-Generation API: AttackGen now uses OpenAI's latest Responses API for all supported models, providing a unified and enhanced interface. |
+| Latest Frontier Model Support | - GPT-5 Integration: Added support for OpenAI's latest GPT-5 model series including gpt-5, gpt-5-mini, and gpt-5-nano, providing access to the most advanced AI capabilities for scenario generation. |
+| Bug Fixes and Improvements | - Fixed Streamlit Deprecation Warning: Replaced deprecated `use_container_width` parameter with the new `width` parameter to ensure compatibility with future Streamlit versions.<br><br>- Enhanced Documentation: Updated CLAUDE.md with comprehensive guidance for future development work and added detailed architecture information. |
 
 ### v0.9
 | What's new? | Why is it useful? |

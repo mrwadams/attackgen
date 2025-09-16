@@ -56,7 +56,7 @@ docker run -p 8501:8501 attackgen
 
 ### LLM Provider Support
 The application supports multiple model providers through a unified interface:
-- OpenAI API (including o-series reasoning models, GPT-4.1 series)
+- OpenAI API (using new Responses API)
 - Anthropic API (Claude models)
 - Azure OpenAI Service
 - Google AI API (Gemini models)
@@ -64,6 +64,13 @@ The application supports multiple model providers through a unified interface:
 - Groq API  
 - Ollama (local models)
 - Custom OpenAI-compatible endpoints
+
+### OpenAI Responses API Integration
+AttackGen now uses OpenAI's latest Responses API for all supported models, providing:
+- Unified interface across all OpenAI models (GPT-5, GPT-4.1, GPT-4o, o-series)
+- Improved response formatting with proper markdown rendering
+- Simplified code architecture without model-specific handling
+- Enhanced structured output parsing from the API
 
 ### Scenario Generation Flow
 1. User selects model provider and configures API credentials
