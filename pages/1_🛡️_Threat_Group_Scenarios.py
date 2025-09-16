@@ -727,7 +727,7 @@ try:
             # Create an expander for the techniques
             with st.expander("Associated ATT&CK Techniques"):
                 # Use the st.table function to display the DataFrame
-                st.dataframe(data=techniques_df, height=200, use_container_width=True, hide_index=True)
+                st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
         # Create an empty list to hold the kill chain information
         kill_chain = []
