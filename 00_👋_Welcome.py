@@ -81,9 +81,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["o4-mini", "o3", "o3-mini", "o1", "o1-pro", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o"],
+            ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "o3-pro", "o3", "o3-mini", "o4-mini"],
             key="selected_model",
-            help="O-series models are OpenAI's reasoning models, with o4-mini being the latest. GPT-4.1 is OpenAI's most capable general model, with lighter alternatives available. o1-pro offers enhanced reasoning capabilities.",
+            help="GPT-5 is the best model for coding and agentic tasks. GPT-5-mini and GPT-5-nano are faster, cost-efficient versions. GPT-4.1 is the smartest non-reasoning model. O-series models (o3-pro, o3, o3-mini, o4-mini) are reasoning models for complex problem-solving. All models use the advanced Responses API with built-in tools.",
         )
         st.session_state["model_name"] = model_name
 
@@ -104,9 +104,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-latest", "claude-3-5-haiku-latest"],
+            ["claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-opus-4-1-20250805", "claude-opus-4-20250514", "claude-3-5-haiku-latest"],
             key="selected_model",
-            help="Claude Opus 4 is Anthropic's most capable model for complex tasks. Claude Sonnet 4 offers a balance of performance and cost. Claude 3.7 Sonnet and Claude 3.5 Haiku are optimized for specific use cases.",
+            help="Claude Sonnet 4.5 is Anthropic's latest and most capable model. Claude Sonnet 4 offers excellent performance and cost balance. Claude Opus 4.1 and 4 are optimized for the most complex tasks. Claude 3.7 Sonnet and 3.5 Haiku are efficient options for specific use cases.",
         )
         st.session_state["anthropic_model"] = model_name
 

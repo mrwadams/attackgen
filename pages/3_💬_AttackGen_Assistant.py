@@ -52,6 +52,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 SystemMessagePromptTemplate.from_template("""
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
                 Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability.
                 """).format(),
                 HumanMessagePromptTemplate.from_template(
                     "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
@@ -84,6 +85,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 SystemMessagePromptTemplate.from_template("""
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
                 Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability.
                 """).format(),
                 HumanMessagePromptTemplate.from_template(
                     "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
@@ -99,6 +101,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 SystemMessagePromptTemplate.from_template("""
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
                 Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability.
                 """).format(),
                 HumanMessagePromptTemplate.from_template(
                     "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
@@ -117,6 +120,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 SystemMessagePromptTemplate.from_template("""
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
                 Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability.
                 """).format(),
                 HumanMessagePromptTemplate.from_template(
                     "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
@@ -168,8 +172,14 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             Only respond to questions or requests relating to the scenario, or incident response testing in general.\n\n
             Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
             """)
-            llm_result = llm.generate(prompts=[prompt])
-            response = llm_result.generations[0][0].text
+            llm_result = llm.invoke(prompt)
+            # Extract text content from Responses API structured response
+            if isinstance(llm_result.content, list):
+                # Find text blocks in the structured response
+                text_blocks = [block.get('text', '') for block in llm_result.content if block.get('type') == 'text']
+                response = '\n'.join(text_blocks)
+            else:
+                response = llm_result.content
             return response
         elif model_provider == "Anthropic API":
             anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -186,6 +196,7 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 SystemMessagePromptTemplate.from_template("""
                 You are an AI assistant that helps users update and ask questions about their incident response scenario.
                 Only respond to questions or requests relating to the scenario, or incident response testing in general.
+                Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability.
                 """).format(),
                 HumanMessagePromptTemplate.from_template(
                     "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
@@ -244,29 +255,26 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
             openai_api_key = st.session_state.get('openai_api_key')
             model_name = st.session_state.get('model_name')
             
-            if model_name in ["o3-mini","o1", "o1-mini"]:
-                llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, temperature=1)
-                system_content = """
-                You are an AI assistant that helps users update and ask questions about their incident response scenario.
-                Only respond to questions or requests relating to the scenario, or incident response testing in general.
-                """
-                messages = [
-                    HumanMessagePromptTemplate.from_template(
-                        f"{system_content}\n\nHere is the scenario that the user previously generated:\n\n{{input_scenario}}\n\nChat history:\n{{chat_history}}\n\nUser: {{user_input}}"
-                    ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
-                ]
-            else:
-                llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name)
-                messages = [
-                    SystemMessagePromptTemplate.from_template(
-                        "You are an AI assistant that helps users update and ask questions about their incident response scenario."
-                    ).format(),
-                    HumanMessagePromptTemplate.from_template(
-                        "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
-                    ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
-                ]
+            # All models use the unified Responses API
+            llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, output_version="responses/v1")
             
-            response = llm.generate(messages=[messages]).generations[0][0].text
+            messages = [
+                SystemMessagePromptTemplate.from_template(
+                    "You are an AI assistant that helps users update and ask questions about their incident response scenario. Format your responses using proper Markdown syntax with headers, bullet points, and formatting for readability."
+                ).format(),
+                HumanMessagePromptTemplate.from_template(
+                    "Here is the scenario that the user previously generated:\n\n{input_scenario}\n\nChat history:\n{chat_history}\n\nUser: {user_input}"
+                ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
+            ]
+            
+            llm_result = llm.invoke(messages)
+            # Extract text content from Responses API structured response
+            if isinstance(llm_result.content, list):
+                # Find text blocks in the structured response
+                text_blocks = [block.get('text', '') for block in llm_result.content if block.get('type') == 'text']
+                response = '\n'.join(text_blocks)
+            else:
+                response = llm_result.content
             return response
 
     if prompt := st.chat_input("Type your message here..."):
