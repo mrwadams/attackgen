@@ -104,9 +104,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-latest", "claude-3-5-haiku-latest"],
+            ["claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-opus-4-1-20250805", "claude-opus-4-20250514", "claude-3-5-haiku-latest"],
             key="selected_model",
-            help="Claude Opus 4 is Anthropic's most capable model for complex tasks. Claude Sonnet 4 offers a balance of performance and cost. Claude 3.7 Sonnet and Claude 3.5 Haiku are optimized for specific use cases.",
+            help="Claude Sonnet 4.5 is Anthropic's latest and most capable model. Claude Sonnet 4 offers excellent performance and cost balance. Claude Opus 4.1 and 4 are optimized for the most complex tasks. Claude 3.7 Sonnet and 3.5 Haiku are efficient options for specific use cases.",
         )
         st.session_state["anthropic_model"] = model_name
 

@@ -42,7 +42,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
 | OpenAI Responses API Integration | - Next-Generation API: AttackGen now uses OpenAI's latest Responses API for all supported models, providing a unified and enhanced interface. |
-| Latest Frontier Model Support | - GPT-5 Integration: Added support for OpenAI's latest GPT-5 model series including gpt-5, gpt-5-mini, and gpt-5-nano, providing access to the most advanced AI capabilities for scenario generation. |
+| Latest Frontier Model Support | - GPT-5 Integration: Added support for OpenAI's latest GPT-5 model series including gpt-5, gpt-5-mini, and gpt-5-nano, providing access to the most advanced AI capabilities for scenario generation.<br><br>- Claude Sonnet 4.5: Added support for Anthropic's latest Claude Sonnet 4.5 (claude-sonnet-4-5-20250929) model, along with updated Claude model versions including Claude Opus 4.1 (claude-opus-4-1-20250805). |
 | Bug Fixes and Improvements | - Fixed Streamlit Deprecation Warning: Replaced deprecated `use_container_width` parameter with the new `width` parameter to ensure compatibility with future Streamlit versions.<br><br>- Enhanced Documentation: Updated CLAUDE.md with comprehensive guidance for future development work and added detailed architecture information. |
 
 ### v0.9
