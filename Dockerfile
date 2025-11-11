@@ -1,20 +1,37 @@
-# Specify the base image
-FROM python:3.12-slim
+# Use specific version with SHA256 for reproducibility and security
+FROM python:3.12-slim@sha256:d86b4c74b936c438cd4cc3a9f7256b9a7c27ad68c7caf8c205e18d9845af0164
 
-# Set the working directory in the container
+# Create non-root user for security
+RUN groupadd -r attackgen && \
+    useradd -r -g attackgen -u 1000 -m -d /home/attackgen attackgen
+
+# Set working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Copy and install dependencies as root (better layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip check
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Set up Streamlit cache directory with proper permissions
+RUN mkdir -p /home/attackgen/.streamlit && \
+    chown -R attackgen:attackgen /home/attackgen
 
-# Make port 8501 available to the world outside this container
+# Copy application files with proper ownership
+COPY --chown=attackgen:attackgen . .
+
+# Switch to non-root user
+USER attackgen
+
+# Expose port
 EXPOSE 8501
 
-# Test if the container is listening on port 8501
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+# Health check using Python urllib instead of curl
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=2)" || exit 1
 
-# Configure the container to run as an executable
-ENTRYPOINT ["streamlit", "run", "00_👋_Welcome.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run application with security enhancements
+ENTRYPOINT ["streamlit", "run", "00_👋_Welcome.py", \
+            "--server.port=8501", \
+            "--server.address=0.0.0.0", \
+            "--server.enableXsrfProtection=true"]
