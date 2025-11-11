@@ -39,6 +39,14 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.10.1
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| LangChain v1.0 Compatibility | - Fixed Breaking Import Changes: Updated all imports from deprecated `langchain.prompts.chat` to `langchain_core.prompts`, ensuring compatibility with LangChain v1.0 and preventing `ModuleNotFoundError` issues. This maintains stability as the LangChain ecosystem evolves. |
+| Comprehensive Security Infrastructure | - Automated Security Scanning: Introduced GitHub Actions workflows for continuous security monitoring using Bandit (Python code analysis), CodeQL (vulnerability detection), pip-audit (dependency scanning), Safety (known vulnerabilities), Gitleaks (secrets detection), and Trivy (Docker image scanning).<br><br>- Security Best Practices Documentation: Added comprehensive SECURITY.md covering supported versions, vulnerability reporting, API key management, data privacy considerations, and deployment security guidance.<br><br>- Enhanced README Security Section: Expanded security guidance with clear do's and don'ts for API key protection, data privacy considerations, and responsible deployment practices. |
+| Docker Improvements | - Enhanced Security: Updated Dockerfile to run as non-root user, improving container security posture.<br><br>- Docker Compose Support: Added docker-compose.yml for streamlined multi-service deployment and easier local development setup.<br><br>- Better Build Optimization: Enhanced .dockerignore to reduce image size and prevent sensitive files from being included in container images.<br><br>- Comprehensive Configuration Template: Updated .env.example with all supported API keys (OpenAI, Anthropic, Azure, Google, Mistral, Groq) for easier initial setup. |
+| Bug Fixes | - Ollama API Timeout: Added timeout configuration to Ollama API requests to prevent hanging connections.<br><br>- Safety CLI Updates: Updated from deprecated `safety check` command to new `safety scan` command, ensuring continued security scanning functionality.<br><br>- Bandit Configuration: Corrected Bandit security scanning configuration for more accurate Python code analysis. |
+
 ### v0.10
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
