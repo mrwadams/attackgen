@@ -34,7 +34,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install bandit[toml] safety pip-audit
+          pip install bandit[toml] pip-audit
 
       - name: Run Bandit security linter
         run: |
@@ -48,10 +48,10 @@ jobs:
           pip-audit --desc
         continue-on-error: true
 
-      - name: Run Safety scan
-        run: |
-          safety scan --output json > safety-report.json || true
-          safety scan
+      - name: Run Safety Action to check for vulnerabilities
+        uses: pyupio/safety-action@v1
+        with:
+          api-key: ${{ secrets.SAFETY_API_KEY }}
         continue-on-error: true
 
       - name: Upload security reports
@@ -62,7 +62,6 @@ jobs:
           path: |
             bandit-report.json
             pip-audit-report.json
-            safety-report.json
           retention-days: 30
 
   secret-scanning:
