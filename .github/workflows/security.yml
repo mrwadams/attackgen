@@ -48,10 +48,10 @@ jobs:
           pip-audit --desc
         continue-on-error: true
 
-      - name: Run Safety check
+      - name: Run Safety scan
         run: |
-          safety check --json > safety-report.json || true
-          safety check
+          safety scan --output json > safety-report.json || true
+          safety scan
         continue-on-error: true
 
       - name: Upload security reports
