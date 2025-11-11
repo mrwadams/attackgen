@@ -1,0 +1,28 @@
+# Gitleaks configuration for AttackGen
+title = "AttackGen Gitleaks Configuration"
+
+[extend]
+# Use the default gitleaks configuration as a base
+useDefault = true
+
+[allowlist]
+description = "Allowlist for AttackGen project"
+
+# Ignore specific paths that may contain example API keys or test data
+paths = [
+    '''\.streamlit/secrets\.toml\.example''',
+    '''README\.md''',
+    '''CLAUDE\.md''',
+]
+
+# Ignore commits before a certain date if migrating existing repo
+# stopwords = []
+
+# Regex patterns to allowlist (use sparingly)
+regexes = [
+    # Example: Allow placeholder API keys in documentation
+    '''(OPENAI_API_KEY|ANTHROPIC_API_KEY).*=.*"sk-[a-zA-Z0-9-]+".*# Example''',
+]
+
+# Specific commits to ignore (if needed)
+# commits = []

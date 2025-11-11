@@ -11,6 +11,7 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 - [Data Setup](#data-setup)
 - [Running AttackGen](#running-attackgen)
 - [Usage](#usage)
+- [Security Best Practices](#security-best-practices)
 - [Contributing](#contributing)
 - [Licence](#licence)
 
@@ -231,6 +232,67 @@ This command will start the container and map port 8501 (default for Streamlit a
 8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
+
+## Security Best Practices
+
+AttackGen is designed for local, single-user deployment. When using the tool:
+
+### Protecting Your API Keys
+
+**Your API keys are sensitive credentials that can incur charges on your account.**
+
+✅ **DO:**
+- Enter API keys through the UI (they stay in your browser session)
+- Use .env file for convenience on your personal machine
+- Set spending limits in your LLM provider dashboard
+- Regularly review your API usage and costs
+- Clear session when using on shared computers
+
+❌ **DON'T:**
+- Commit .env files to version control (already in .gitignore)
+- Share screenshots with API keys visible
+- Run AttackGen on untrusted/compromised systems
+- Share your API keys with others
+- Ignore unexpected API charges
+
+### Data Privacy Considerations
+
+When you generate scenarios, AttackGen sends data to your chosen LLM provider:
+- Organization details (industry, company size)
+- Selected ATT&CK techniques
+- Custom input text
+- Generated scenarios (via AttackGen Assistant)
+
+**What this means:**
+- OpenAI, Anthropic, etc. may log this data per their privacy policies
+- Consider using generic/fictional organization details for demonstrations
+- Review your LLM provider's data retention and privacy policies
+- For sensitive use cases, consider providers with stricter privacy guarantees
+
+### For Team/Organization Deployments
+
+If deploying AttackGen for multiple users (not the default use case):
+- Add authentication/authorization (not included by default)
+- Use a secrets management service for API keys
+- Deploy behind VPN or internal network
+- Review this threat model document for additional considerations
+- Consider data residency and compliance requirements
+
+### Dependency Security
+
+We maintain dependencies and monitor for vulnerabilities:
+- Dependencies are updated regularly
+- Security advisories are tracked in GitHub Issues
+- Run `pip list --outdated` to check for updates
+- Consider using `pip-audit` for vulnerability scanning
+
+### Reporting Security Issues
+
+Found a security issue? Please report it responsibly:
+- Create a security advisory via GitHub's [private vulnerability reporting](https://github.com/mrwadams/attackgen/security/advisories/new)
+- Don't post security issues publicly
+- We'll acknowledge within 48 hours
+- Fixes will be prioritized and released quickly
 
 ## Contributing
 
