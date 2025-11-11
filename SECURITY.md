@@ -77,7 +77,7 @@ When deploying AttackGen:
 1. **Dependency Management**
    - Regularly update dependencies to patch security vulnerabilities
    - Review `requirements.txt` for outdated or vulnerable packages
-   - Use tools like `pip-audit` or `safety` to scan dependencies
+   - Automated scanning with `pip-audit` and `safety` runs on every commit (see Automated Security Scanning section)
 
 2. **Input Validation**
    - The application validates inputs, but always review user-provided data
@@ -86,6 +86,70 @@ When deploying AttackGen:
 3. **Code Reviews**
    - Review pull requests for security implications
    - Pay special attention to changes in authentication, API key handling, or data processing
+
+## Automated Security Scanning
+
+AttackGen uses comprehensive automated security scanning in our CI/CD pipeline to identify and address vulnerabilities proactively.
+
+### Security Scanning Tools
+
+Our security workflow runs automatically on every push and pull request, using:
+
+1. **Python Code Analysis**
+   - **Bandit**: Identifies common security issues in Python code (SQL injection, hardcoded credentials, etc.)
+   - **CodeQL**: GitHub's advanced semantic analysis for security vulnerabilities
+
+2. **Dependency Scanning**
+   - **pip-audit**: Scans Python dependencies against the OSV vulnerability database
+   - **Safety**: Checks dependencies using PyUp's comprehensive vulnerability database
+   - **Dependabot**: Automated dependency updates and security alerts
+
+3. **Secret Detection**
+   - **Gitleaks**: Scans git history for accidentally committed secrets, API keys, and credentials
+
+4. **Container Security**
+   - **Trivy**: Scans Docker images for vulnerabilities in OS packages and dependencies
+
+5. **Dependency Review**
+   - Automated review of dependency changes in pull requests
+   - Blocks dependencies with moderate or higher severity vulnerabilities
+   - Prevents introduction of incompatible licenses (GPL-3.0, AGPL-3.0)
+
+### Viewing Security Results
+
+Security scan results are available in multiple locations:
+
+- **GitHub Security Tab**: View all code scanning alerts, secret scanning alerts, and Dependabot alerts
+- **Pull Request Checks**: Security scans run on every PR with results visible in the checks
+- **Actions Tab**: Detailed workflow logs and security reports
+- **Workflow Artifacts**: Downloadable JSON reports (Bandit, pip-audit) for deeper analysis
+
+### Continuous Monitoring
+
+- **Scheduled Scans**: Security workflow runs weekly (Mondays at 9 AM UTC) to catch newly disclosed vulnerabilities
+- **Push-based Scans**: Automatic scanning on every push to `main` and `develop` branches
+- **Pull Request Scanning**: All PRs are scanned before merge
+
+### Addressing Security Findings
+
+When security issues are identified:
+
+1. **Critical/High Severity**: Addressed immediately with patches
+2. **Medium Severity**: Evaluated and fixed in the next release
+3. **Low Severity**: Reviewed and addressed based on impact and exploitability
+4. **False Positives**: Documented and suppressed with justification
+
+Developers can run security scans locally:
+```bash
+# Install security tools
+pip install bandit pip-audit
+
+# Run Bandit
+bandit -r . -f txt
+
+# Run pip-audit
+pip-audit --desc
+```
 
 ## Responsible Use Policy
 
