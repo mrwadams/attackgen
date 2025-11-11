@@ -1,0 +1,53 @@
+services:
+  attackgen:
+    build: .
+    ports:
+      - "8501:8501"
+    
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    
+    # Writable temporary filesystems for Streamlit
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /home/attackgen/.streamlit:noexec,nosuid,size=50m
+      - /home/attackgen/.cache:noexec,nosuid,size=100m
+    
+    # Read-only data mount (MITRE ATT&CK data)
+    volumes:
+      - ./data:/app/data:ro
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Environment variables (override with .env file)
+    environment:
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
+    env_file:
+      - .env
+    
+    # Run as non-root (matches Dockerfile user)
+    user: "1000:1000"
+    
+    # Health check using Python (matches Dockerfile)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    # Restart policy for production
+    restart: unless-stopped

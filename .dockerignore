@@ -1,10 +1,72 @@
 # Version control
+.git
 .gitignore
+.gitattributes
 
-# Environment and virtual environments
+# Environment variables (never include secrets!)
 .env
+.env.*
+
+# Virtual environments
 venv/
+env/
+ENV/
+.venv
 
 # Development and configuration
 .devcontainer/
 .streamlit/secrets.toml
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Documentation (uncomment if you don't need docs in container)
+# *.md
+# docs/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose*.yml
+
+# Logs
+*.log
+
+# Node modules (if any frontend tooling exists)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
