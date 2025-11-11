@@ -8,7 +8,7 @@ from langchain_community.llms import Ollama
 from langchain_google_genai import ChatGoogleGenerativeAI 
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI, AzureOpenAI
-from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
 from openai import OpenAI
