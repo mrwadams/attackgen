@@ -1,22 +1,11 @@
 [bandit]
 # Bandit configuration file for AttackGen
-exclude_dirs = [
-    '/tests',
-    '/.venv',
-    '/venv',
-    '/.git',
-]
+exclude_dirs = /tests,/.venv,/venv,/.git
 
 # Skip certain test IDs if they generate false positives
 # B101: assert_used - Common in tests
 # B601: paramiko_calls - May be used intentionally for security scenarios
-skips = []
+skips =
 
-# Configure plugins
-[bandit.plugins]
-
-# Set severity and confidence levels
-# Options: LOW, MEDIUM, HIGH
-[bandit.formatters]
-severity_levels = HIGH,MEDIUM,LOW
-confidence_levels = HIGH,MEDIUM,LOW
+# Exclude specific paths (glob patterns)
+exclude = /tests/**,/.venv/**,/venv/**
