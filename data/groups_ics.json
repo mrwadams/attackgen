@@ -8,12 +8,40 @@
         "url": "https://attack.mitre.org/groups/G0064/"
     },
     {
+        "group": "APT34",
+        "url": "https://attack.mitre.org/groups/G0057/"
+    },
+    {
+        "group": "APT38",
+        "url": "https://attack.mitre.org/groups/G0082/"
+    },
+    {
         "group": "CyberAv3ngers",
         "url": "https://attack.mitre.org/groups/G1027/"
     },
     {
         "group": "Dragonfly",
         "url": "https://attack.mitre.org/groups/G0035/"
+    },
+    {
+        "group": "Dragonfly 2.0",
+        "url": "https://attack.mitre.org/groups/G0074/"
+    },
+    {
+        "group": "FIN6",
+        "url": "https://attack.mitre.org/groups/G0037/"
+    },
+    {
+        "group": "FIN7",
+        "url": "https://attack.mitre.org/groups/G0046/"
+    },
+    {
+        "group": "GOLD SOUTHFIELD",
+        "url": "https://attack.mitre.org/groups/G0115/"
+    },
+    {
+        "group": "HEXANE",
+        "url": "https://attack.mitre.org/groups/G1001/"
     },
     {
         "group": "Lazarus Group",
@@ -24,7 +52,15 @@
         "url": "https://attack.mitre.org/groups/G0049/"
     },
     {
+        "group": "Sandworm Team",
+        "url": "https://attack.mitre.org/groups/G0034/"
+    },
+    {
         "group": "TEMP.Veles",
         "url": "https://attack.mitre.org/groups/G0088/"
+    },
+    {
+        "group": "Wizard Spider",
+        "url": "https://attack.mitre.org/groups/G0102/"
     }
 ]

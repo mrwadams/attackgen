@@ -92,6 +92,10 @@ if 'last_scenario_text' in st.session_state and st.session_state['last_scenario'
                 ).format(input_scenario=input_scenario, chat_history=chat_history, user_input=user_input)
             ]
             response = llm.invoke(messages)
+            # Handle structured content format from newer Gemini models
+            if isinstance(response.content, list):
+                text_blocks = [block.get('text', '') for block in response.content if block.get('type') == 'text']
+                return '\n'.join(text_blocks)
             return response.content
         elif model_provider == "Mistral API":
             mistral_api_key = os.getenv('MISTRAL_API_KEY')

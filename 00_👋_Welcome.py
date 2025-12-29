@@ -81,9 +81,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "o3-pro", "o3", "o3-mini", "o4-mini"],
+            ["gpt-5.2", "gpt-5-mini", "gpt-5-nano", "gpt-5.2-pro", "gpt-5", "gpt-4.1"],
             key="selected_model",
-            help="GPT-5 is the best model for coding and agentic tasks. GPT-5-mini and GPT-5-nano are faster, cost-efficient versions. GPT-4.1 is the smartest non-reasoning model. O-series models (o3-pro, o3, o3-mini, o4-mini) are reasoning models for complex problem-solving. All models use the advanced Responses API with built-in tools.",
+            help="GPT-5.2 is the best model for coding and agentic tasks. GPT-5.2 pro produces smarter, more precise responses. GPT-5-mini and nano are faster, cost-efficient versions. GPT-4.1 is the smartest non-reasoning model with 1M token context.",
         )
         st.session_state["model_name"] = model_name
 
@@ -104,9 +104,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         model_name = st.selectbox(
             "Select the model you would like to use:",
-            ["claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-opus-4-1-20250805", "claude-opus-4-20250514", "claude-3-5-haiku-latest"],
+            ["claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001", "claude-opus-4-5-20251101"],
             key="selected_model",
-            help="Claude Sonnet 4.5 is Anthropic's latest and most capable model. Claude Sonnet 4 offers excellent performance and cost balance. Claude Opus 4.1 and 4 are optimized for the most complex tasks. Claude 3.7 Sonnet and 3.5 Haiku are efficient options for specific use cases.",
+            help="Claude Sonnet 4.5 is the best balance of performance and cost. Claude Haiku 4.5 is the fastest option. Claude Opus 4.5 is the most capable model for complex tasks.",
         )
         st.session_state["anthropic_model"] = model_name
 
@@ -167,8 +167,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         st.session_state["google_model"] = st.selectbox(
             "Select the model you would like to use:",
-            ["gemini-2.5-flash-preview-05-20", "gemini-2.5-pro-preview-05-06", "gemini-2.0-flash", "gemini-2.0-flash-lite"],
+            ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
             key="selected_model",
+            help="Gemini 3 Pro is the most capable model. Gemini 3 Flash offers a good balance. Gemini 2.5 Flash and Flash Lite are faster, cost-efficient options.",
         )
 
     if model_provider == "Groq API":
@@ -188,9 +189,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         st.session_state["groq_model"] = st.selectbox(
             "Select the model you would like to use:",
-            ["llama-3.3-70b-versatile", "deepseek-r1-distill-llama-70b"],
+            ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
             key="selected_model",
-            help="Llama 3.3 70B is recommended for best performance. DeepSeek R1 is a reasoning model available for testing.",
+            help="GPT-OSS 120B is the most capable model. GPT-OSS 20B is a smaller, faster option. Llama 3.3 70B offers strong performance. Llama 3.1 8B is the fastest option.",
         )
 
     if model_provider == "Mistral API":
@@ -210,8 +211,9 @@ with st.sidebar:
         # Add model selection input field to the sidebar
         st.session_state["mistral_model"] = st.selectbox(
             "Select the model you would like to use:",
-            ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "open-mixtral-8x7b" ],
+            ["mistral-large-2512", "mistral-medium-2508", "mistral-small-2506", "ministral-14b-2512"],
             key="selected_model",
+            help="Mistral Large is the most capable model. Mistral Medium and Small offer good performance at lower cost. Ministral 14B is a compact, efficient option.",
         )
 
     if model_provider == "Ollama":
@@ -237,9 +239,10 @@ with st.sidebar:
     st.markdown("""---""")
 
     matrix = st.sidebar.radio(
-        "Select MITRE ATT&CK Matrix:",
-        ["Enterprise", "ICS"],
-        key="selected_matrix"
+        "Select MITRE Framework:",
+        ["Enterprise", "ICS", "ATLAS"],
+        key="selected_matrix",
+        help="Enterprise and ICS are ATT&CK matrices for traditional IT and industrial control systems. ATLAS focuses on adversarial threats to AI/ML systems."
     )
     st.session_state["matrix"] = matrix
 
@@ -276,15 +279,15 @@ with st.sidebar:
 # ------------------ Main App UI ------------------ #
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen 👾</span>", unsafe_allow_html=True)
-st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
+st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK, ATLAS and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
 st.markdown("---")
 
-st.markdown("""          
+st.markdown("""
             ### Welcome to AttackGen!
-            
-            The MITRE ATT&CK framework is a powerful tool for understanding the tactics, techniques, and procedures (TTPs) used by threat actors; however, it can be difficult to translate this information into realistic scenarios for testing.
 
-            AttackGen solves this problem by using large language models to quickly generate attack scenarios based on a selection of a threat actor group's known techniques.
+            The MITRE ATT&CK and ATLAS frameworks are powerful tools for understanding the tactics, techniques, and procedures (TTPs) used by threat actors targeting traditional IT/OT systems and AI/ML systems respectively; however, it can be difficult to translate this information into realistic scenarios for testing.
+
+            AttackGen solves this problem by using large language models to quickly generate attack scenarios based on threat actor groups, documented case studies, or custom technique selections.
             """)
 
 if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
@@ -292,17 +295,17 @@ if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
             ### Getting Started
 
             1. Enter the details of your Azure OpenAI Service model deployment, including the API key, endpoint, deployment name, and API version. 
-            2. Select your industry and company size from the sidebar. 
-            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            2. Select your industry, company size, and MITRE framework (ATT&CK Enterprise, ICS, or ATLAS) from the sidebar.
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
-    
+
 elif st.session_state.get('chosen_model_provider') == "Anthropic API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Anthropic API key, then select your preferred Claude model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Anthropic API key, then select your preferred Claude model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -310,8 +313,8 @@ elif st.session_state.get('chosen_model_provider') == "Google AI API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Google AI API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Google AI API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -319,8 +322,8 @@ elif st.session_state.get('chosen_model_provider') == "Mistral API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Mistral API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Mistral API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -328,8 +331,8 @@ elif st.session_state.get('chosen_model_provider') == "Ollama":
     st.markdown("""          
             ### Getting Started
 
-            1. Select your locally hosted model from the sidebar, then enter the details of the application you would like to threat model.
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Select your locally hosted model from the sidebar, then select your industry, company size, and MITRE framework.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -337,8 +340,8 @@ elif st.session_state.get('chosen_model_provider') == "Groq API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Groq API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Groq API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -347,8 +350,8 @@ elif st.session_state.get('chosen_model_provider') == "Custom":
             ### Getting Started
 
             1. Enter your custom model provider's API key (if required), base URL, and model name.
-            2. Select your industry and company size from the sidebar. 
-            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            2. Select your industry, company size, and MITRE framework from the sidebar.
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -356,7 +359,7 @@ else:
     st.markdown("""
             ### Getting Started
 
-            1. Enter your OpenAI API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your OpenAI API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)

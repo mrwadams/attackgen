@@ -5,13 +5,15 @@ import re
 
 from langchain_anthropic import ChatAnthropic
 from langchain_community.llms import Ollama
-from langchain_google_genai import ChatGoogleGenerativeAI 
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI, AzureOpenAI
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
 from openai import OpenAI
+
+from atlas_parser import ATLASData, load_atlas_case_studies, get_techniques_from_case_study_procedure
 
 
 # ------------------ Streamlit UI Configuration ------------------ #
@@ -90,12 +92,13 @@ st.set_page_config(
 
 # ------------------ Helper Functions ------------------ #
 
-# Load and cache the MITRE ATT&CK data
+# Load and cache the MITRE ATT&CK and ATLAS data
 @st.cache_resource
 def load_attack_data():
     enterprise_data = MitreAttackData("./data/enterprise-attack.json")
     ics_data = MitreAttackData("./data/ics-attack.json")
-    return {"enterprise": enterprise_data, "ics": ics_data}
+    atlas_data = ATLASData("./data/stix-atlas.json")
+    return {"enterprise": enterprise_data, "ics": ics_data, "atlas": atlas_data}
 
 attack_data = load_attack_data()
 
@@ -103,8 +106,10 @@ attack_data = load_attack_data()
 def load_groups(matrix):
     if matrix == "Enterprise":
         groups = pd.read_json("./data/groups.json")
-    else:  # ICS
+    elif matrix == "ICS":
         groups = pd.read_json("./data/groups_ics.json")
+    else:  # ATLAS
+        groups = pd.read_json("./data/atlas-case-studies.json")
     return groups
 
 def generate_scenario_wrapper(openai_api_key, model_name, messages):
@@ -592,35 +597,56 @@ def generate_scenario_openai_wrapper(messages):
 
 st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
 
-st.markdown("""
-            ### Select a Threat Actor Group
-
-            Use the drop-down selector below to select a threat actor group from the MITRE ATT&CK framework. 
-            
-            You can then optionally view all of the Enterprise ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
-            """)
-
 # Load groups based on the current matrix
 matrix = st.session_state.get("matrix", "Enterprise")
 groups = load_groups(matrix)
 
+# Conditional UI text based on matrix selection
+if matrix == "ATLAS":
+    st.markdown("""
+            ### Select a Case Study
+
+            Use the drop-down selector below to select a case study from the MITRE ATLAS framework.
+
+            You can then optionally view all of the ATLAS techniques associated with the case study and/or the case study's page on the MITRE ATLAS site.
+            """)
+    entity_label = "case study"
+    select_placeholder = "Select Case Study"
+else:
+    st.markdown(f"""
+            ### Select a Threat Actor Group
+
+            Use the drop-down selector below to select a threat actor group from the MITRE ATT&CK framework.
+
+            You can then optionally view all of the {matrix} ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
+            """)
+    entity_label = "threat actor group"
+    select_placeholder = "Select Group"
+
 # Get the list of group names
 group_names = sorted(groups['group'].unique())
 
-# Set a default index that works for both Enterprise and ICS
+# Set a default index that works for all matrices
 default_index = 0 if len(group_names) > 0 else None
 
 selected_group_alias = st.selectbox(
-    "Select a threat actor group for the scenario",
+    f"Select a {entity_label} for the scenario",
     group_names,
     index=default_index,
-    placeholder="Select Group",
+    placeholder=select_placeholder,
     label_visibility="hidden"
 )
 
-phase_name_order = ['Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence', 
-                    'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement', 
-                    'Collection', 'Command and Control', 'Exfiltration', 'Impact']
+# Define phase name order based on matrix
+if matrix == "ATLAS":
+    phase_name_order = ['Reconnaissance', 'Resource Development', 'Initial Access', 'AI Model Access',
+                        'Execution', 'Persistence', 'Privilege Escalation', 'Defense Evasion',
+                        'Credential Access', 'Discovery', 'Lateral Movement', 'Collection',
+                        'AI Attack Staging', 'Command and Control', 'Exfiltration', 'Impact']
+else:
+    phase_name_order = ['Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence',
+                        'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement',
+                        'Collection', 'Command and Control', 'Exfiltration', 'Impact']
 
 phase_name_category = pd.CategoricalDtype(categories=phase_name_order, ordered=True)
 
@@ -633,81 +659,124 @@ try:
     # define selected_techniques_df as an empty dataframe before the if condition
     selected_techniques_df = pd.DataFrame()
 
-    if selected_group_alias != "Select Group":
+    if selected_group_alias != select_placeholder:
         # Get the group by the selected alias
         matrix = st.session_state.get("matrix", "Enterprise")
-        group = attack_data[matrix.lower()].get_groups_by_alias(selected_group_alias)
         group_url = groups[groups['group'] == selected_group_alias]['url'].values[0]
 
         # Display the URL as a clickable link
-        st.markdown(f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
+        if matrix == "ATLAS":
+            st.markdown(f"[View case study on atlas.mitre.org]({group_url})")
+        else:
+            st.markdown(f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
 
-        # Check if the group was found
-        if group:
-            # Get the STIX ID of the group
-            group_stix_id = group[0].id
+        if matrix == "ATLAS":
+            # ATLAS: Extract techniques from case study procedure
+            case_study_row = groups[groups['group'] == selected_group_alias].iloc[0]
+            procedure = case_study_row.get('procedure', [])
 
-            # Get all techniques used by the group
-            techniques = attack_data[matrix.lower()].get_techniques_used_by_group(group_stix_id)
+            if not procedure:
+                st.warning(f"There are no ATLAS techniques associated with the case study: {selected_group_alias}")
+                st.stop()
 
-            # Check if there are any techniques for the group
-            if not techniques:
-                st.info(f"There are no Enterprise ATT&CK techniques associated with the threat group: {selected_group_alias}")
-            else:
-                # Update techniques_df with the techniques
-                techniques_df = pd.DataFrame(techniques)
+            # Get techniques from the procedure
+            techniques_list = get_techniques_from_case_study_procedure(procedure, attack_data["atlas"])
 
-            # Create a copy of the DataFrame for generating the LLM prompt
+            if not techniques_list:
+                st.warning(f"Could not extract techniques from the case study: {selected_group_alias}")
+                st.stop()
+
+            # Create DataFrame from techniques list
+            techniques_df = pd.DataFrame(techniques_list)
             techniques_df_llm = techniques_df.copy()
 
-            # Add a 'Technique Name' column to both DataFrames
-            techniques_df['Technique Name'] = techniques_df_llm['Technique Name'] = techniques_df['object'].apply(lambda x: x['name'])
-
-            # Add a 'ATT&CK ID' column to both DataFrames
-            techniques_df['ATT&CK ID'] = techniques_df_llm['ATT&CK ID'] = techniques_df['object'].apply(lambda x: attack_data[matrix.lower()].get_attack_id(x['id']))
-
-            # Add a 'Phase Name' column to both DataFrames
-            techniques_df['Phase Name'] = techniques_df_llm['Phase Name'] = techniques_df['object'].apply(lambda x: x['kill_chain_phases'][0]['phase_name'])
-
-            # Drop duplicate techniques based on Phase Name, Technique Name and ATT&CK ID
-            techniques_df = techniques_df.drop_duplicates(['Phase Name', 'Technique Name', 'ATT&CK ID'])
-
-            # Convert the 'Phase Name' to title case and replace hyphens with spaces
-            techniques_df['Phase Name'] = techniques_df['Phase Name'].str.replace('-', ' ').str.title()
-            techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].str.replace('-', ' ').str.title()
-
-            # Replace 'Command And Control' with 'Command and Control'
-            techniques_df['Phase Name'] = techniques_df['Phase Name'].replace('Command And Control', 'Command and Control')
-            techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].replace('Command And Control', 'Command and Control')
-
-            # Convert the 'Phase Name' column to the ordered category in both DataFrames
+            # Convert the 'Phase Name' column to the ordered category
             techniques_df['Phase Name'] = techniques_df['Phase Name'].astype(phase_name_category)
             techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].astype(phase_name_category)
 
-            # Sort the DataFrame by the 'Phase Name' column
+            # Sort by Phase Name
             techniques_df = techniques_df.sort_values('Phase Name')
             techniques_df_llm = techniques_df_llm.sort_values('Phase Name')
 
-            # Group by 'Phase Name' and randomly select one technique from each group
-            # Filter the groups to include only those that have at least one row in the LLM DataFrame
-            selected_techniques_df = (
-                techniques_df_llm.groupby('Phase Name', observed=False)  # Use default group_keys behavior
-                .apply(
-                    lambda x: x.sample(n=1) if not x.empty else pd.DataFrame(columns=x.columns),
-                    include_groups=False  # This ensures x in lambda doesn't have grouping columns
-                )
-                .reset_index()  # This will bring 'Phase Name' from the index into a column
-            )
+            # For ATLAS, we use all techniques from the procedure (no random selection)
+            # as they represent the documented attack chain
+            selected_techniques_df = techniques_df_llm.copy()
 
-            # Sort the DataFrame by the 'Phase Name' column
-            techniques_df = techniques_df.sort_values('Phase Name')
-
-            # Select only the 'Technique Name', 'ATT&CK ID', and 'Phase Name' columns
+            # Select display columns
             techniques_df = techniques_df[['Technique Name', 'ATT&CK ID', 'Phase Name']]
+
+        else:
+            # ATT&CK: Use standard group lookup
+            group = attack_data[matrix.lower()].get_groups_by_alias(selected_group_alias)
+
+            # Check if the group was found
+            if group:
+                # Get the STIX ID of the group
+                group_stix_id = group[0].id
+
+                # Get all techniques used by the group
+                techniques = attack_data[matrix.lower()].get_techniques_used_by_group(group_stix_id)
+
+                # Check if there are any techniques for the group
+                if not techniques:
+                    st.warning(f"There are no {matrix} ATT&CK techniques associated with the threat group: {selected_group_alias}")
+                    st.stop()
+                else:
+                    # Update techniques_df with the techniques
+                    techniques_df = pd.DataFrame(techniques)
+
+                # Create a copy of the DataFrame for generating the LLM prompt
+                techniques_df_llm = techniques_df.copy()
+
+                # Add a 'Technique Name' column to both DataFrames
+                techniques_df['Technique Name'] = techniques_df_llm['Technique Name'] = techniques_df['object'].apply(lambda x: x['name'])
+
+                # Add a 'ATT&CK ID' column to both DataFrames
+                techniques_df['ATT&CK ID'] = techniques_df_llm['ATT&CK ID'] = techniques_df['object'].apply(lambda x: attack_data[matrix.lower()].get_attack_id(x['id']))
+
+                # Add a 'Phase Name' column to both DataFrames
+                techniques_df['Phase Name'] = techniques_df_llm['Phase Name'] = techniques_df['object'].apply(lambda x: x['kill_chain_phases'][0]['phase_name'])
+
+                # Drop duplicate techniques based on Phase Name, Technique Name and ATT&CK ID
+                techniques_df = techniques_df.drop_duplicates(['Phase Name', 'Technique Name', 'ATT&CK ID'])
+
+                # Convert the 'Phase Name' to title case and replace hyphens with spaces
+                techniques_df['Phase Name'] = techniques_df['Phase Name'].str.replace('-', ' ').str.title()
+                techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].str.replace('-', ' ').str.title()
+
+                # Replace 'Command And Control' with 'Command and Control'
+                techniques_df['Phase Name'] = techniques_df['Phase Name'].replace('Command And Control', 'Command and Control')
+                techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].replace('Command And Control', 'Command and Control')
+
+                # Convert the 'Phase Name' column to the ordered category in both DataFrames
+                techniques_df['Phase Name'] = techniques_df['Phase Name'].astype(phase_name_category)
+                techniques_df_llm['Phase Name'] = techniques_df_llm['Phase Name'].astype(phase_name_category)
+
+                # Sort the DataFrame by the 'Phase Name' column
+                techniques_df = techniques_df.sort_values('Phase Name')
+                techniques_df_llm = techniques_df_llm.sort_values('Phase Name')
+
+                # Group by 'Phase Name' and randomly select one technique from each group
+                # Filter the groups to include only those that have at least one row in the LLM DataFrame
+                selected_techniques_df = (
+                    techniques_df_llm.groupby('Phase Name', observed=False)  # Use default group_keys behavior
+                    .apply(
+                        lambda x: x.sample(n=1) if not x.empty else pd.DataFrame(columns=x.columns),
+                        include_groups=False  # This ensures x in lambda doesn't have grouping columns
+                    )
+                    .reset_index()  # This will bring 'Phase Name' from the index into a column
+                )
+
+                # Sort the DataFrame by the 'Phase Name' column
+                techniques_df = techniques_df.sort_values('Phase Name')
+
+                # Select only the 'Technique Name', 'ATT&CK ID', and 'Phase Name' columns
+                techniques_df = techniques_df[['Technique Name', 'ATT&CK ID', 'Phase Name']]
 
         if not techniques_df.empty:
             # Create an expander for the techniques
-            with st.expander("Associated ATT&CK Techniques"):
+            expander_title = "Associated ATLAS Techniques" if matrix == "ATLAS" else "Associated ATT&CK Techniques"
+            with st.expander(expander_title):
                 # Use the st.table function to display the DataFrame
                 st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
@@ -731,17 +800,36 @@ try:
         system_template = "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided. Format your response using proper Markdown syntax with headers, bullet points, and formatting for readability."
         system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
 
-        # Create Human Message Template
-        human_template = ("""
+        # Create Human Message Template - different for ATLAS vs ATT&CK
+        if matrix == "ATLAS":
+            human_template = ("""
 **Background information:**
-The company operates in the '{industry}' industry and is of size '{company_size}'. 
-                    
+The company operates in the '{industry}' industry and is of size '{company_size}'.
+They deploy AI/ML systems that may be vulnerable to adversarial attacks.
+
+**Case Study Reference:**
+This scenario is based on the documented MITRE ATLAS case study: '{selected_group_alias}'
+The attack procedure uses the following techniques from the MITRE ATLAS framework:
+{kill_chain_string}
+
+**Your task:**
+Create an incident response testing scenario based on this AI/ML attack case study. The goal is to test the company's incident response capabilities against adversarial machine learning attacks targeting their AI systems.
+
+Focus on realistic attack vectors that target AI/ML infrastructure, including model manipulation, data poisoning, adversarial inputs, and AI supply chain attacks.
+
+Your response should be well structured and formatted using Markdown. Write in British English.
+""")
+        else:
+            human_template = ("""
+**Background information:**
+The company operates in the '{industry}' industry and is of size '{company_size}'.
+
 **Threat actor information:**
 Threat actor group '{selected_group_alias}' is planning to target the company using the following kill chain from the MITRE ATT&CK {matrix} Matrix:
 {kill_chain_string}
 
 **Your task:**
-Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group, focusing on the {matrix} environment. 
+Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group, focusing on the {matrix} environment.
 
 Your response should be well structured and formatted using Markdown. Write in British English.
 """)
@@ -764,7 +852,16 @@ except Exception as e:
 st.markdown("")
 
 # Display the scenario generation section
-st.markdown("""
+if matrix == "ATLAS":
+    st.markdown("""
+            ### Generate a Scenario
+
+            Click the button below to generate a scenario based on the selected case study. The documented attack procedure from the case study will be used to generate the scenario.
+
+            It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+            """)
+else:
+    st.markdown("""
             ### Generate a Scenario
 
             Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be chosen at random and used to generate the scenario.
@@ -786,7 +883,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 response = generate_scenario_azure_wrapper(messages)
                 st.markdown("---")
@@ -818,22 +915,33 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 google_api_key = st.session_state.get('google_api_key')
                 model_name = os.getenv('GOOGLE_MODEL')
                 response = generate_scenario_google_wrapper(google_api_key, model_name, messages)
                 st.markdown("---")
                 if response is not None:
-                    st.session_state['scenario_generated'] = True
-                    scenario_text = response.content
-                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                    st.markdown(scenario_text)
-                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                    try:
+                        # Extract text content from structured response if needed
+                        if isinstance(response.content, list):
+                            # Find text blocks in the structured response
+                            text_blocks = [block.get('text', '') for block in response.content if isinstance(block, dict) and block.get('type') == 'text']
+                            scenario_text = '\n'.join(text_blocks)
+                        else:
+                            scenario_text = response.content
 
-                    st.session_state['last_scenario'] = True
-                    st.session_state['last_scenario_text'] = scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+                        st.session_state['scenario_generated'] = True
+                        st.session_state['scenario_text'] = scenario_text
+                        st.markdown(scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = scenario_text
+                    except Exception as processing_error:
+                        st.error(f"An error occurred while processing the scenario response: {processing_error}")
+                        st.text("Raw response content:")
+                        st.json(str(response.content))
                 else:
                     # If a scenario has been generated previously, display it
                     if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
@@ -852,7 +960,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 mistral_api_key = st.session_state.get('mistral_api_key')
                 model_name = os.getenv('MISTRAL_MODEL')
@@ -884,7 +992,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 model = os.getenv('OLLAMA_MODEL')
                 response = generate_scenario_ollama_wrapper(model)
@@ -917,7 +1025,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 anthropic_api_key = st.session_state.get('anthropic_api_key')
                 model_name = os.getenv('ANTHROPIC_MODEL')
@@ -951,7 +1059,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 groq_api_key = st.session_state.get('GROQ_API_KEY')
                 model_name = os.getenv('GROQ_MODEL')
@@ -1005,7 +1113,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 response = generate_scenario_wrapper(openai_api_key, model_name, messages)
                 st.markdown("---")
@@ -1048,7 +1156,7 @@ try:
             elif not company_size:
                 st.info("Please select your company\'s size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a {entity_label} with associated techniques.")
             else:
                 # Call the wrapper function (it now reads custom settings from session_state)
                 response = generate_scenario_openai_wrapper(messages)
