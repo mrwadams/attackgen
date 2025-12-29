@@ -239,9 +239,10 @@ with st.sidebar:
     st.markdown("""---""")
 
     matrix = st.sidebar.radio(
-        "Select MITRE ATT&CK Matrix:",
-        ["Enterprise", "ICS"],
-        key="selected_matrix"
+        "Select MITRE Framework:",
+        ["Enterprise", "ICS", "ATLAS"],
+        key="selected_matrix",
+        help="Enterprise and ICS are ATT&CK matrices for traditional IT and industrial control systems. ATLAS focuses on adversarial threats to AI/ML systems."
     )
     st.session_state["matrix"] = matrix
 
@@ -278,15 +279,15 @@ with st.sidebar:
 # ------------------ Main App UI ------------------ #
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen 👾</span>", unsafe_allow_html=True)
-st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
+st.markdown("<span style='color: #1DB954;'> **Use MITRE ATT&CK, ATLAS and Large Language Models to generate attack scenarios for incident response testing.**</span>", unsafe_allow_html=True)
 st.markdown("---")
 
-st.markdown("""          
+st.markdown("""
             ### Welcome to AttackGen!
-            
-            The MITRE ATT&CK framework is a powerful tool for understanding the tactics, techniques, and procedures (TTPs) used by threat actors; however, it can be difficult to translate this information into realistic scenarios for testing.
 
-            AttackGen solves this problem by using large language models to quickly generate attack scenarios based on a selection of a threat actor group's known techniques.
+            The MITRE ATT&CK and ATLAS frameworks are powerful tools for understanding the tactics, techniques, and procedures (TTPs) used by threat actors targeting traditional IT/OT systems and AI/ML systems respectively; however, it can be difficult to translate this information into realistic scenarios for testing.
+
+            AttackGen solves this problem by using large language models to quickly generate attack scenarios based on threat actor groups, documented case studies, or custom technique selections.
             """)
 
 if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
@@ -294,17 +295,17 @@ if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
             ### Getting Started
 
             1. Enter the details of your Azure OpenAI Service model deployment, including the API key, endpoint, deployment name, and API version. 
-            2. Select your industry and company size from the sidebar. 
-            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            2. Select your industry, company size, and MITRE framework (ATT&CK Enterprise, ICS, or ATLAS) from the sidebar.
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
-    
+
 elif st.session_state.get('chosen_model_provider') == "Anthropic API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Anthropic API key, then select your preferred Claude model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Anthropic API key, then select your preferred Claude model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -312,8 +313,8 @@ elif st.session_state.get('chosen_model_provider') == "Google AI API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Google AI API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Google AI API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -321,8 +322,8 @@ elif st.session_state.get('chosen_model_provider') == "Mistral API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Mistral API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Mistral API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -330,8 +331,8 @@ elif st.session_state.get('chosen_model_provider') == "Ollama":
     st.markdown("""          
             ### Getting Started
 
-            1. Select your locally hosted model from the sidebar, then enter the details of the application you would like to threat model.
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Select your locally hosted model from the sidebar, then select your industry, company size, and MITRE framework.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -339,8 +340,8 @@ elif st.session_state.get('chosen_model_provider') == "Groq API":
     st.markdown("""          
             ### Getting Started
 
-            1. Enter your Groq API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your Groq API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
     
@@ -349,8 +350,8 @@ elif st.session_state.get('chosen_model_provider') == "Custom":
             ### Getting Started
 
             1. Enter your custom model provider's API key (if required), base URL, and model name.
-            2. Select your industry and company size from the sidebar. 
-            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            2. Select your industry, company size, and MITRE framework from the sidebar.
+            3. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             4. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)
 
@@ -358,7 +359,7 @@ else:
     st.markdown("""
             ### Getting Started
 
-            1. Enter your OpenAI API key, then select your preferred model, industry, and company size from the sidebar. 
-            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group's known techniques, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of ATT&CK techniques.
+            1. Enter your OpenAI API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
+            2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
             """)

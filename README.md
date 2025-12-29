@@ -1,6 +1,6 @@
 # AttackGen
 
-AttackGen is a cybersecurity incident response testing tool that leverages the power of large language models and the comprehensive MITRE ATT&CK framework. The tool generates tailored incident response scenarios based on user-selected threat actor groups and your organisation's details.
+AttackGen is a cybersecurity incident response testing tool that leverages the power of large language models and the comprehensive MITRE ATT&CK and ATLAS frameworks. The tool generates tailored incident response scenarios based on user-selected threat actor groups, AI attack case studies, and your organisation's details.
 
 ## Table of Contents
 - [Star the Repo](#star-the-repo)
@@ -21,12 +21,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Features
 
-- Generates unique incident response scenarios based on chosen threat actor groups.
+- Generates unique incident response scenarios based on chosen threat actor groups or ATLAS case studies.
 - Allows you to specify your organisation's size and industry for a tailored scenario.
-- Supports both Enterprise and ICS (Industrial Control Systems) MITRE ATT&CK matrices.
-- Displays a detailed list of techniques used by the selected threat actor group as per the MITRE ATT&CK framework.
-- Create custom scenarios based on a selection of ATT&CK techniques.
-- Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents.
+- Supports MITRE ATT&CK Enterprise, ICS (Industrial Control Systems), and ATLAS (Adversarial Threat Landscape for AI Systems) frameworks.
+- Displays a detailed list of techniques used by the selected threat actor group or case study.
+- Create custom scenarios based on a selection of ATT&CK or ATLAS techniques.
+- Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents, including AI/ML-specific attack patterns.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
@@ -42,6 +42,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ### v0.11
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
+| MITRE ATLAS Framework Support | - AI/ML Threat Coverage: AttackGen now supports the MITRE ATLAS (Adversarial Threat Landscape for AI Systems) framework, enabling generation of incident response scenarios for threats targeting AI and machine learning systems.<br><br>- Case Study-Based Scenarios: Generate scenarios based on 45 documented real-world AI attack case studies, including 14 actual incidents and 31 research exercises covering attacks like prompt injection, model extraction, and data poisoning.<br><br>- 147 ATLAS Techniques: Access the full ATLAS technique library covering 16 AI-specific tactics including AI Model Access, AI Attack Staging, and traditional attack phases adapted for AI systems.<br><br>- AI-Specific Templates: Six new custom scenario templates for common AI/ML attacks: Model Evasion, Data Poisoning, Model Extraction, Prompt Injection, LLM Jailbreak, and AI Supply Chain attacks. |
 | Updated MITRE ATT&CK Data to v18.1 | - Latest Threat Intelligence: AttackGen now uses MITRE ATT&CK v18.1 data, ensuring generated scenarios reflect the most current tactics, techniques, and procedures used by threat actors.<br><br>- Expanded Enterprise Coverage: The Enterprise threat groups list has grown from 150+ to 187 groups, including newly tracked actors.<br><br>- Expanded ICS Coverage: The ICS threat groups list has grown from 7 to 16 groups, providing better coverage for industrial control systems scenarios. |
 | Updated LLM Model Support | - OpenAI: Added GPT-5.2 and GPT-5.2 Pro models; streamlined model list by removing deprecated o-series reasoning models.<br><br>- Anthropic: Updated to Claude 4.5 family with Sonnet 4.5, Haiku 4.5, and Opus 4.5.<br><br>- Google AI: Added Gemini 3 Pro and Flash preview models; updated Gemini 2.5 options.<br><br>- Groq: Added GPT-OSS 120B and 20B models for high-performance inference.<br><br>- Mistral: Updated to dated model versions (Large 2512, Medium 2508, Small 2506); added Ministral 14B. |
 | Bug Fixes | - Fixed Google AI Response Handling: Updated response parsing to handle structured content format returned by newer Gemini models, ensuring scenario text is properly extracted and displayed.<br><br>- Fixed ICS Matrix Error Messages: Error messages now correctly display "ICS ATT&CK" instead of "Enterprise ATT&CK" when using the ICS matrix.<br><br>- Improved Empty Technique Handling: Added graceful handling when a threat group has no associated techniques, preventing secondary errors. |

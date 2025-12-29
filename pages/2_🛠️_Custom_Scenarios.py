@@ -5,13 +5,15 @@ import re
 
 from langchain_anthropic import ChatAnthropic
 from langchain_community.llms import Ollama
-from langchain_google_genai import ChatGoogleGenerativeAI 
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_openai import ChatOpenAI, AzureOpenAI
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langsmith import Client, RunTree, traceable
 from mitreattack.stix20 import MitreAttackData
 from openai import OpenAI
+
+from atlas_parser import ATLASData
 
 
 # ------------------ Streamlit UI Configuration ------------------ #
@@ -105,18 +107,27 @@ incident_response_templates = {
         "ICS Data Manipulation": ["Modify Controller Tasking (T0821)", "Manipulate I/O Image (T0835)", "Modify Alarm Settings (T0838)", "Modify Parameter (T0836)"],
         "Denial of Service": ["Denial of Service (T0814)", "Activate Firmware Update Mode (T0800)", "Brute Force I/O (T0806)", "Block Command Message (T0803)"],
         "ICS Reconnaissance": ["Network Sniffing (T0842)", "Remote System Discovery (T0846)", "Network Connection Enumeration (T0840)", "Program Upload (T0845)"],
+    },
+    "ATLAS": {
+        "Model Evasion Attack": ["Evade AI Model (AML.T0015)", "Craft Adversarial Data (AML.T0043)", "Black-Box Optimization (AML.T0043.001)", "Verify Attack (AML.T0042)"],
+        "Data Poisoning Attack": ["Poison Training Data (AML.T0020)", "Publish Poisoned Datasets (AML.T0019)", "Poison AI Model (AML.T0018.000)", "AI Supply Chain Compromise (AML.T0010)"],
+        "Model Extraction Attack": ["Discover AI Artifacts (AML.T0007)", "AI Model Inference API Access (AML.T0040)", "Exfiltration via AI Inference API (AML.T0024)", "Create Proxy AI Model (AML.T0005)"],
+        "Prompt Injection Attack": ["Acquire Public AI Artifacts (AML.T0002)", "LLM Prompt Injection (AML.T0051)", "AI Agent Tool Invocation (AML.T0053)", "Exfiltration via AI Inference API (AML.T0024)"],
+        "LLM Jailbreak": ["LLM Jailbreak (AML.T0054)", "LLM Prompt Injection (AML.T0051)", "LLM Prompt Crafting (AML.T0065)", "Spearphishing via Social Engineering LLM (AML.T0052.000)"],
+        "AI Supply Chain Attack": ["AI Supply Chain Compromise (AML.T0010)", "Publish Poisoned Datasets (AML.T0019)", "Manipulate AI Model (AML.T0018)", "Publish Poisoned Models (AML.T0058)"],
     }
 }
 
 
 # ------------------ Helper Functions ------------------ #
 
-# Load and cache the MITRE ATT&CK data
+# Load and cache the MITRE ATT&CK and ATLAS data
 @st.cache_resource
 def load_attack_data():
     enterprise_data = MitreAttackData("./data/enterprise-attack.json")
     ics_data = MitreAttackData("./data/ics-attack.json")
-    return {"enterprise": enterprise_data, "ics": ics_data}
+    atlas_data = ATLASData("./data/stix-atlas.json")
+    return {"enterprise": enterprise_data, "ics": ics_data, "atlas": atlas_data}
 
 attack_data = load_attack_data()
 
@@ -125,23 +136,38 @@ attack_data = load_attack_data()
 def load_techniques():
     try:
         matrix = st.session_state.get("matrix", "Enterprise")
-        techniques = attack_data[matrix.lower()].get_techniques()
-        techniques_list = []
-        for technique in techniques:
-            for reference in technique.external_references:
-                if "external_id" in reference:
-                    techniques_list.append({
-                        'id': technique.id,
-                        'Technique Name': technique.name,
-                        'External ID': reference['external_id'],
-                        'Display Name': f"{technique.name} ({reference['external_id']})"
-                    })
-        techniques_df = pd.DataFrame(techniques_list)
-        
+
+        if matrix == "ATLAS":
+            # Use custom ATLAS parser
+            techniques = attack_data["atlas"].get_techniques()
+            techniques_list = []
+            for tech in techniques:
+                techniques_list.append({
+                    'id': tech['id'],
+                    'Technique Name': tech['name'],
+                    'External ID': tech['external_id'],
+                    'Display Name': f"{tech['name']} ({tech['external_id']})"
+                })
+            techniques_df = pd.DataFrame(techniques_list)
+        else:
+            # Use standard ATT&CK parser
+            techniques = attack_data[matrix.lower()].get_techniques()
+            techniques_list = []
+            for technique in techniques:
+                for reference in technique.external_references:
+                    if "external_id" in reference:
+                        techniques_list.append({
+                            'id': technique.id,
+                            'Technique Name': technique.name,
+                            'External ID': reference['external_id'],
+                            'Display Name': f"{technique.name} ({reference['external_id']})"
+                        })
+            techniques_df = pd.DataFrame(techniques_list)
+
         return techniques_df
     except Exception as e:
         print(f"Error in load_techniques: {e}")
-        return pd.DataFrame() # Return an empty DataFrame
+        return pd.DataFrame()  # Return an empty DataFrame
 
 techniques_df = load_techniques()
 
@@ -634,8 +660,16 @@ def template_selection(template, matrix):
     try:
         if template in incident_response_templates[matrix]:
             template_techniques = incident_response_templates[matrix][template]
-            matrix_techniques = attack_data[matrix.lower()].get_techniques()
-            matrix_technique_names = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in matrix_techniques]
+
+            if matrix == "ATLAS":
+                # ATLAS returns techniques with external_id already included
+                matrix_techniques = attack_data["atlas"].get_techniques()
+                matrix_technique_names = [f"{tech['name']} ({tech['external_id']})" for tech in matrix_techniques]
+            else:
+                # ATT&CK uses get_attack_id to convert STIX ID to external ID
+                matrix_techniques = attack_data[matrix.lower()].get_techniques()
+                matrix_technique_names = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in matrix_techniques]
+
             selected_techniques = [tech for tech in template_techniques if tech in matrix_technique_names]
             st.session_state['selected_techniques'] = selected_techniques
         else:
@@ -645,21 +679,30 @@ def template_selection(template, matrix):
 
 
 # ------------------ Streamlit UI ------------------ #
-    
+
+# Get the current matrix from the session state
+matrix = st.session_state.get("matrix", "Enterprise")
 
 st.markdown("# <span style='color: #1DB954;'>Generate Custom Scenario🛠️</span>", unsafe_allow_html=True)
 
-st.markdown("""
+if matrix == "ATLAS":
+    st.markdown("""
+            ### Select ATLAS Techniques
+            """)
+else:
+    st.markdown("""
             ### Select ATT&CK Techniques
             """)
 
 with st.expander("Use a Template (Optional)"):
-    st.markdown("""
+    if matrix == "ATLAS":
+        st.markdown("""
+                Select a template to quickly generate a custom scenario based on a predefined set of ATLAS techniques.
+                """)
+    else:
+        st.markdown("""
                 Select a template to quickly generate a custom scenario based on a predefined set of ATT&CK techniques.
                 """)
-
-    # Get the current matrix from the session state
-    matrix = st.session_state.get("matrix", "Enterprise")
 
     # Dropdown for selecting the incident response template
     selected_template = st.selectbox(
@@ -672,20 +715,35 @@ with st.expander("Use a Template (Optional)"):
     if selected_template:
         template_selection(selected_template, matrix)
 st.markdown("")
-st.markdown(""" 
+
+if matrix == "ATLAS":
+    st.markdown("""
+            Use the multi-select box below to add or update the ATLAS techniques that you would like to include in a custom incident response testing scenario.
+            """)
+else:
+    st.markdown("""
             Use the multi-select box below to add or update the ATT&CK techniques that you would like to include in a custom incident response testing scenario.
             """)
 
 selected_techniques = []
 if not techniques_df.empty:
-    matrix = st.session_state.get("matrix", "Enterprise")
-    techniques = attack_data[matrix.lower()].get_techniques()
-    technique_options = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in techniques]
-    selected_techniques = st.multiselect("Select ATT&CK Techniques", options=technique_options, default=st.session_state.get('selected_techniques', []))
+    if matrix == "ATLAS":
+        # Use ATLAS technique list from techniques_df
+        technique_options = techniques_df['Display Name'].tolist()
+    else:
+        # Use standard ATT&CK parsing
+        techniques = attack_data[matrix.lower()].get_techniques()
+        technique_options = [f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})" for technique in techniques]
+
+    select_label = "Select ATLAS Techniques" if matrix == "ATLAS" else "Select ATT&CK Techniques"
+    selected_techniques = st.multiselect(select_label, options=technique_options, default=st.session_state.get('selected_techniques', []))
+
     if matrix == "Enterprise":
         st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T1556` or `Phishing`).")
     elif matrix == "ICS":
         st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T0814` or `Denial of Service`).")
+    elif matrix == "ATLAS":
+        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `AML.T0051` or `Prompt Injection`).")
     else:
         st.info("📝 Techniques are searchable by either their name or technique ID.")
     
@@ -698,8 +756,27 @@ try:
         system_template = "You are a cybersecurity expert. Your task is to produce a comprehensive incident response testing scenario based on the information provided. Format your response using proper Markdown syntax with headers, bullet points, and formatting for readability."
         system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
 
-        # Create Human Message Template
-        human_template = ("""
+        # Create Human Message Template - different for ATLAS vs ATT&CK
+        if matrix == "ATLAS":
+            human_template = ("""
+**Background information:**
+The company operates in the '{industry}' industry and is of size '{company_size}'.
+They deploy AI/ML systems that may be vulnerable to adversarial attacks.
+
+**Threat actor information:**
+{template_info}
+The threat actor is targeting the company's AI systems using the following ATLAS techniques:
+{selected_techniques_string}
+
+**Your task:**
+Create a custom incident response testing scenario focused on adversarial ML attacks. The goal is to test the company's incident response capabilities against threats to their AI/ML systems.
+
+Focus on realistic attack vectors that target AI/ML infrastructure, including model manipulation, data poisoning, adversarial inputs, prompt injection, and AI supply chain attacks.
+
+Your response should be well structured and formatted using Markdown. Write in British English.
+""")
+        else:
+            human_template = ("""
 **Background information:**
 The company operates in the '{industry}' industry and is of size '{company_size}'.
 
@@ -709,7 +786,7 @@ The threat actor is known to use the following ATT&CK techniques from the {matri
 {selected_techniques_string}
 
 **Your task:**
-Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques. 
+Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.
 
 Your response should be well structured and formatted using Markdown.
 """)
