@@ -4,6 +4,10 @@
         "url": "https://attack.mitre.org/groups/G0018/"
     },
     {
+        "group": "Agrius",
+        "url": "https://attack.mitre.org/groups/G1030/"
+    },
+    {
         "group": "Ajax Security Team",
         "url": "https://attack.mitre.org/groups/G0130/"
     },
@@ -16,8 +20,16 @@
         "url": "https://attack.mitre.org/groups/G0138/"
     },
     {
-        "group": "Aoquin Dragon",
+        "group": "Aoqin Dragon",
         "url": "https://attack.mitre.org/groups/G1007/"
+    },
+    {
+        "group": "AppleJeus",
+        "url": "https://attack.mitre.org/groups/G1049/"
+    },
+    {
+        "group": "APT-C-23",
+        "url": "https://attack.mitre.org/groups/G1028/"
     },
     {
         "group": "APT-C-36",
@@ -72,6 +84,10 @@
         "url": "https://attack.mitre.org/groups/G0064/"
     },
     {
+        "group": "APT34",
+        "url": "https://attack.mitre.org/groups/G0057/"
+    },
+    {
         "group": "APT37",
         "url": "https://attack.mitre.org/groups/G0067/"
     },
@@ -88,80 +104,16 @@
         "url": "https://attack.mitre.org/groups/G0096/"
     },
     {
+        "group": "APT42",
+        "url": "https://attack.mitre.org/groups/G1044/"
+    },
+    {
         "group": "APT5",
         "url": "https://attack.mitre.org/groups/G1023/"
     },
     {
         "group": "Aquatic Panda",
         "url": "https://attack.mitre.org/groups/G0143/"
-    },
-    {
-        "group": "Threat Group-1314",
-        "url": "https://attack.mitre.org/groups/G0028/"
-    },
-    {
-        "group": "Threat Group-3390",
-        "url": "https://attack.mitre.org/groups/G0027/"
-    },
-    {
-        "group": "Thrip",
-        "url": "https://attack.mitre.org/groups/G0076/"
-    },
-    {
-        "group": "ToddyCat",
-        "url": "https://attack.mitre.org/groups/G1022/"
-    },
-    {
-        "group": "Tonto Team",
-        "url": "https://attack.mitre.org/groups/G0131/"
-    },
-    {
-        "group": "Transparent Tribe",
-        "url": "https://attack.mitre.org/groups/G0134/"
-    },
-    {
-        "group": "Tropic Trooper",
-        "url": "https://attack.mitre.org/groups/G0081/"
-    },
-    {
-        "group": "Turla",
-        "url": "https://attack.mitre.org/groups/G0010/"
-    },
-    {
-        "group": "Volatile Cedar",
-        "url": "https://attack.mitre.org/groups/G0123/"
-    },
-    {
-        "group": "Volt Typhoon",
-        "url": "https://attack.mitre.org/groups/G1017/"
-    },
-    {
-        "group": "Whitefly",
-        "url": "https://attack.mitre.org/groups/G0107/"
-    },
-    {
-        "group": "Windigo",
-        "url": "https://attack.mitre.org/groups/G0124/"
-    },
-    {
-        "group": "Windshift",
-        "url": "https://attack.mitre.org/groups/G0112/"
-    },
-    {
-        "group": "Winnti Group",
-        "url": "https://attack.mitre.org/groups/G0044/"
-    },
-    {
-        "group": "WIRTE",
-        "url": "https://attack.mitre.org/groups/G0090/"
-    },
-    {
-        "group": "Wizard Spider",
-        "url": "https://attack.mitre.org/groups/G0102/"
-    },
-    {
-        "group": "ZIRCONIUM",
-        "url": "https://attack.mitre.org/groups/G0128/"
     },
     {
         "group": "Axiom",
@@ -176,6 +128,10 @@
         "url": "https://attack.mitre.org/groups/G1002/"
     },
     {
+        "group": "BlackByte",
+        "url": "https://attack.mitre.org/groups/G1043/"
+    },
+    {
         "group": "BlackOasis",
         "url": "https://attack.mitre.org/groups/G0063/"
     },
@@ -188,16 +144,16 @@
         "url": "https://attack.mitre.org/groups/G0108/"
     },
     {
-        "group": "Bouncing Golf",
-        "url": "https://attack.mitre.org/groups/G0097/"
-    },
-    {
         "group": "BRONZE BUTLER",
         "url": "https://attack.mitre.org/groups/G0060/"
     },
     {
         "group": "Carbanak",
         "url": "https://attack.mitre.org/groups/G0008/"
+    },
+    {
+        "group": "Charming Kitten",
+        "url": "https://attack.mitre.org/groups/G0058/"
     },
     {
         "group": "Chimera",
@@ -220,12 +176,24 @@
         "url": "https://attack.mitre.org/groups/G0142/"
     },
     {
+        "group": "Contagious Interview",
+        "url": "https://attack.mitre.org/groups/G1052/"
+    },
+    {
         "group": "CopyKittens",
         "url": "https://attack.mitre.org/groups/G0052/"
     },
     {
+        "group": "CostaRicto",
+        "url": "https://attack.mitre.org/groups/G0132/"
+    },
+    {
         "group": "CURIUM",
         "url": "https://attack.mitre.org/groups/G1012/"
+    },
+    {
+        "group": "Daggerfly",
+        "url": "https://attack.mitre.org/groups/G1034/"
     },
     {
         "group": "Dark Caracal",
@@ -252,8 +220,16 @@
         "url": "https://attack.mitre.org/groups/G0035/"
     },
     {
+        "group": "Dragonfly 2.0",
+        "url": "https://attack.mitre.org/groups/G0074/"
+    },
+    {
         "group": "DragonOK",
         "url": "https://attack.mitre.org/groups/G0017/"
+    },
+    {
+        "group": "Dust Storm",
+        "url": "https://attack.mitre.org/groups/G0031/"
     },
     {
         "group": "Earth Lusca",
@@ -316,6 +292,10 @@
         "url": "https://attack.mitre.org/groups/G0117/"
     },
     {
+        "group": "Frankenstein",
+        "url": "https://attack.mitre.org/groups/G0101/"
+    },
+    {
         "group": "GALLIUM",
         "url": "https://attack.mitre.org/groups/G0093/"
     },
@@ -330,6 +310,10 @@
     {
         "group": "GCMAN",
         "url": "https://attack.mitre.org/groups/G0036/"
+    },
+    {
+        "group": "Gelsemium",
+        "url": "https://attack.mitre.org/groups/G0141/"
     },
     {
         "group": "GOLD SOUTHFIELD",
@@ -354,6 +338,14 @@
     {
         "group": "Higaisa",
         "url": "https://attack.mitre.org/groups/G0126/"
+    },
+    {
+        "group": "Honeybee",
+        "url": "https://attack.mitre.org/groups/G0072/"
+    },
+    {
+        "group": "INC Ransom",
+        "url": "https://attack.mitre.org/groups/G1032/"
     },
     {
         "group": "Inception",
@@ -416,6 +408,10 @@
         "url": "https://attack.mitre.org/groups/G1026/"
     },
     {
+        "group": "Medusa Group",
+        "url": "https://attack.mitre.org/groups/G1051/"
+    },
+    {
         "group": "menuPass",
         "url": "https://attack.mitre.org/groups/G0045/"
     },
@@ -434,6 +430,14 @@
     {
         "group": "Molerats",
         "url": "https://attack.mitre.org/groups/G0021/"
+    },
+    {
+        "group": "MONSOON",
+        "url": "https://attack.mitre.org/groups/G0042/"
+    },
+    {
+        "group": "Moonstone Sleet",
+        "url": "https://attack.mitre.org/groups/G1036/"
     },
     {
         "group": "Moses Staff",
@@ -464,12 +468,20 @@
         "url": "https://attack.mitre.org/groups/G0055/"
     },
     {
+        "group": "Night Dragon",
+        "url": "https://attack.mitre.org/groups/G0014/"
+    },
+    {
         "group": "Nomadic Octopus",
         "url": "https://attack.mitre.org/groups/G0133/"
     },
     {
         "group": "OilRig",
         "url": "https://attack.mitre.org/groups/G0049/"
+    },
+    {
+        "group": "Operation Wocao",
+        "url": "https://attack.mitre.org/groups/G0116/"
     },
     {
         "group": "Orangeworm",
@@ -486,6 +498,10 @@
     {
         "group": "PLATINUM",
         "url": "https://attack.mitre.org/groups/G0068/"
+    },
+    {
+        "group": "Play",
+        "url": "https://attack.mitre.org/groups/G1040/"
     },
     {
         "group": "POLONIUM",
@@ -508,12 +524,28 @@
         "url": "https://attack.mitre.org/groups/G0075/"
     },
     {
+        "group": "RedCurl",
+        "url": "https://attack.mitre.org/groups/G1039/"
+    },
+    {
+        "group": "RedEcho",
+        "url": "https://attack.mitre.org/groups/G1042/"
+    },
+    {
         "group": "Rocke",
         "url": "https://attack.mitre.org/groups/G0106/"
     },
     {
         "group": "RTM",
         "url": "https://attack.mitre.org/groups/G0048/"
+    },
+    {
+        "group": "Saint Bear",
+        "url": "https://attack.mitre.org/groups/G1031/"
+    },
+    {
+        "group": "Salt Typhoon",
+        "url": "https://attack.mitre.org/groups/G1045/"
     },
     {
         "group": "Sandworm Team",
@@ -526,6 +558,14 @@
     {
         "group": "Scattered Spider",
         "url": "https://attack.mitre.org/groups/G1015/"
+    },
+    {
+        "group": "Sea Turtle",
+        "url": "https://attack.mitre.org/groups/G1041/"
+    },
+    {
+        "group": "Sharpshooter",
+        "url": "https://attack.mitre.org/groups/G0104/"
     },
     {
         "group": "SideCopy",
@@ -552,8 +592,24 @@
         "url": "https://attack.mitre.org/groups/G0054/"
     },
     {
+        "group": "Star Blizzard",
+        "url": "https://attack.mitre.org/groups/G1033/"
+    },
+    {
         "group": "Stealth Falcon",
         "url": "https://attack.mitre.org/groups/G0038/"
+    },
+    {
+        "group": "Stolen Pencil",
+        "url": "https://attack.mitre.org/groups/G0086/"
+    },
+    {
+        "group": "Storm-0501",
+        "url": "https://attack.mitre.org/groups/G1053/"
+    },
+    {
+        "group": "Storm-1811",
+        "url": "https://attack.mitre.org/groups/G1046/"
     },
     {
         "group": "Strider",
@@ -580,6 +636,18 @@
         "url": "https://attack.mitre.org/groups/G0127/"
     },
     {
+        "group": "TA577",
+        "url": "https://attack.mitre.org/groups/G1037/"
+    },
+    {
+        "group": "TA578",
+        "url": "https://attack.mitre.org/groups/G1038/"
+    },
+    {
+        "group": "Taidoor",
+        "url": "https://attack.mitre.org/groups/G0015/"
+    },
+    {
         "group": "TeamTNT",
         "url": "https://attack.mitre.org/groups/G0139/"
     },
@@ -590,5 +658,93 @@
     {
         "group": "The White Company",
         "url": "https://attack.mitre.org/groups/G0089/"
+    },
+    {
+        "group": "Threat Group-1314",
+        "url": "https://attack.mitre.org/groups/G0028/"
+    },
+    {
+        "group": "Threat Group-3390",
+        "url": "https://attack.mitre.org/groups/G0027/"
+    },
+    {
+        "group": "Thrip",
+        "url": "https://attack.mitre.org/groups/G0076/"
+    },
+    {
+        "group": "ToddyCat",
+        "url": "https://attack.mitre.org/groups/G1022/"
+    },
+    {
+        "group": "Tonto Team",
+        "url": "https://attack.mitre.org/groups/G0131/"
+    },
+    {
+        "group": "Transparent Tribe",
+        "url": "https://attack.mitre.org/groups/G0134/"
+    },
+    {
+        "group": "Tropic Trooper",
+        "url": "https://attack.mitre.org/groups/G0081/"
+    },
+    {
+        "group": "Turla",
+        "url": "https://attack.mitre.org/groups/G0010/"
+    },
+    {
+        "group": "UNC2452",
+        "url": "https://attack.mitre.org/groups/G0118/"
+    },
+    {
+        "group": "UNC3886",
+        "url": "https://attack.mitre.org/groups/G1048/"
+    },
+    {
+        "group": "Velvet Ant",
+        "url": "https://attack.mitre.org/groups/G1047/"
+    },
+    {
+        "group": "Volatile Cedar",
+        "url": "https://attack.mitre.org/groups/G0123/"
+    },
+    {
+        "group": "Volt Typhoon",
+        "url": "https://attack.mitre.org/groups/G1017/"
+    },
+    {
+        "group": "Water Galura",
+        "url": "https://attack.mitre.org/groups/G1050/"
+    },
+    {
+        "group": "Whitefly",
+        "url": "https://attack.mitre.org/groups/G0107/"
+    },
+    {
+        "group": "Windigo",
+        "url": "https://attack.mitre.org/groups/G0124/"
+    },
+    {
+        "group": "Windshift",
+        "url": "https://attack.mitre.org/groups/G0112/"
+    },
+    {
+        "group": "Winnti Group",
+        "url": "https://attack.mitre.org/groups/G0044/"
+    },
+    {
+        "group": "Winter Vivern",
+        "url": "https://attack.mitre.org/groups/G1035/"
+    },
+    {
+        "group": "WIRTE",
+        "url": "https://attack.mitre.org/groups/G0090/"
+    },
+    {
+        "group": "Wizard Spider",
+        "url": "https://attack.mitre.org/groups/G0102/"
+    },
+    {
+        "group": "ZIRCONIUM",
+        "url": "https://attack.mitre.org/groups/G0128/"
     }
 ]

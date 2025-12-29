@@ -39,6 +39,13 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.11
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Updated MITRE ATT&CK Data to v18.1 | - Latest Threat Intelligence: AttackGen now uses MITRE ATT&CK v18.1 data, ensuring generated scenarios reflect the most current tactics, techniques, and procedures used by threat actors.<br><br>- Expanded Enterprise Coverage: The Enterprise threat groups list has grown from 150+ to 187 groups, including newly tracked actors.<br><br>- Expanded ICS Coverage: The ICS threat groups list has grown from 7 to 16 groups, providing better coverage for industrial control systems scenarios. |
+| Updated LLM Model Support | - OpenAI: Added GPT-5.2 and GPT-5.2 Pro models; streamlined model list by removing deprecated o-series reasoning models.<br><br>- Anthropic: Updated to Claude 4.5 family with Sonnet 4.5, Haiku 4.5, and Opus 4.5.<br><br>- Google AI: Added Gemini 3 Pro and Flash preview models; updated Gemini 2.5 options.<br><br>- Groq: Added GPT-OSS 120B and 20B models for high-performance inference.<br><br>- Mistral: Updated to dated model versions (Large 2512, Medium 2508, Small 2506); added Ministral 14B. |
+| Bug Fixes | - Fixed Google AI Response Handling: Updated response parsing to handle structured content format returned by newer Gemini models, ensuring scenario text is properly extracted and displayed.<br><br>- Fixed ICS Matrix Error Messages: Error messages now correctly display "ICS ATT&CK" instead of "Enterprise ATT&CK" when using the ICS matrix.<br><br>- Improved Empty Technique Handling: Added graceful handling when a threat group has no associated techniques, preventing secondary errors. |
+
 ### v0.10.1
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |

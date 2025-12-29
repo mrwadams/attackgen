@@ -786,15 +786,26 @@ try:
                     response = generate_scenario_google_wrapper(google_api_key, model_name, messages)
                     st.markdown("---")
                     if response is not None:
-                        st.session_state['custom_scenario_generated'] = True
-                        custom_scenario_text = response.content
-                        st.session_state['custom_scenario_text'] = custom_scenario_text  # Store the generated scenario in the session state
-                        st.markdown(custom_scenario_text)
-                        st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
+                        try:
+                            # Extract text content from structured response if needed
+                            if isinstance(response.content, list):
+                                # Find text blocks in the structured response
+                                text_blocks = [block.get('text', '') for block in response.content if isinstance(block, dict) and block.get('type') == 'text']
+                                custom_scenario_text = '\n'.join(text_blocks)
+                            else:
+                                custom_scenario_text = response.content
 
-                        st.session_state['last_scenario'] = True
-                        st.session_state['last_scenario_text'] = custom_scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+                            st.session_state['custom_scenario_generated'] = True
+                            st.session_state['custom_scenario_text'] = custom_scenario_text
+                            st.markdown(custom_scenario_text)
+                            st.download_button(label="Download Scenario", data=st.session_state['custom_scenario_text'], file_name="custom_scenario.md", mime="text/markdown")
 
+                            st.session_state['last_scenario'] = True
+                            st.session_state['last_scenario_text'] = custom_scenario_text
+                        except Exception as processing_error:
+                            st.error(f"An error occurred while processing the scenario response: {processing_error}")
+                            st.text("Raw response content:")
+                            st.json(str(response.content))
                     else:
                         # If a scenario has been generated previously, display it
                         if 'custom_scenario_text' in st.session_state and st.session_state['custom_scenario_generated']:

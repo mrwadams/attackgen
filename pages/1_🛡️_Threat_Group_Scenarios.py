@@ -592,17 +592,17 @@ def generate_scenario_openai_wrapper(messages):
 
 st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
 
-st.markdown("""
-            ### Select a Threat Actor Group
-
-            Use the drop-down selector below to select a threat actor group from the MITRE ATT&CK framework. 
-            
-            You can then optionally view all of the Enterprise ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
-            """)
-
 # Load groups based on the current matrix
 matrix = st.session_state.get("matrix", "Enterprise")
 groups = load_groups(matrix)
+
+st.markdown(f"""
+            ### Select a Threat Actor Group
+
+            Use the drop-down selector below to select a threat actor group from the MITRE ATT&CK framework.
+
+            You can then optionally view all of the {matrix} ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
+            """)
 
 # Get the list of group names
 group_names = sorted(groups['group'].unique())
@@ -652,7 +652,8 @@ try:
 
             # Check if there are any techniques for the group
             if not techniques:
-                st.info(f"There are no Enterprise ATT&CK techniques associated with the threat group: {selected_group_alias}")
+                st.warning(f"There are no {matrix} ATT&CK techniques associated with the threat group: {selected_group_alias}")
+                st.stop()
             else:
                 # Update techniques_df with the techniques
                 techniques_df = pd.DataFrame(techniques)
@@ -786,7 +787,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 response = generate_scenario_azure_wrapper(messages)
                 st.markdown("---")
@@ -818,22 +819,33 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 google_api_key = st.session_state.get('google_api_key')
                 model_name = os.getenv('GOOGLE_MODEL')
                 response = generate_scenario_google_wrapper(google_api_key, model_name, messages)
                 st.markdown("---")
                 if response is not None:
-                    st.session_state['scenario_generated'] = True
-                    scenario_text = response.content
-                    st.session_state['scenario_text'] = scenario_text  # Store the generated scenario in the session state
-                    st.markdown(scenario_text)
-                    st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
+                    try:
+                        # Extract text content from structured response if needed
+                        if isinstance(response.content, list):
+                            # Find text blocks in the structured response
+                            text_blocks = [block.get('text', '') for block in response.content if isinstance(block, dict) and block.get('type') == 'text']
+                            scenario_text = '\n'.join(text_blocks)
+                        else:
+                            scenario_text = response.content
 
-                    st.session_state['last_scenario'] = True
-                    st.session_state['last_scenario_text'] = scenario_text # Store the last scenario in the session state for use by the Scenario Assistant
+                        st.session_state['scenario_generated'] = True
+                        st.session_state['scenario_text'] = scenario_text
+                        st.markdown(scenario_text)
+                        st.download_button(label="Download Scenario", data=st.session_state['scenario_text'], file_name="threat_group_scenario.md", mime="text/markdown")
 
+                        st.session_state['last_scenario'] = True
+                        st.session_state['last_scenario_text'] = scenario_text
+                    except Exception as processing_error:
+                        st.error(f"An error occurred while processing the scenario response: {processing_error}")
+                        st.text("Raw response content:")
+                        st.json(str(response.content))
                 else:
                     # If a scenario has been generated previously, display it
                     if 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
@@ -852,7 +864,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 mistral_api_key = st.session_state.get('mistral_api_key')
                 model_name = os.getenv('MISTRAL_MODEL')
@@ -884,7 +896,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 model = os.getenv('OLLAMA_MODEL')
                 response = generate_scenario_ollama_wrapper(model)
@@ -917,7 +929,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 anthropic_api_key = st.session_state.get('anthropic_api_key')
                 model_name = os.getenv('ANTHROPIC_MODEL')
@@ -951,7 +963,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 groq_api_key = st.session_state.get('GROQ_API_KEY')
                 model_name = os.getenv('GROQ_MODEL')
@@ -1005,7 +1017,7 @@ try:
             elif not company_size:
                 st.info("Please select your company's size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 response = generate_scenario_wrapper(openai_api_key, model_name, messages)
                 st.markdown("---")
@@ -1048,7 +1060,7 @@ try:
             elif not company_size:
                 st.info("Please select your company\'s size to continue.")
             elif techniques_df.empty:
-                st.info("Please select a threat group with associated Enterprise ATT&CK techniques.")
+                st.info(f"Please select a threat group with associated {matrix} ATT&CK techniques.")
             else:
                 # Call the wrapper function (it now reads custom settings from session_state)
                 response = generate_scenario_openai_wrapper(messages)
