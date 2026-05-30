@@ -34,13 +34,15 @@ docker run -p 8501:8501 attackgen
 - **pages/**: Streamlit pages for different functionality
   - **1_🛡️_Threat_Group_Scenarios.py**: Generate scenarios based on threat actor groups
   - **2_🛠️_Custom_Scenarios.py**: Generate custom scenarios from selected ATT&CK techniques  
-  - **3_💬_AttackGen_Assistant.py**: Chat interface for refining scenarios
+  - **3_🤖_AI_Insider_Threat_Scenarios.py**: Generate scenarios where a frontier AI agent deployed inside the organisation acts as an insider threat (based on the "Actions Speak Louder Than Tokens" threat model). Driven by deployment archetype, threat taxonomy, and STRIDE threats rather than a MITRE matrix.
+  - **4_💬_AttackGen_Assistant.py**: Chat interface for refining scenarios
 
 ### Data Files
 - **data/enterprise-attack.json**: MITRE ATT&CK Enterprise matrix (STIX format)
 - **data/ics-attack.json**: MITRE ATT&CK ICS matrix (STIX format)
 - **data/groups.json**: Threat actor group mappings for Enterprise
 - **data/groups_ics.json**: Threat actor group mappings for ICS
+- **data/ai_insider_threats.py**: AI insider threat framework (deployment archetypes, threat taxonomy, STRIDE threats, CERT dimensions, detection strategies, NIST CSF controls, and templates) used by the AI Insider Threat Scenarios page
 
 ### Configuration
 - **.env**: API keys and secrets (not tracked in git)

@@ -27,6 +27,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Displays a detailed list of techniques used by the selected threat actor group or case study.
 - Create custom scenarios based on a selection of ATT&CK or ATLAS techniques.
 - Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents, including AI/ML-specific attack patterns.
+- Generate **AI Insider Threat Scenarios** - incident response exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat, based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk). Scenarios are shaped by the agent's deployment archetype (autonomy level), threat category, and STRIDE threats.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
@@ -38,6 +39,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ![AttackGen Screenshot](./images/screenshot.png)
 
 ## Releases
+
+### v0.12
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| AI Insider Threat Scenarios | - New Scenario Type: A dedicated page generates incident response tabletop exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat — through misalignment, reward hacking, emergent objectives, or prompt-injection compromise. Based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk).<br><br>- Deployment Archetype-Driven: Scenarios are shaped by the agent's autonomy level (L1 supervised assistant → L4 fully autonomous fleet), which is the primary determinant of its threat surface and detection posture.<br><br>- Five Insider Threat Categories: Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, and Deception & Evasion — each mapped to concrete AI-agent manifestations rather than human motivations.<br><br>- 23 STRIDE Threats for AI Agents: A complete STRIDE taxonomy (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) adapted for frontier AI agents, optionally used to narrow scenario scope.<br><br>- NIST CSF-Aligned Controls: Generated scenarios include prioritised mitigations mapped to the NIST Cybersecurity Framework (Identify, Protect, Detect, Respond, Recover).<br><br>- Provider Parity: Supports the same provider set as the rest of AttackGen — OpenAI, Anthropic, Azure OpenAI, Google AI, Mistral, Groq, Ollama, and custom OpenAI-compatible endpoints — with optional LangSmith tracing. |
+| Docker Image Security Refresh | - Refreshed Base Image: Updated the `python:3.12-slim` digest to clear stale OS-layer CVEs flagged by Trivy code scanning, reducing the open alert count against the published container image.<br><br>- pip CVE-2025-8869 Fix: `pip` is now upgraded before installing requirements, picking up the fix for missing symlink checks during package extraction. |
 
 ### v0.11
 | What's new? | Why is it useful? |
@@ -246,6 +253,21 @@ This command will start the container and map port 8501 (default for Streamlit a
 6. Use the multi-select box to search for and select the ATT&CK techniques relevant to your scenario.
 7. Click 'Generate Scenario' to create your custom incident response testing scenario based on the selected techniques.
 8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
+
+#### AI Insider Threat Scenario Generation
+1. Choose your model provider and enter the relevant API key (or deployment details for the Azure OpenAI Service).
+2. Select your preferred model from the dropdown.
+3. Select your organisation's industry and size from the dropdown menus.
+4. Navigate to the `AI Insider Threat Scenarios` page.
+5. (Optional) Pick a template to pre-populate the deployment archetype, threat categories and STRIDE threats for a common scenario.
+6. Choose the **deployment archetype** that reflects how autonomously the AI agent operates inside your organisation (e.g. supervised assistant, autonomous agent, fully autonomous fleet). This is the primary driver of the agent's threat surface.
+7. Select one or more **threat categories** (Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, Deception & Evasion).
+8. (Optional) Narrow the scenario to specific **STRIDE threats**. If left empty, the STRIDE threats associated with your selected categories are used automatically. These are the 23 STRIDE threats from the underlying paper.
+9. (Optional) Adjust the **frontier agent capabilities** highlighted in the prompt.
+10. Click 'Generate Scenario'. The output includes an attack narrative mapped to STRIDE identifiers, detection opportunities, and recommended controls aligned to the NIST CSF.
+11. Use the 👍 or 👎 buttons to provide feedback (requires LANGCHAIN_API_KEY).
+
+The threat model behind this page is described in [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk).
 
 Please note that generating scenarios may take a minute or so. Once the scenario is generated, you can view it on the app and also download it as a Markdown file.
 
