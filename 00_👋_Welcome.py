@@ -44,12 +44,25 @@ restore_from_query_params()
 with st.sidebar:
     st.sidebar.markdown("### <span style='color: #1DB954;'>Setup</span>", unsafe_allow_html=True)
 
+    # NB: no `key=` on this (or any) widget that backs a persisted shadow key.
+    # Streamlit clears widget-key entries from session_state when navigating to
+    # a page that doesn't host the widget, which would lose the user's choices
+    # the moment they leave Welcome. Seeding via `index=` from the shadow key
+    # avoids that and keeps the URL → shadow → widget pipeline one-directional.
+    provider_options = list(PROVIDERS.keys())
+    persisted_provider = st.session_state.get("chosen_model_provider")
+    provider_idx = (
+        provider_options.index(persisted_provider)
+        if persisted_provider in provider_options
+        else 0
+    )
     model_provider = st.selectbox(
         "Select your preferred model provider:",
-        list(PROVIDERS.keys()),
-        key="chosen_model_provider",
+        provider_options,
+        index=provider_idx,
         help="Select the model provider you would like to use. This will determine the models available for selection.",
     )
+    st.session_state["chosen_model_provider"] = model_provider
 
     provider_info = PROVIDERS[model_provider]
 
@@ -110,7 +123,6 @@ with st.sidebar:
             "Select the model you would like to use:",
             labels,
             index=default_idx,
-            key=f"selected_model_{model_provider}",
             help="\n".join(f"**{mid}** — {help_map[mid] or 'No description.'}" for mid in labels),
         )
         st.session_state["llm_model_name"] = chosen
@@ -125,11 +137,18 @@ with st.sidebar:
 
     st.markdown("""---""")
 
+    matrix_options = ["Enterprise", "ICS", "ATLAS"]
+    persisted_matrix = st.session_state.get("matrix")
+    matrix_idx = (
+        matrix_options.index(persisted_matrix)
+        if persisted_matrix in matrix_options
+        else 0
+    )
     matrix = st.sidebar.radio(
         "Select MITRE Framework:",
-        ["Enterprise", "ICS", "ATLAS"],
-        key="selected_matrix",
-        help="Enterprise and ICS are ATT&CK matrices for traditional IT and industrial control systems. ATLAS focuses on adversarial threats to AI/ML systems."
+        matrix_options,
+        index=matrix_idx,
+        help="Enterprise and ICS are ATT&CK matrices for traditional IT and industrial control systems. ATLAS focuses on adversarial threats to AI/ML systems.",
     )
     st.session_state["matrix"] = matrix
 
