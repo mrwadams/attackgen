@@ -33,6 +33,7 @@ from langsmith import Client
 
 from core.llm import call_llm
 from core.schemas import LLMConfig
+from core.state import restore_from_query_params
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     AI_INSIDER_TEMPLATES,
@@ -56,6 +57,10 @@ if "LANGCHAIN_API_KEY" in st.secrets:
     client = Client(api_key=st.secrets["LANGCHAIN_API_KEY"])
 else:
     client = None
+
+# Restore sidebar selections on direct page loads (e.g. browser refresh while
+# on this page). See core/state.py for the persisted-keys list.
+restore_from_query_params()
 
 # ------------------ Streamlit Configuration ------------------ #
 

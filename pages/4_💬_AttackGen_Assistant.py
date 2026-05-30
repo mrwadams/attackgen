@@ -4,6 +4,11 @@ import streamlit as st
 
 from core.llm import call_llm
 from core.schemas import LLMConfig
+from core.state import restore_from_query_params
+
+# Restore sidebar selections on direct page loads (e.g. browser refresh while
+# on this page). See core/state.py for the persisted-keys list.
+restore_from_query_params()
 
 
 SYSTEM_PROMPT = (

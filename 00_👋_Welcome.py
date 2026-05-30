@@ -21,6 +21,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from core.models import PROVIDERS, get_models_for_provider
+from core.state import restore_from_query_params, sync_to_query_params
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,6 +32,11 @@ st.set_page_config(
     page_title="AttackGen",
     page_icon="👾",
 )
+
+# Restore sidebar selections from ?p=...&m=... query params (set on previous
+# visits via sync_to_query_params below). Runs before any widgets so that the
+# selectboxes/radios pick up the restored values via their `key=`/`index=`.
+restore_from_query_params()
 
 
 # ------------------ Sidebar ------------------ #
@@ -76,10 +82,15 @@ with st.sidebar:
 
     # ---- Base URL (Custom only) ----
     if provider_info.needs_api_base:
-        env_base = os.getenv("CUSTOM_BASE_URL")
+        initial_base = (
+            st.session_state.get("llm_api_base")
+            or os.getenv("CUSTOM_BASE_URL")
+            or provider_info.default_api_base
+            or ""
+        )
         st.session_state["llm_api_base"] = st.text_input(
             "Base URL:",
-            value=env_base or provider_info.default_api_base or "",
+            value=initial_base,
             help="Base URL of your OpenAI-compatible endpoint. Example: http://localhost:11434/v1 for Ollama, http://localhost:1234/v1 for LM Studio.",
         )
     else:
@@ -87,22 +98,28 @@ with st.sidebar:
 
     # ---- Model selection ----
     models = get_models_for_provider(model_provider)
+    persisted_model = st.session_state.get("llm_model_name")
     if models:
         labels = [m.model_id for m in models]
         help_map = {m.model_id: m.help_text for m in models}
+        # Seed the selectbox's value if the persisted model belongs to this
+        # provider — otherwise (e.g. after switching providers) fall back to
+        # the first option.
+        default_idx = labels.index(persisted_model) if persisted_model in labels else 0
         chosen = st.selectbox(
             "Select the model you would like to use:",
             labels,
-            key="selected_model",
+            index=default_idx,
+            key=f"selected_model_{model_provider}",
             help="\n".join(f"**{mid}** — {help_map[mid] or 'No description.'}" for mid in labels),
         )
         st.session_state["llm_model_name"] = chosen
     else:
         # Custom: user types the model id
-        env_model = os.getenv("CUSTOM_MODEL_NAME")
+        initial_model = persisted_model or os.getenv("CUSTOM_MODEL_NAME") or ""
         st.session_state["llm_model_name"] = st.text_input(
             "Model name:",
-            value=env_model or "",
+            value=initial_model,
             help="Model identifier as expected by your endpoint (e.g. 'llama3.1', 'qwen3:32b').",
         )
 
@@ -116,28 +133,46 @@ with st.sidebar:
     )
     st.session_state["matrix"] = matrix
 
+    industries = sorted([
+        'Aerospace / Defense', 'Agriculture / Food Services',
+        'Automotive', 'Construction', 'Education',
+        'Energy / Utilities', 'Finance / Banking',
+        'Government / Public Sector', 'Healthcare',
+        'Hospitality / Tourism', 'Insurance',
+        'Legal Services', 'Manufacturing',
+        'Media / Entertainment', 'Non-profit',
+        'Real Estate', 'Retail / E-commerce',
+        'Technology / IT', 'Telecommunication',
+        'Transportation / Logistics',
+    ])
+    persisted_industry = st.session_state.get("industry")
     industry = st.selectbox(
         "Select your company's industry:",
-        sorted(['Aerospace / Defense', 'Agriculture / Food Services',
-                'Automotive', 'Construction', 'Education',
-                'Energy / Utilities', 'Finance / Banking',
-                'Government / Public Sector', 'Healthcare',
-                'Hospitality / Tourism', 'Insurance',
-                'Legal Services', 'Manufacturing',
-                'Media / Entertainment', 'Non-profit',
-                'Real Estate', 'Retail / E-commerce',
-                'Technology / IT', 'Telecommunication',
-                'Transportation / Logistics']),
+        industries,
+        index=industries.index(persisted_industry) if persisted_industry in industries else None,
         placeholder="Select Industry",
     )
     st.session_state["industry"] = industry
 
+    sizes = [
+        'Small (1-50 employees)',
+        'Medium (51-200 employees)',
+        'Large (201-1,000 employees)',
+        'Enterprise (1,001-10,000 employees)',
+        'Large Enterprise (10,000+ employees)',
+    ]
+    persisted_size = st.session_state.get("company_size")
     company_size = st.selectbox(
         "Select your company's size:",
-        ['Small (1-50 employees)', 'Medium (51-200 employees)', 'Large (201-1,000 employees)', 'Enterprise (1,001-10,000 employees)', 'Large Enterprise (10,000+ employees)'],
+        sizes,
+        index=sizes.index(persisted_size) if persisted_size in sizes else None,
         placeholder="Select Company Size",
     )
     st.session_state["company_size"] = company_size
+
+    # Mirror the sidebar selections into the URL so a refresh restores them.
+    # API keys are intentionally excluded — see core/state.py.
+    sync_to_query_params()
 
     st.sidebar.markdown("---")
 
