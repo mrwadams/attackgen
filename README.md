@@ -27,6 +27,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Displays a detailed list of techniques used by the selected threat actor group or case study.
 - Create custom scenarios based on a selection of ATT&CK or ATLAS techniques.
 - Use scenario templates to quickly generate custom scenarios based on common types of cyber incidents, including AI/ML-specific attack patterns.
+- Generate **AI Insider Threat Scenarios** - incident response exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat, based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk). Scenarios are shaped by the agent's deployment archetype (autonomy level), threat category, and STRIDE threats.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.

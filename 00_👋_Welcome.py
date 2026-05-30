@@ -288,6 +288,8 @@ st.markdown("""
             The MITRE ATT&CK and ATLAS frameworks are powerful tools for understanding the tactics, techniques, and procedures (TTPs) used by threat actors targeting traditional IT/OT systems and AI/ML systems respectively; however, it can be difficult to translate this information into realistic scenarios for testing.
 
             AttackGen solves this problem by using large language models to quickly generate attack scenarios based on threat actor groups, documented case studies, or custom technique selections.
+
+            AttackGen also generates **AI Insider Threat Scenarios** — incident response exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat. These are based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk).
             """)
 
 if st.session_state.get('chosen_model_provider') == "Azure OpenAI Service":
@@ -362,4 +364,8 @@ else:
             1. Enter your OpenAI API key, then select your preferred model, industry, company size, and MITRE framework from the sidebar.
             2. Go to the `Threat Group Scenarios` page to generate a scenario based on a threat actor group or ATLAS case study, or go to the `Custom Scenarios` page to generate a scenario based on your own selection of techniques.
             3. Use `AttackGen Assistant` to refine / update the generated scenario, or ask more general questions about incident response testing.
+            """)
+
+st.markdown("""
+            💡 Looking to test your response to **AI agents acting as insider threats**? Head to the `AI Insider Threat Scenarios` page to generate exercises based on an agent's deployment autonomy, threat category, and STRIDE threats — no MITRE matrix selection required.
             """)
