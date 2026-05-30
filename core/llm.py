@@ -99,6 +99,13 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
         kwargs["safety_settings"] = GEMINI_SAFETY_SETTINGS
 
     if provider and provider.provider_key == "Custom":
+        # Force the OpenAI-compatible path explicitly. LiteLLM's model-string
+        # auto-detection misroutes when the user-typed model name contains a
+        # slash (e.g. "qwen/qwen3-32b"), interpreting the part before the slash
+        # as the provider. Setting custom_llm_provider bypasses that, and we
+        # pass the bare model name so the endpoint receives it unchanged.
+        kwargs["model"] = config.model_name
+        kwargs["custom_llm_provider"] = "openai"
         # litellm needs an api_key even when the endpoint doesn't require one.
         kwargs.setdefault("api_key", "not-required")
 
