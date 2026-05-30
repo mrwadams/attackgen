@@ -1,5 +1,5 @@
 # Use specific version with SHA256 for reproducibility and security
-FROM python:3.12-slim@sha256:d86b4c74b936c438cd4cc3a9f7256b9a7c27ad68c7caf8c205e18d9845af0164
+FROM python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
 
 # Create non-root user for security
 RUN groupadd -r attackgen && \
@@ -9,8 +9,10 @@ RUN groupadd -r attackgen && \
 WORKDIR /app
 
 # Copy and install dependencies as root (better layer caching)
+# Upgrade pip first to pick up fixes for CVE-2025-8869 (symlink extraction)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
     pip check
 
 # Set up Streamlit cache directory with proper permissions
