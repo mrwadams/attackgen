@@ -31,7 +31,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - AttackGen Assistant - a chat interface for updating and/or asking questions about generated scenarios.
 - Capture user feedback on the quality of the generated scenarios.
 - Downloadable scenarios in Markdown format.
-- Use the OpenAI API, Anthropic API (Claude models), Azure OpenAI Service, Google AI API, Mistral API, Groq API, locally hosted Ollama models, or custom OpenAI-compatible API endpoints to generate incident response scenarios.
+- Use the OpenAI API, Anthropic API (Claude models), Google AI API, Mistral API, Groq API, or any custom OpenAI-compatible endpoint (Ollama, LM Studio, Azure OpenAI, OpenRouter, etc.) to generate incident response scenarios. All providers are routed through [LiteLLM](https://github.com/BerriAI/litellm) behind a single internal wrapper, so adding a new model is a one-line change.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
 - Secure credential management using .env file for API keys and secrets.
@@ -43,7 +43,8 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ### v0.12
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
-| AI Insider Threat Scenarios | - New Scenario Type: A dedicated page generates incident response tabletop exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat — through misalignment, reward hacking, emergent objectives, or prompt-injection compromise. Based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk).<br><br>- Deployment Archetype-Driven: Scenarios are shaped by the agent's autonomy level (L1 supervised assistant → L4 fully autonomous fleet), which is the primary determinant of its threat surface and detection posture.<br><br>- Five Insider Threat Categories: Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, and Deception & Evasion — each mapped to concrete AI-agent manifestations rather than human motivations.<br><br>- 23 STRIDE Threats for AI Agents: A complete STRIDE taxonomy (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) adapted for frontier AI agents, optionally used to narrow scenario scope.<br><br>- NIST CSF-Aligned Controls: Generated scenarios include prioritised mitigations mapped to the NIST Cybersecurity Framework (Identify, Protect, Detect, Respond, Recover).<br><br>- Provider Parity: Supports the same provider set as the rest of AttackGen — OpenAI, Anthropic, Azure OpenAI, Google AI, Mistral, Groq, Ollama, and custom OpenAI-compatible endpoints — with optional LangSmith tracing. |
+| AI Insider Threat Scenarios | - New Scenario Type: A dedicated page generates incident response tabletop exercises in which a frontier AI agent deployed inside your organisation behaves as an insider threat — through misalignment, reward hacking, emergent objectives, or prompt-injection compromise. Based on the threat model from [*Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier AI Agents*](https://ai-insider-threat.matt-adams.co.uk).<br><br>- Deployment Archetype-Driven: Scenarios are shaped by the agent's autonomy level (L1 supervised assistant → L4 fully autonomous fleet), which is the primary determinant of its threat surface and detection posture.<br><br>- Five Insider Threat Categories: Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, and Deception & Evasion — each mapped to concrete AI-agent manifestations rather than human motivations.<br><br>- 23 STRIDE Threats for AI Agents: A complete STRIDE taxonomy (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) adapted for frontier AI agents, optionally used to narrow scenario scope.<br><br>- NIST CSF-Aligned Controls: Generated scenarios include prioritised mitigations mapped to the NIST Cybersecurity Framework (Identify, Protect, Detect, Respond, Recover).<br><br>- Provider Parity: Supports the same provider set as the rest of AttackGen with optional LangSmith tracing. |
+| LiteLLM Migration & Provider Consolidation | - Unified LLM Wrapper: All provider integration now flows through a single `core/llm.py` wrapper that uses [LiteLLM](https://github.com/BerriAI/litellm). Adding a new model is a one-line edit to the `MODELS` list in `core/models.py`; adding a provider is a single `ProviderInfo` entry. Mirrors the pattern used in [stride-gpt](https://github.com/mrwadams/stride-gpt).<br><br>- Massive Code Reduction: Removed ~3,800 lines of duplicated per-provider branching across the four pages (~1,000 lines of `if model_provider == ...` blocks plus eight near-identical wrapper functions per page). Each page now builds plain message dicts and calls `call_llm(config, messages)`.<br><br>- Registry-Driven Sidebar: The Welcome sidebar is now generated from the provider registry, replacing eight hand-coded provider blocks with one loop.<br><br>- Refreshed Model Lists: Updated to the latest models — OpenAI GPT-5.5 / 5.4 family, Anthropic Claude 4.6 / 4.7 / 4.8, Google Gemini 3.x preview, Mistral Large 3 / Magistral, Groq GPT-OSS and Qwen3.<br><br>- Provider Consolidation: Replaced the separate Azure OpenAI Service and Ollama entries with a single **Custom (OpenAI-compatible)** option. Azure deployments, Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`), OpenRouter and self-hosted endpoints all work through this one path.<br><br>- Smaller Dependency Footprint: Dropped the `langchain`, `langchain-anthropic`, `langchain-core`, `langchain-community`, `langchain-google-genai`, `langchain-mistralai`, `langchain-openai` and `anthropic` packages — replaced by a single `litellm>=1.40` dependency. `langsmith` is retained for optional tracing.<br><br>- LangSmith Tracing Preserved: The `@traceable` decorator and feedback widget continue to work transparently; `core/llm.py` wraps `call_llm` in `@traceable` when a LangSmith client is available. |
 | Docker Image Security Refresh | - Refreshed Base Image: Updated the `python:3.12-slim` digest to clear stale OS-layer CVEs flagged by Trivy code scanning, reducing the open alert count against the published container image.<br><br>- pip CVE-2025-8869 Fix: `pip` is now upgraded before installing requirements, picking up the fix for missing symlink checks during package extraction. |
 
 ### v0.11
@@ -235,8 +236,8 @@ This command will start the container and map port 8501 (default for Streamlit a
 ### Generating Scenarios
 
 #### Standard Scenario Generation
-1. Choose whether to use the OpenAI API, Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models.
-2. Enter your API key for the chosen model provider, or the API key and deployment details for your model on the Azure OpenAI Service.
+1. Choose whether to use the OpenAI API, Anthropic API, Google AI API, Mistral API, Groq API, or a custom OpenAI-compatible endpoint (for Ollama, LM Studio, Azure OpenAI deployments, OpenRouter, etc.).
+2. Enter your API key for the chosen provider. For the Custom provider, also enter the base URL and model name.
 3. Select your preferred model from the dropdown.
 4. Select your organisation's industry and size from the dropdown menus.
 5. Navigate to the `Threat Group Scenarios` page.
@@ -245,8 +246,8 @@ This command will start the container and map port 8501 (default for Streamlit a
 8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 #### Custom Scenario Generation
-1. Choose whether to use the OpenAI API, Azure OpenAI Service, Google AI API, Mistral API, Groq API, or locally hosted Ollama models.
-2. Enter your API key for the chosen model provider, or the API key and deployment details for your model on the Azure OpenAI Service.
+1. Choose whether to use the OpenAI API, Anthropic API, Google AI API, Mistral API, Groq API, or a custom OpenAI-compatible endpoint.
+2. Enter your API key for the chosen provider. For the Custom provider, also enter the base URL and model name.
 3. Select your preferred model from the dropdown.
 4. Select your organisation's industry and size from the dropdown menus.
 5. Navigate to the `Custom Scenario` page.
@@ -255,7 +256,7 @@ This command will start the container and map port 8501 (default for Streamlit a
 8. Use the 👍 or 👎 buttons to provide feedback on the quality of the generated scenario. N.B. The feedback buttons only appear if a value for LANGCHAIN_API_KEY has been set in the `.streamlit/secrets.toml` file.
 
 #### AI Insider Threat Scenario Generation
-1. Choose your model provider and enter the relevant API key (or deployment details for the Azure OpenAI Service).
+1. Choose your model provider and enter the relevant API key (use the Custom provider for Azure OpenAI deployments or local models).
 2. Select your preferred model from the dropdown.
 3. Select your organisation's industry and size from the dropdown menus.
 4. Navigate to the `AI Insider Threat Scenarios` page.
