@@ -84,7 +84,7 @@ PROVIDERS: dict[str, ProviderInfo] = {
         env_var="CUSTOM_API_KEY",
         needs_api_key=False,           # Many local endpoints don't need a key
         needs_api_base=True,
-        default_api_base="http://localhost:11434/v1",
+        default_api_base="http://127.0.0.1:1234/v1",
     ),
 }
 
