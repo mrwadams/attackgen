@@ -5,8 +5,11 @@ from __future__ import annotations
 import pytest
 
 import core.llm as llm_module
-from core.llm import GEMINI_SAFETY_SETTINGS, _build_litellm_kwargs, call_llm
 from core.schemas import LLMConfig
+
+_build_litellm_kwargs = llm_module._build_litellm_kwargs
+call_llm = llm_module.call_llm
+GEMINI_SAFETY_SETTINGS = llm_module.GEMINI_SAFETY_SETTINGS
 
 
 def test_kwargs_always_set_num_retries_to_three() -> None:
