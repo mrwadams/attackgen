@@ -51,14 +51,12 @@ GEMINI_SAFETY_SETTINGS = [
 try:
     from langsmith import Client
     from langsmith.run_helpers import traceable
-    from langsmith.run_trees import RunTree
 
     _langsmith_api_key = os.getenv("LANGCHAIN_API_KEY")
     _langsmith_client: Client | None = Client() if _langsmith_api_key else None
 except Exception:
     _langsmith_client = None
     traceable = None  # type: ignore[assignment]
-    RunTree = None  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +135,7 @@ def call_llm(config: LLMConfig, messages: list[dict]) -> str:
             tags=list(config.trace_tags),
             client=_langsmith_client,
         )
-        def _traced(messages: list[dict], *, run_tree: "RunTree") -> str:
+        def _traced(messages: list[dict], *, run_tree) -> str:
             content = _raw_call(config, messages)
             st.session_state["run_id"] = str(run_tree.id)
             return content
