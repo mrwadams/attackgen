@@ -1,12 +1,5 @@
-anthropic
-langchain
-langchain-anthropic
-langchain-core
-langchain-community
-langchain-google-genai
-langchain-mistralai
-langchain-openai
 langsmith
+litellm>=1.40
 mitreattack-python
 openai
 pandas
