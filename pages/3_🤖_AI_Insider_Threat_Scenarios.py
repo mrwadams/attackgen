@@ -25,14 +25,9 @@ paper "Actions Speak Louder Than Tokens: An Insider Threat Model for Frontier
 AI Agents" by Matt Adams (https://ai-insider-threat.matt-adams.co.uk).
 """
 
-import os
-import re
-
 import streamlit as st
-from langsmith import Client
 
-from core.llm import call_llm
-from core.schemas import LLMConfig
+from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
@@ -47,17 +42,6 @@ from data.ai_insider_threats import (
     stride_options,
 )
 
-# ------------------ LangSmith Setup ------------------ #
-
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
-os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-
-if "LANGCHAIN_API_KEY" in st.secrets:
-    client = Client(api_key=st.secrets["LANGCHAIN_API_KEY"])
-else:
-    client = None
-
 # Restore sidebar selections on direct page loads (e.g. browser refresh while
 # on this page). See core/state.py for the persisted-keys list.
 restore_from_query_params()
@@ -69,9 +53,6 @@ st.set_page_config(page_title="AI Insider Threat Scenarios", page_icon="🤖")
 model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
 industry = st.session_state.get("industry")
 company_size = st.session_state.get("company_size")
-
-if "ai_insider_scenario_generated" not in st.session_state:
-    st.session_state["ai_insider_scenario_generated"] = False
 
 
 # ------------------ Prompt Construction ------------------ #
@@ -283,46 +264,8 @@ st.markdown(
 )
 
 
-def _post_process(scenario_text: str) -> tuple[str | None, str]:
-    """Extract <think>...</think> reasoning blocks emitted by some models.
-
-    Returns (thinking_or_None, cleaned_scenario).
-    """
-    match = re.search(r'<think>(.*?)</think>', scenario_text, re.DOTALL)
-    thinking = match.group(1).strip() if match else None
-    cleaned = re.sub(r'<think>.*?</think>', '', scenario_text, flags=re.DOTALL).strip()
-    cleaned = re.sub(r'^```\w*\n|```$', '', cleaned, flags=re.MULTILINE).strip()
-    return thinking, cleaned
-
-
-def _handle_response_text(scenario_text):
-    st.session_state['ai_insider_scenario_generated'] = True
-    st.session_state['ai_insider_scenario_text'] = scenario_text
-    st.markdown(scenario_text)
-    st.download_button(
-        label="Download Scenario",
-        data=scenario_text,
-        file_name="ai_insider_threat_scenario.md",
-        mime="text/markdown",
-    )
-    st.session_state['last_scenario'] = True
-    st.session_state['last_scenario_text'] = scenario_text
-
-
-def _show_previous_scenario():
-    if 'ai_insider_scenario_text' in st.session_state and st.session_state['ai_insider_scenario_generated']:
-        st.markdown("---")
-        st.markdown(st.session_state['ai_insider_scenario_text'])
-        st.download_button(
-            label="Download Scenario",
-            data=st.session_state['ai_insider_scenario_text'],
-            file_name="ai_insider_threat_scenario.md",
-            mime="text/markdown",
-        )
-
-
-def _ready_to_generate() -> bool:
-    if not st.session_state.get("llm_api_key") and PROVIDERS_NEEDING_KEY:
+def _ready() -> bool:
+    if model_provider != "Custom" and not st.session_state.get("llm_api_key"):
         st.info("Please add your API key in the sidebar to continue.")
         return False
     if not st.session_state.get("llm_model_name"):
@@ -337,72 +280,19 @@ def _ready_to_generate() -> bool:
     if not selected_categories and not selected_stride:
         st.info("Please select at least one threat category (or specific STRIDE threat) to continue.")
         return False
+    if messages is None:
+        return False
     return True
 
 
-# A bit ugly — used by _ready_to_generate to decide whether to enforce a key check.
-PROVIDERS_NEEDING_KEY = model_provider != "Custom"
-
-try:
-    if st.button('Generate Scenario', key='generate_ai_insider'):
-        if _ready_to_generate() and messages is not None:
-            config = LLMConfig.from_session_state(
-                trace_name="AI Insider Threat Scenario",
-                trace_tags=("ai_insider_scenario",),
-            )
-            try:
-                with st.status('Generating scenario...', expanded=True):
-                    st.write("Calling the model.")
-                    scenario_text = call_llm(config, messages)
-                    st.write("Scenario generated successfully.")
-            except Exception as e:
-                st.error(f"An error occurred while generating the scenario: {str(e)}")
-                scenario_text = None
-
-            st.markdown("---")
-            if scenario_text:
-                thinking, cleaned = _post_process(scenario_text)
-                if thinking:
-                    with st.expander("View Model's Reasoning"):
-                        st.markdown(thinking)
-                _handle_response_text(cleaned)
-            else:
-                _show_previous_scenario()
-
-    if 'LANGCHAIN_API_KEY' not in st.secrets:
-        st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")
-
-    feedback_placeholder = st.empty()
-    st.markdown("---")
-    if st.session_state.get('ai_insider_scenario_generated', False) and client is not None:
-        st.markdown("Rate the scenario to help improve this tool.")
-        col1, col2, _ = st.columns([0.5, 0.5, 5])
-        with col1:
-            if st.button("👍", key="thumbs_up_ai_insider"):
-                try:
-                    run_id = st.session_state.get('run_id')
-                    if run_id:
-                        feedback_record = client.create_feedback(run_id, "positive", score=1, comment="")
-                        st.session_state.feedback = {"feedback_id": str(feedback_record.id), "score": 1}
-                        feedback_placeholder.success("Feedback submitted. Thank you.")
-                    else:
-                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                except Exception as e:
-                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
-        with col2:
-            if st.button("👎", key="thumbs_down_ai_insider"):
-                try:
-                    run_id = st.session_state.get('run_id')
-                    if run_id:
-                        feedback_record = client.create_feedback(run_id, "negative", score=0, comment="")
-                        st.session_state.feedback = {"feedback_id": str(feedback_record.id), "score": 0}
-                        feedback_placeholder.success("Feedback submitted. Thank you.")
-                    else:
-                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                except Exception as e:
-                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
-except Exception as e:
-    st.error("An error occurred: " + str(e))
+run_scenario_page(
+    page_id="ai_insider",
+    build_messages=lambda: messages,
+    is_ready=_ready,
+    download_name="ai_insider_threat_scenario.md",
+    trace_name="AI Insider Threat Scenario",
+    trace_tags=("ai_insider_scenario",),
+)
 
 
 # Back button

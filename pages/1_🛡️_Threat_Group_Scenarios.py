@@ -1,31 +1,14 @@
-import os
-import re
-
 import pandas as pd
 import streamlit as st
-from langsmith import Client
 from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
-from core.llm import call_llm
-from core.schemas import LLMConfig
+from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 
 # Restore sidebar selections on direct page loads (e.g. browser refresh while
 # on this page). See core/state.py for the persisted-keys list.
 restore_from_query_params()
-
-
-# ------------------ LangSmith Setup ------------------ #
-
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
-os.environ["LANGCHAIN_PROJECT"] = "AttackGen"
-
-if "LANGCHAIN_API_KEY" in st.secrets:
-    client = Client(api_key=st.secrets["LANGCHAIN_API_KEY"])
-else:
-    client = None
 
 
 # ------------------ Streamlit Configuration ------------------ #
@@ -35,9 +18,6 @@ st.set_page_config(page_title="Generate Scenario", page_icon="🛡️")
 model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
 industry = st.session_state.get("industry")
 company_size = st.session_state.get("company_size")
-
-if "scenario_generated" not in st.session_state:
-    st.session_state["scenario_generated"] = False
 
 
 # ------------------ Data Loading ------------------ #
@@ -117,15 +97,6 @@ def build_messages(matrix, selected_group_alias, kill_chain_string):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
-
-
-def post_process(scenario_text: str) -> tuple[str | None, str]:
-    """Pull out <think>...</think> reasoning blocks emitted by some models."""
-    match = re.search(r'<think>(.*?)</think>', scenario_text, re.DOTALL)
-    thinking = match.group(1).strip() if match else None
-    cleaned = re.sub(r'<think>.*?</think>', '', scenario_text, flags=re.DOTALL).strip()
-    cleaned = re.sub(r'^```\w*\n|```$', '', cleaned, flags=re.MULTILINE).strip()
-    return thinking, cleaned
 
 
 # ------------------ Streamlit UI ------------------ #
@@ -298,20 +269,6 @@ else:
     )
 
 
-def _render_scenario(scenario_text: str):
-    st.session_state['scenario_generated'] = True
-    st.session_state['scenario_text'] = scenario_text
-    st.markdown(scenario_text)
-    st.download_button(
-        label="Download Scenario",
-        data=scenario_text,
-        file_name="threat_group_scenario.md",
-        mime="text/markdown",
-    )
-    st.session_state['last_scenario'] = True
-    st.session_state['last_scenario_text'] = scenario_text
-
-
 def _ready() -> bool:
     if model_provider != "Custom" and not st.session_state.get("llm_api_key"):
         st.info("Please add your API key in the sidebar to continue.")
@@ -328,76 +285,19 @@ def _ready() -> bool:
     if techniques_df.empty:
         st.info(f"Please select a {entity_label} with associated techniques.")
         return False
+    if messages is None:
+        return False
     return True
 
 
-try:
-    if st.button('Generate Scenario', key='generate_scenario'):
-        if _ready() and messages is not None:
-            config = LLMConfig.from_session_state(
-                trace_name="Threat Group Scenario",
-                trace_tags=("threat_group_scenario",),
-            )
-            scenario_text = None
-            try:
-                with st.status('Generating scenario...', expanded=True):
-                    st.write("Calling the model.")
-                    scenario_text = call_llm(config, messages)
-                    st.write("Scenario generated successfully.")
-            except Exception as e:
-                st.error(f"An error occurred while generating the scenario: {str(e)}")
-
-            st.markdown("---")
-            if scenario_text:
-                thinking, cleaned = post_process(scenario_text)
-                if thinking:
-                    with st.expander("View Model's Reasoning"):
-                        st.markdown(thinking)
-                _render_scenario(cleaned)
-            elif 'scenario_text' in st.session_state and st.session_state['scenario_generated']:
-                st.markdown("Displaying previously generated scenario:")
-                st.markdown(st.session_state['scenario_text'])
-                st.download_button(
-                    label="Download Scenario",
-                    data=st.session_state['scenario_text'],
-                    file_name="threat_group_scenario.md",
-                    mime="text/markdown",
-                )
-
-    if 'LANGCHAIN_API_KEY' not in st.secrets:
-        st.info("ℹ️ No LangChain API key has been set. This run will not be logged to LangSmith.")
-
-    feedback_placeholder = st.empty()
-    st.markdown("---")
-    if st.session_state.get('scenario_generated', False) and client is not None:
-        st.markdown("Rate the scenario to help improve this tool.")
-        col1, col2, _ = st.columns([0.5, 0.5, 5])
-        with col1:
-            if st.button("👍"):
-                try:
-                    run_id = st.session_state.get('run_id')
-                    if run_id:
-                        feedback_record = client.create_feedback(run_id, "positive", score=1, comment="")
-                        st.session_state.feedback = {"feedback_id": str(feedback_record.id), "score": 1}
-                        feedback_placeholder.success("Feedback submitted. Thank you.")
-                    else:
-                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                except Exception as e:
-                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
-        with col2:
-            if st.button("👎"):
-                try:
-                    run_id = st.session_state.get('run_id')
-                    if run_id:
-                        feedback_record = client.create_feedback(run_id, "negative", score=0, comment="")
-                        st.session_state.feedback = {"feedback_id": str(feedback_record.id), "score": 0}
-                        feedback_placeholder.success("Feedback submitted. Thank you.")
-                    else:
-                        feedback_placeholder.warning("No run ID found. Please generate a scenario first.")
-                except Exception as e:
-                    feedback_placeholder.error(f"An error occurred while creating feedback: {str(e)}")
-except Exception as e:
-    st.error("An error occurred: " + str(e))
+run_scenario_page(
+    page_id="threat_group",
+    build_messages=lambda: messages,
+    is_ready=_ready,
+    download_name="threat_group_scenario.md",
+    trace_name="Threat Group Scenario",
+    trace_tags=("threat_group_scenario",),
+)
 
 
 st.markdown(

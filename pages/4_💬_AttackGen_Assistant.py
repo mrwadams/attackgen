@@ -1,8 +1,7 @@
-import re
-
 import streamlit as st
 
 from core.llm import call_llm
+from core.response import clean_model_response
 from core.schemas import LLMConfig
 from core.state import restore_from_query_params
 
@@ -22,15 +21,6 @@ SYSTEM_PROMPT = (
 st.set_page_config(page_title="AttackGen Assistant", page_icon=":speech_balloon:")
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen Assistant💬</span>", unsafe_allow_html=True)
-
-
-def _post_process(text: str) -> tuple[str | None, str]:
-    """Extract <think>...</think> reasoning blocks emitted by some models."""
-    match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
-    thinking = match.group(1).strip() if match else None
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    cleaned = re.sub(r'^```\w*\n|```$', '', cleaned, flags=re.MULTILINE).strip()
-    return thinking, cleaned
 
 
 if 'last_scenario_text' in st.session_state and st.session_state.get('last_scenario'):
@@ -71,7 +61,7 @@ if 'last_scenario_text' in st.session_state and st.session_state.get('last_scena
         except Exception as e:
             return f"An error occurred while calling the model: {e}"
 
-        thinking, cleaned = _post_process(raw)
+        thinking, cleaned = clean_model_response(raw)
         if thinking:
             with st.expander("View Model's Reasoning"):
                 st.markdown(thinking)
