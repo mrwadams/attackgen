@@ -17,8 +17,8 @@ from collections.abc import Callable
 import streamlit as st
 
 from core.feedback import render_feedback_widget
-from core.llm import call_llm
-from core.response import clean_model_response
+from core.llm import call_llm_stream
+from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 
 Message = dict
@@ -86,17 +86,32 @@ def _generate_and_render(
         trace_tags=trace_tags,
     )
     scenario_text: str | None = None
+    stream_placeholder = st.empty()
+    raw_chunks: list[str] = []
+
+    def _tee(chunks):
+        for chunk in chunks:
+            raw_chunks.append(chunk)
+            yield chunk
+
     try:
-        with st.status(status_text, expanded=True):
-            st.write("Calling the model.")
-            scenario_text = call_llm(config, messages)
-            st.write("Scenario generated successfully.")
+        with st.status(status_text, expanded=True) as status:
+            st.write("Streaming response from the model.")
+            with stream_placeholder.container():
+                st.write_stream(
+                    stream_filter_thinking(_tee(call_llm_stream(config, messages)))
+                )
+            scenario_text = "".join(raw_chunks)
+            status.update(label="Scenario generated.", state="complete")
     except Exception as e:
         st.error(f"An error occurred while generating the scenario: {e}")
 
     st.markdown("---")
     if scenario_text:
         thinking, cleaned = clean_model_response(scenario_text)
+        # Replace the live-streamed view with the canonical cleaned render so
+        # any code-fence stripping (or other tidy-ups) takes effect.
+        stream_placeholder.empty()
         if thinking:
             with st.expander("View Model's Reasoning"):
                 st.markdown(thinking)

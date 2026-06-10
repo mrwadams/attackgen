@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 
 # Silence LiteLLM's import-time WARNINGs about optional AWS deps (Bedrock /
 # SageMaker pre-load) — we don't use them, and they fire before
@@ -129,6 +130,14 @@ def _raw_call(config: LLMConfig, messages: list[dict]) -> str:
     return response.choices[0].message.content or ""
 
 
+def _raw_stream(config: LLMConfig, messages: list[dict]) -> Iterator[str]:
+    kwargs = _build_litellm_kwargs(config)
+    for chunk in litellm.completion(messages=messages, stream=True, **kwargs):
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
+
+
 def call_llm(config: LLMConfig, messages: list[dict]) -> str:
     """Generate a single text response from any supported provider.
 
@@ -151,3 +160,26 @@ def call_llm(config: LLMConfig, messages: list[dict]) -> str:
         return _traced(messages)
 
     return _raw_call(config, messages)
+
+
+def call_llm_stream(config: LLMConfig, messages: list[dict]) -> Iterator[str]:
+    """Stream text deltas from any supported provider.
+
+    Yields raw assistant content as it arrives. The run_id is published into
+    session_state at the start so the LangSmith feedback widget can pick it
+    up even if the user clicks thumbs-up mid-stream.
+    """
+    if _langsmith_client is not None and traceable is not None:
+        @traceable(
+            run_type="llm",
+            name=config.trace_name,
+            tags=list(config.trace_tags),
+            client=_langsmith_client,
+        )
+        def _traced(messages: list[dict], *, run_tree) -> Iterator[str]:
+            st.session_state["run_id"] = str(run_tree.id)
+            yield from _raw_stream(config, messages)
+
+        return _traced(messages)
+
+    return _raw_stream(config, messages)

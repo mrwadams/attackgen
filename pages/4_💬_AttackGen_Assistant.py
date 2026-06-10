@@ -1,7 +1,7 @@
 import streamlit as st
 
-from core.llm import call_llm
-from core.response import clean_model_response
+from core.llm import call_llm_stream
+from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 from core.state import restore_from_query_params
 
@@ -56,16 +56,28 @@ if 'last_scenario_text' in st.session_state and st.session_state.get('last_scena
             trace_name="AttackGen Assistant",
             trace_tags=("assistant",),
         )
-        try:
-            raw = call_llm(config, messages)
-        except Exception as e:
-            return f"An error occurred while calling the model: {e}"
+        raw_chunks: list[str] = []
 
+        def _tee(chunks):
+            for chunk in chunks:
+                raw_chunks.append(chunk)
+                yield chunk
+
+        try:
+            yield from stream_filter_thinking(_tee(call_llm_stream(config, messages)))
+        except Exception as e:
+            yield f"\n\nAn error occurred while calling the model: {e}"
+            st.session_state["_last_assistant_cleaned"] = (
+                f"An error occurred while calling the model: {e}"
+            )
+            return
+
+        raw = "".join(raw_chunks)
         thinking, cleaned = clean_model_response(raw)
         if thinking:
             with st.expander("View Model's Reasoning"):
                 st.markdown(thinking)
-        return cleaned
+        st.session_state["_last_assistant_cleaned"] = cleaned
 
     if prompt := st.chat_input("Type your message here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -74,10 +86,11 @@ if 'last_scenario_text' in st.session_state and st.session_state.get('last_scena
 
         with st.chat_message("assistant"):
             history = "\n".join(f"{m['role']}: {m['content']}" for m in st.session_state.messages[:-1])
-            response = generate_response(prompt, history)
-            st.markdown(response)
+            st.write_stream(generate_response(prompt, history))
 
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.session_state.messages.append(
+            {"role": "assistant", "content": st.session_state.pop("_last_assistant_cleaned", "")}
+        )
 
     def clear_conversation():
         st.session_state.messages = [
