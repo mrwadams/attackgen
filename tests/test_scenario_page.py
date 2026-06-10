@@ -1,0 +1,221 @@
+"""Tests for `core.scenario_page.run_scenario_page`.
+
+The interface is the test surface: given a build_messages callback and a
+readiness predicate, we assert what reaches `call_llm` and what lands in
+session_state. Streamlit's UI calls are stubbed to no-ops; we don't render
+anything — we only care about the control flow at the seam.
+"""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+from typing import Any
+
+import pytest
+import streamlit as st
+
+import core.llm as llm_module
+from core.scenario_page import run_scenario_page
+
+
+@pytest.fixture
+def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """No-op out the Streamlit UI surface that `run_scenario_page` touches.
+
+    Returns a dict the test can mutate to control widget return values:
+      - `button_returns`: bool returned by `st.button`
+    """
+    controls: dict[str, Any] = {"button_returns": False}
+
+    def _button(*_args, **_kwargs):
+        return controls["button_returns"]
+
+    @contextmanager
+    def _status(*_args, **_kwargs):
+        yield None
+
+    @contextmanager
+    def _expander(*_args, **_kwargs):
+        yield None
+
+    def _noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(st, "button", _button)
+    monkeypatch.setattr(st, "status", _status)
+    monkeypatch.setattr(st, "expander", _expander)
+    monkeypatch.setattr(st, "markdown", _noop)
+    monkeypatch.setattr(st, "write", _noop)
+    monkeypatch.setattr(st, "download_button", _noop)
+    monkeypatch.setattr(st, "info", _noop)
+    monkeypatch.setattr(st, "warning", _noop)
+    monkeypatch.setattr(st, "error", _noop)
+    # `render_feedback_widget` calls `st.empty()` then `st.markdown('---')`.
+    monkeypatch.setattr(st, "empty", lambda: _FakePlaceholder())
+    # `st.secrets` membership tests — pretend no LangSmith key is configured
+    # so the feedback widget short-circuits cleanly during tests.
+    monkeypatch.setattr(st, "secrets", {})
+
+    return controls
+
+
+class _FakePlaceholder:
+    def success(self, *_a, **_k): pass
+    def warning(self, *_a, **_k): pass
+    def error(self, *_a, **_k): pass
+
+
+@pytest.fixture
+def disable_langsmith_tracing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force call_llm to hit `_raw_call` directly so litellm sees the messages."""
+    monkeypatch.setattr(llm_module, "_langsmith_client", None)
+
+
+def test_does_nothing_when_button_not_pressed(
+    stub_streamlit, fake_session_state, mock_litellm_completion
+) -> None:
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="threat_group_scenario.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert mock_litellm_completion.calls == []
+    assert "threat_group_scenario_generated" in fake_session_state
+    assert fake_session_state["threat_group_scenario_generated"] is False
+
+
+def test_skips_llm_when_not_ready(
+    stub_streamlit, fake_session_state, mock_litellm_completion
+) -> None:
+    stub_streamlit["button_returns"] = True
+    build_calls: list[None] = []
+
+    def build():
+        build_calls.append(None)
+        return [{"role": "user", "content": "x"}]
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=build,
+        is_ready=lambda: False,
+        download_name="threat_group_scenario.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert mock_litellm_completion.calls == []
+    assert build_calls == []
+    assert fake_session_state["threat_group_scenario_generated"] is False
+
+
+def test_happy_path_calls_llm_cleans_response_and_persists(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "<think>plan</think>\n# Scenario\n\nBody."
+
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    messages = [{"role": "user", "content": "build me a scenario"}]
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: messages,
+        is_ready=lambda: True,
+        download_name="threat_group_scenario.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    # The seam: call_llm got the page's messages.
+    assert len(mock_litellm_completion.calls) == 1
+    _args, kwargs = mock_litellm_completion.calls[0]
+    assert kwargs["messages"] == messages
+    assert kwargs["model"] == "gpt-5.5"
+
+    # The cleaned response — not the raw one — is what gets persisted.
+    cleaned = fake_session_state["threat_group_scenario_text"]
+    assert "<think>" not in cleaned
+    assert cleaned.startswith("# Scenario")
+
+    # Cross-page handoff for the Assistant page.
+    assert fake_session_state["last_scenario"] is True
+    assert fake_session_state["last_scenario_text"] == cleaned
+
+    # The artifact flag is set.
+    assert fake_session_state["threat_group_scenario_generated"] is True
+
+
+def test_page_id_namespaces_session_state(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "scenario A"
+
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="custom_scenario.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+    )
+
+    assert "custom_scenario_text" in fake_session_state
+    assert "custom_scenario_generated" in fake_session_state
+    # The "threat_group_*" namespace is untouched by a "custom" page invocation.
+    assert "threat_group_scenario_text" not in fake_session_state
+
+
+def test_trace_name_and_tags_reach_llm_config(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    captured: dict[str, Any] = {}
+
+    def _fake_call_llm(config, msgs):
+        captured["config"] = config
+        captured["messages"] = msgs
+        return "ok"
+
+    monkeypatch.setattr("core.scenario_page.call_llm", _fake_call_llm)
+
+    run_scenario_page(
+        page_id="ai_insider",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="ai_insider_threat_scenario.md",
+        trace_name="AI Insider Threat Scenario",
+        trace_tags=("ai_insider_scenario",),
+    )
+
+    cfg = captured["config"]
+    assert cfg.trace_name == "AI Insider Threat Scenario"
+    assert cfg.trace_tags == ("ai_insider_scenario",)

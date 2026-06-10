@@ -48,6 +48,14 @@ GEMINI_SAFETY_SETTINGS = [
 # LangSmith setup — optional. Kept for the existing feedback widget.
 # ---------------------------------------------------------------------------
 
+# Configure LangSmith for any page that calls `call_llm`. Previously each page
+# set these at the top of its script; we centralise so a page can't forget to
+# (page 4 didn't), and so adding a fifth page doesn't mean copying the block
+# again.
+os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+os.environ.setdefault("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+os.environ.setdefault("LANGCHAIN_PROJECT", "AttackGen")
+
 try:
     from langsmith import Client
     from langsmith.run_helpers import traceable
