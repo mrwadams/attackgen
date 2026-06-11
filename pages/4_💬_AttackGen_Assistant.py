@@ -4,6 +4,7 @@ from core.llm import call_llm_stream
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 from core.state import restore_from_query_params
+from core.styles import inject_emoji_fonts
 
 # Restore sidebar selections on direct page loads (e.g. browser refresh while
 # on this page). See core/state.py for the persisted-keys list.
@@ -19,6 +20,7 @@ SYSTEM_PROMPT = (
 
 
 st.set_page_config(page_title="AttackGen Assistant", page_icon=":speech_balloon:")
+inject_emoji_fonts()
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen Assistant💬</span>", unsafe_allow_html=True)
 

@@ -12,3 +12,6 @@ venv/
 # Python
 __pycache__/
 *.pyc
+
+# Local notes
+TODO.md

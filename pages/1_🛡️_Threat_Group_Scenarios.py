@@ -3,8 +3,10 @@ import streamlit as st
 from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
+from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
+from core.styles import inject_emoji_fonts
 
 # Restore sidebar selections on direct page loads (e.g. browser refresh while
 # on this page). See core/state.py for the persisted-keys list.
@@ -14,6 +16,7 @@ restore_from_query_params()
 # ------------------ Streamlit Configuration ------------------ #
 
 st.set_page_config(page_title="Generate Scenario", page_icon="🛡️")
+inject_emoji_fonts()
 
 model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
 industry = st.session_state.get("industry")
@@ -93,6 +96,7 @@ def build_messages(matrix, selected_group_alias, kill_chain_string):
         kill_chain_string=kill_chain_string,
         matrix=matrix,
     )
+    user_content = apply_ai_uplift(user_content, page_id="threat_group")
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -296,7 +300,8 @@ run_scenario_page(
     is_ready=_ready,
     download_name="threat_group_scenario.md",
     trace_name="Threat Group Scenario",
-    trace_tags=("threat_group_scenario",),
+    trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
+    inline_control=lambda: render_ai_uplift_toggle("threat_group"),
 )
 
 

@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 from core.models import PROVIDERS, get_models_for_provider
 from core.state import restore_from_query_params, sync_to_query_params
+from core.styles import inject_emoji_fonts
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,6 +33,7 @@ st.set_page_config(
     page_title="AttackGen",
     page_icon="👾",
 )
+inject_emoji_fonts()
 
 # Restore sidebar selections from ?p=...&m=... query params (set on previous
 # visits via sync_to_query_params below). Runs before any widgets so that the
