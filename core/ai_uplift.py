@@ -51,7 +51,7 @@ def render_ai_uplift_toggle(page_id: str) -> bool:
     The widget is keyed by ``page_id`` so the two scenario pages keep independent
     toggle state. Returns the current boolean value.
     """
-    return st.checkbox(
+    return st.toggle(
         AI_UPLIFT_LABEL,
         key=f"{page_id}_ai_uplift",
         help=AI_UPLIFT_HELP,

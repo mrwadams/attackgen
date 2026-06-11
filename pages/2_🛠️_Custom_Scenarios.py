@@ -283,8 +283,6 @@ def _ready() -> bool:
     return True
 
 
-render_ai_uplift_toggle("custom")
-
 run_scenario_page(
     page_id="custom",
     build_messages=lambda: messages,
@@ -292,6 +290,7 @@ run_scenario_page(
     download_name="custom_scenario.md",
     trace_name="Custom Scenario",
     trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
+    inline_control=lambda: render_ai_uplift_toggle("custom"),
 )
 
 

@@ -292,8 +292,6 @@ def _ready() -> bool:
     return True
 
 
-render_ai_uplift_toggle("threat_group")
-
 run_scenario_page(
     page_id="threat_group",
     build_messages=lambda: messages,
@@ -301,6 +299,7 @@ run_scenario_page(
     download_name="threat_group_scenario.md",
     trace_name="Threat Group Scenario",
     trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
+    inline_control=lambda: render_ai_uplift_toggle("threat_group"),
 )
 
 

@@ -35,6 +35,7 @@ def run_scenario_page(
     trace_tags: tuple[str, ...],
     status_text: str = "Generating scenario...",
     button_label: str = "Generate Scenario",
+    inline_control: Callable[[], None] | None = None,
 ) -> None:
     """Render the generate-button + scenario lifecycle for one scenario page.
 
@@ -43,13 +44,26 @@ def run_scenario_page(
     colliding. ``build_messages`` may return ``None`` to indicate "nothing to
     send yet" — in that case ``is_ready`` should also be returning ``False``,
     but we double-check before calling the model.
+
+    ``inline_control`` is an optional callback rendered on the same row as the
+    generate button (e.g. the AI-enhanced adversary toggle) so page-specific
+    controls sit alongside the button rather than being lost above it.
     """
     generated_key = f"{page_id}_scenario_generated"
     text_key = f"{page_id}_scenario_text"
 
     st.session_state.setdefault(generated_key, False)
 
-    if st.button(button_label, key=f"{page_id}_generate"):
+    if inline_control is not None:
+        button_col, control_col = st.columns([1, 2], vertical_alignment="center")
+        with button_col:
+            clicked = st.button(button_label, key=f"{page_id}_generate")
+        with control_col:
+            inline_control()
+    else:
+        clicked = st.button(button_label, key=f"{page_id}_generate")
+
+    if clicked:
         if is_ready():
             messages = build_messages()
             if messages is not None:
