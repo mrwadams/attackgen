@@ -6,6 +6,7 @@ from atlas_parser import ATLASData
 from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
+from core.styles import inject_emoji_fonts
 
 # Restore sidebar selections on direct page loads (e.g. browser refresh while
 # on this page). See core/state.py for the persisted-keys list.
@@ -15,6 +16,7 @@ restore_from_query_params()
 # ------------------ Streamlit Configuration ------------------ #
 
 st.set_page_config(page_title="Generate Custom Scenario", page_icon="🛠️")
+inject_emoji_fonts()
 
 model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
 industry = st.session_state.get("industry")

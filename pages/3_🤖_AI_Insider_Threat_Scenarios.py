@@ -29,6 +29,7 @@ import streamlit as st
 
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
+from core.styles import inject_emoji_fonts
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     AI_INSIDER_TEMPLATES,
@@ -49,6 +50,7 @@ restore_from_query_params()
 # ------------------ Streamlit Configuration ------------------ #
 
 st.set_page_config(page_title="AI Insider Threat Scenarios", page_icon="🤖")
+inject_emoji_fonts()
 
 model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
 industry = st.session_state.get("industry")
