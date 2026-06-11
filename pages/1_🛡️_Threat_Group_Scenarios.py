@@ -3,6 +3,7 @@ import streamlit as st
 from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
+from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 
@@ -93,6 +94,7 @@ def build_messages(matrix, selected_group_alias, kill_chain_string):
         kill_chain_string=kill_chain_string,
         matrix=matrix,
     )
+    user_content = apply_ai_uplift(user_content, page_id="threat_group")
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -290,13 +292,15 @@ def _ready() -> bool:
     return True
 
 
+render_ai_uplift_toggle("threat_group")
+
 run_scenario_page(
     page_id="threat_group",
     build_messages=lambda: messages,
     is_ready=_ready,
     download_name="threat_group_scenario.md",
     trace_name="Threat Group Scenario",
-    trace_tags=("threat_group_scenario",),
+    trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
 )
 
 

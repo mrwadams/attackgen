@@ -35,9 +35,10 @@ docker run -p 8501:8501 attackgen
   - **core/llm.py**: `call_llm(config, messages)` — the single entry point. Routes to providers via LiteLLM, applies provider-specific kwargs, wraps in LangSmith `@traceable` when a LangSmith client is available.
   - **core/models.py**: Provider + model registry (`PROVIDERS`, `MODELS`). Add or update a model by editing this file alone.
   - **core/schemas.py**: `LLMConfig` dataclass and `LLMConfig.from_session_state(...)` factory.
+  - **core/ai_uplift.py**: Optional "AI-enhanced adversary" framing for the Threat Group and Custom pages. A per-page toggle that appends a prompt fragment reframing the *same* kill chain as AI-accelerated (lowered skill floor, compressed timelines, autonomous orchestration) and adds an `ai_enhanced` LangSmith trace tag. Based on Anthropic's "LLM ATT&CK Navigator" research. Not used on page 3, where the AI agent is already the threat actor.
 - **pages/**: Streamlit pages for different functionality
-  - **1_🛡️_Threat_Group_Scenarios.py**: Generate scenarios based on threat actor groups (ATT&CK) or case studies (ATLAS)
-  - **2_🛠️_Custom_Scenarios.py**: Generate custom scenarios from selected ATT&CK / ATLAS techniques
+  - **1_🛡️_Threat_Group_Scenarios.py**: Generate scenarios based on threat actor groups (ATT&CK) or case studies (ATLAS). Supports the optional AI-enhanced adversary toggle (`core/ai_uplift.py`).
+  - **2_🛠️_Custom_Scenarios.py**: Generate custom scenarios from selected ATT&CK / ATLAS techniques. Supports the optional AI-enhanced adversary toggle (`core/ai_uplift.py`).
   - **3_🤖_AI_Insider_Threat_Scenarios.py**: Generate scenarios where a frontier AI agent deployed inside the organisation acts as an insider threat (based on the "Actions Speak Louder Than Tokens" threat model). Driven by deployment archetype, threat taxonomy, and STRIDE threats rather than a MITRE matrix.
   - **4_💬_AttackGen_Assistant.py**: Chat interface for refining scenarios
 

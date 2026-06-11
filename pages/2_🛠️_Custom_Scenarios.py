@@ -3,6 +3,7 @@ import streamlit as st
 from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData
+from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 
@@ -151,6 +152,7 @@ def build_messages(selected_techniques_string, template_info):
         template_info=template_info,
         matrix=matrix,
     )
+    user_content = apply_ai_uplift(user_content, page_id="custom")
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -281,13 +283,15 @@ def _ready() -> bool:
     return True
 
 
+render_ai_uplift_toggle("custom")
+
 run_scenario_page(
     page_id="custom",
     build_messages=lambda: messages,
     is_ready=_ready,
     download_name="custom_scenario.md",
     trace_name="Custom Scenario",
-    trace_tags=("custom_scenario",),
+    trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
 )
 
 
