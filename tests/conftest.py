@@ -34,6 +34,12 @@ def mock_litellm_completion(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 
     def _fake_completion(*args, **kwargs):
         captured.calls.append((args, kwargs))
+        if kwargs.get("stream"):
+            def _chunks():
+                delta = SimpleNamespace(content=captured.content)
+                yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+            return _chunks()
         message = SimpleNamespace(content=captured.content)
         choice = SimpleNamespace(message=message)
         return SimpleNamespace(choices=[choice])

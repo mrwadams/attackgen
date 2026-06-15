@@ -1,8 +1,8 @@
 """Tests for `core.scenario_page.run_scenario_page`.
 
 The interface is the test surface: given a build_messages callback and a
-readiness predicate, we assert what reaches `call_llm` and what lands in
-session_state. Streamlit's UI calls are stubbed to no-ops; we don't render
+readiness predicate, we assert what reaches `call_llm_stream` and what lands
+in session_state. Streamlit's UI calls are stubbed to no-ops; we don't render
 anything — we only care about the control flow at the seam.
 """
 
@@ -41,11 +41,17 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     def _noop(*_args, **_kwargs):
         return None
 
+    def _write_stream(stream):
+        # Drain the generator so the production code's `_tee` captures chunks.
+        for _ in stream:
+            pass
+
     monkeypatch.setattr(st, "button", _button)
     monkeypatch.setattr(st, "status", _status)
     monkeypatch.setattr(st, "expander", _expander)
     monkeypatch.setattr(st, "markdown", _noop)
     monkeypatch.setattr(st, "write", _noop)
+    monkeypatch.setattr(st, "write_stream", _write_stream)
     monkeypatch.setattr(st, "download_button", _noop)
     monkeypatch.setattr(st, "info", _noop)
     monkeypatch.setattr(st, "warning", _noop)
@@ -63,11 +69,16 @@ class _FakePlaceholder:
     def success(self, *_a, **_k): pass
     def warning(self, *_a, **_k): pass
     def error(self, *_a, **_k): pass
+    def empty(self, *_a, **_k): pass
+
+    @contextmanager
+    def container(self, *_a, **_k):
+        yield None
 
 
 @pytest.fixture
 def disable_langsmith_tracing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force call_llm to hit `_raw_call` directly so litellm sees the messages."""
+    """Force call_llm_stream to hit `_raw_stream` directly so litellm sees the messages."""
     monkeypatch.setattr(llm_module, "_langsmith_client", None)
 
 
@@ -140,7 +151,7 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
         trace_tags=("threat_group_scenario",),
     )
 
-    # The seam: call_llm got the page's messages.
+    # The seam: call_llm_stream got the page's messages.
     assert len(mock_litellm_completion.calls) == 1
     _args, kwargs = mock_litellm_completion.calls[0]
     assert kwargs["messages"] == messages
@@ -200,12 +211,12 @@ def test_trace_name_and_tags_reach_llm_config(
 
     captured: dict[str, Any] = {}
 
-    def _fake_call_llm(config, msgs):
+    def _fake_call_llm_stream(config, msgs):
         captured["config"] = config
         captured["messages"] = msgs
-        return "ok"
+        yield "ok"
 
-    monkeypatch.setattr("core.scenario_page.call_llm", _fake_call_llm)
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _fake_call_llm_stream)
 
     run_scenario_page(
         page_id="ai_insider",
