@@ -15,3 +15,6 @@ __pycache__/
 
 # Local notes
 TODO.md
+
+# Test audit report (local only)
+test-optimization.html

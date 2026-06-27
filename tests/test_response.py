@@ -1,8 +1,13 @@
-"""Tests for `core.response.clean_model_response`."""
+"""Tests for `core.response.clean_model_response` and `stream_filter_thinking`."""
 
 from __future__ import annotations
 
-from core.response import clean_model_response
+from core.response import clean_model_response, stream_filter_thinking
+
+
+def _filter(*deltas: str) -> str:
+    """Run the streaming filter over the given deltas and join the output."""
+    return "".join(stream_filter_thinking(deltas))
 
 
 def test_returns_text_unchanged_when_no_think_or_fences() -> None:
@@ -53,3 +58,42 @@ def test_returns_empty_cleaned_for_only_think_block() -> None:
     thinking, cleaned = clean_model_response(text)
     assert thinking == "only thinking, no answer"
     assert cleaned == ""
+
+
+# ---------------------------------------------------------------------------
+# stream_filter_thinking — the streaming counterpart that suppresses
+# <think>...</think> regions across chunk boundaries.
+# ---------------------------------------------------------------------------
+
+
+def test_stream_passes_plain_text_unchanged() -> None:
+    assert _filter("# Scenario\n\nA tabletop exercise.") == "# Scenario\n\nA tabletop exercise."
+
+
+def test_stream_suppresses_think_block_with_surrounding_content() -> None:
+    assert _filter("before<think>secret</think>after") == "beforeafter"
+
+
+def test_stream_suppresses_tag_split_across_chunks() -> None:
+    # The opening tag straddles two deltas; nothing inside it may leak.
+    assert _filter("<thi", "nk>secret</think>visible") == "visible"
+
+
+def test_stream_suppresses_close_tag_split_across_chunks() -> None:
+    assert _filter("<think>secret</thi", "nk>visible") == "visible"
+
+
+def test_stream_suppresses_multiple_think_blocks() -> None:
+    assert _filter("<think>a</think>mid<think>b</think>end") == "midend"
+
+
+def test_stream_does_not_swallow_stray_lessthan() -> None:
+    # A literal "<" that never becomes a <think> tag must survive, even when
+    # the buffer is long enough to trigger the partial-tag tail retention.
+    text = "this is a < sign embedded in a reasonably long line of output"
+    assert _filter(text) == text
+
+
+def test_stream_drops_unterminated_think_block() -> None:
+    # An opened-but-never-closed block emits nothing after the open tag.
+    assert _filter("visible<think>secret never closed") == "visible"
