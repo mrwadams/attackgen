@@ -7,8 +7,6 @@ security invariant that API keys are never mirrored into the URL.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 import streamlit as st
 
