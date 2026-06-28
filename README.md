@@ -8,6 +8,7 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 - [Releases](#releases)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [LangSmith Setup](#langsmith-setup)
 - [Data Setup](#data-setup)
 - [Running AttackGen](#running-attackgen)
 - [Usage](#usage)
@@ -160,10 +161,10 @@ Initial release.
 ## Requirements
 
 - Recent version of Python.
-- Python packages: pandas, streamlit, and any other packages necessary for the custom libraries (`langchain` and `mitreattack`).
+- Python packages: `streamlit`, `litellm`, `mitreattack-python`, `pandas` (see `requirements.txt` for the full list).
 - OpenAI API key (or API key for your chosen model provider).
 - LangChain API key (optional) - see [LangSmith Setup](#langsmith-setup) section below for further details.
-- Data files: `enterprise-attack.json` and `ics-attack.json` (MITRE ATT&CK datasets in STIX format), and `groups.json`.
+- MITRE ATT&CK and ATLAS data files. These ship with the repository (in `./data/`), so no manual download is required (see [Data Setup](#data-setup)).
 - `.env` file for storing API keys and secrets (see [Installation](#installation) section for details).
 
 ## Installation
@@ -203,7 +204,9 @@ If you do not wish to use LangSmith, you must still have a `.streamlit/secrets.t
 
 ## Data Setup
 
-Download the latest version of the MITRE ATT&CK dataset in STIX format from [here](https://github.com/mitre-attack/attack-stix-data/blob/master/enterprise-attack/enterprise-attack.json). Ensure to place this file in the `./data/` directory within the repository.
+The MITRE ATT&CK (Enterprise + ICS) and ATLAS datasets that AttackGen needs are committed to the repository under `./data/`, so a fresh clone is ready to run with no extra download step. These include `enterprise-attack.json`, `ics-attack.json`, `stix-atlas.json`, `groups.json`, `groups_ics.json`, and `atlas-case-studies.json`.
+
+If you want to refresh them to the latest upstream release, you can re-download the STIX bundles from the [MITRE ATT&CK STIX data repository](https://github.com/mitre-attack/attack-stix-data) (and the [ATLAS data repository](https://github.com/mitre-atlas/atlas-data)) and replace the files in `./data/`.
 
 ## Running AttackGen
 

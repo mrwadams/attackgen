@@ -27,6 +27,16 @@ docker build -t attackgen .
 docker run -p 8501:8501 attackgen
 ```
 
+### Running Tests
+```bash
+# Install dev dependencies (includes pytest)
+pip install -r requirements-dev.txt
+
+# Run the suite
+pytest
+```
+`pyproject.toml` sets `testpaths = ["tests"]` and `pythonpath = ["."]`, so `pytest` from the repo root discovers everything under `tests/` with no extra flags.
+
 ## Architecture
 
 ### Core Components
@@ -54,7 +64,8 @@ docker run -p 8501:8501 attackgen
 ### Configuration
 - **.env**: API keys and secrets (not tracked in git)
 - **.streamlit/secrets.toml**: Streamlit secrets for LangSmith integration
-- **requirements.txt**: Python dependencies — `litellm`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`
+- **requirements.txt**: Python dependencies — `litellm`, `openai`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`, `python-dotenv`
+- **requirements-dev.txt**: Development dependencies (`pytest`); installs `requirements.txt` plus test tooling
 
 ### Key Libraries
 - **Streamlit**: Web application framework
