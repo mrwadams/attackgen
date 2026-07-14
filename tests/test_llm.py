@@ -39,6 +39,27 @@ def test_openai_reasoning_model_without_max_tokens_omits_completion_tokens() -> 
     assert "max_tokens" not in kwargs
 
 
+def test_openai_reasoning_model_omits_temperature() -> None:
+    """gpt-5.x reject any temperature but the default (1), so we must not send
+    one — otherwise litellm raises BadRequestError (regression: v0.13)."""
+    config = LLMConfig(
+        provider="OpenAI API", model_name="gpt-5.5", api_key="k", temperature=0.7
+    )
+    kwargs = _build_litellm_kwargs(config)
+    assert "temperature" not in kwargs
+
+
+def test_non_reasoning_models_still_send_temperature() -> None:
+    config = LLMConfig(
+        provider="Anthropic API",
+        model_name="claude-sonnet-4-6",
+        api_key="k",
+        temperature=0.7,
+    )
+    kwargs = _build_litellm_kwargs(config)
+    assert kwargs["temperature"] == 0.7
+
+
 def test_anthropic_defaults_max_tokens_to_16000_when_unset() -> None:
     config = LLMConfig(
         provider="Anthropic API", model_name="claude-sonnet-4-6", api_key="k"
