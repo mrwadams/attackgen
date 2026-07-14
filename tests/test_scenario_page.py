@@ -72,6 +72,7 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "status", _status)
     monkeypatch.setattr(st, "expander", _expander)
     monkeypatch.setattr(st, "markdown", _noop)
+    monkeypatch.setattr(st, "caption", _noop)
     monkeypatch.setattr(st, "write", _noop)
     monkeypatch.setattr(st, "write_stream", _write_stream)
     monkeypatch.setattr(st, "download_button", _noop)

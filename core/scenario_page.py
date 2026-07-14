@@ -283,3 +283,9 @@ def _render_layer_download(
         mime="application/json",
         key=key,
     )
+    st.caption(
+        "Upload to the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) "
+        "— or the [ATLAS Navigator](https://mitre-atlas.github.io/atlas-navigator/) for ATLAS "
+        "layers — via **Open Existing Layer → Upload from local**. Each Navigator only loads "
+        "layers for its own framework."
+    )
