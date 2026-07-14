@@ -291,7 +291,7 @@ run_scenario_page(
     page_id="ai_insider",
     build_messages=lambda: messages,
     is_ready=_ready,
-    download_name="ai_insider_threat_scenario.md",
+    download_name="AttackGen AI Insider Threat.md",
     trace_name="AI Insider Threat Scenario",
     trace_tags=("ai_insider_scenario",),
 )

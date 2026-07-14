@@ -4,6 +4,7 @@ from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
 from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
+from core.navigator import build_layer, dumps, tactic_shortname
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 from core.styles import inject_emoji_fonts
@@ -101,6 +102,34 @@ def build_messages(matrix, selected_group_alias, kill_chain_string):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
+
+
+def build_layer_payload():
+    """Serialise the scenario's kill chain as an ATT&CK Navigator layer.
+
+    Reads the same ``selected_techniques_df`` the prompt was built from, so the
+    exported layer matches the techniques the model was given (this page samples
+    one technique per phase, so the set differs run to run). Returns the layer
+    JSON, or ``None`` when the matrix has no Navigator.
+    """
+    if selected_techniques_df.empty:
+        return None
+    techniques = [
+        (row["ATT&CK ID"], tactic_shortname(str(row["Phase Name"])))
+        for _, row in selected_techniques_df.iterrows()
+    ]
+    layer = build_layer(
+        name=f"AttackGen: {selected_group_alias} ({matrix})",
+        matrix=matrix,
+        techniques=techniques,
+        description=(
+            f"Techniques used in the AttackGen scenario for "
+            f"'{selected_group_alias}' ({matrix} matrix)."
+        ),
+    )
+    if layer is None:
+        return None
+    return dumps(layer)
 
 
 # ------------------ Streamlit UI ------------------ #
@@ -298,10 +327,11 @@ run_scenario_page(
     page_id="threat_group",
     build_messages=lambda: messages,
     is_ready=_ready,
-    download_name="threat_group_scenario.md",
+    download_name=f"AttackGen {selected_group_alias} {matrix}.md",
     trace_name="Threat Group Scenario",
     trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
     inline_control=lambda: render_ai_uplift_toggle("threat_group"),
+    build_layer=build_layer_payload,
 )
 
 
