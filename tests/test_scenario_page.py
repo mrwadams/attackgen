@@ -310,6 +310,53 @@ def test_layer_persisted_and_offered_for_download(
     assert layer_downloads[0]["file_name"] == stored_layer_name
 
 
+def _run_and_capture_caption(
+    monkeypatch: pytest.MonkeyPatch, fake_session_state, stub_streamlit, layer_json: str
+) -> str:
+    """Generate a scenario whose layer is `layer_json`; return the layer caption."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    captions: list[str] = []
+    monkeypatch.setattr(st, "caption", lambda text, *a, **k: captions.append(text))
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen Group Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_layer=lambda: layer_json,
+    )
+    return "\n".join(captions)
+
+
+def test_layer_caption_targets_attack_navigator_for_attack_domains(
+    stub_streamlit, fake_session_state, mock_litellm_completion,
+    disable_langsmith_tracing, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_litellm_completion.content = "# Scenario"
+    caption = _run_and_capture_caption(
+        monkeypatch, fake_session_state, stub_streamlit, '{"domain": "enterprise-attack"}'
+    )
+    assert "ATT&CK Navigator" in caption
+    assert "ATLAS Navigator" not in caption
+
+
+def test_layer_caption_targets_atlas_navigator_for_atlas_domain(
+    stub_streamlit, fake_session_state, mock_litellm_completion,
+    disable_langsmith_tracing, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_litellm_completion.content = "# Scenario"
+    caption = _run_and_capture_caption(
+        monkeypatch, fake_session_state, stub_streamlit, '{"domain": "atlas-atlas"}'
+    )
+    assert "ATLAS Navigator" in caption
+
+
 def test_no_layer_download_when_build_layer_returns_none(
     stub_streamlit,
     fake_session_state,

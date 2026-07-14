@@ -32,6 +32,11 @@ DOMAIN_BY_MATRIX = {
     "ATLAS": "atlas-atlas",
 }
 
+# Public Navigator UIs. Enterprise/ICS layers load in the ATT&CK Navigator;
+# ATLAS layers load only in the ATLAS Navigator fork, and vice versa.
+ATTACK_NAVIGATOR_URL = "https://mitre-attack.github.io/attack-navigator/"
+ATLAS_NAVIGATOR_URL = "https://mitre-atlas.github.io/atlas-navigator/"
+
 # The ATT&CK release the bundled data was cut from (data/enterprise-attack.json
 # is v18.1). Bump when the STIX bundles are refreshed. Only stamped on the
 # ATT&CK domains — ATLAS layers carry no `attack` version.
@@ -157,6 +162,17 @@ def build_layer(
             "showName": True,
         },
     }
+
+
+def navigator_for_domain(domain: str) -> tuple[str, str]:
+    """Return the ``(name, url)`` of the Navigator that loads ``domain`` layers.
+
+    ATLAS layers only load in the ATLAS Navigator fork; everything else is an
+    ATT&CK domain served by the MITRE ATT&CK Navigator.
+    """
+    if domain == DOMAIN_BY_MATRIX["ATLAS"]:
+        return "ATLAS Navigator", ATLAS_NAVIGATOR_URL
+    return "ATT&CK Navigator", ATTACK_NAVIGATOR_URL
 
 
 def dumps(layer: dict) -> str:

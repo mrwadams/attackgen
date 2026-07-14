@@ -12,14 +12,30 @@ import json
 import pytest
 
 from core.navigator import (
+    ATLAS_NAVIGATOR_URL,
+    ATTACK_NAVIGATOR_URL,
     ATTACK_VERSION,
     HIGHLIGHT_COLOR,
     build_layer,
     dumps,
     layer_filename,
+    navigator_for_domain,
     parse_technique_id,
     tactic_shortname,
 )
+
+
+class TestNavigatorForDomain:
+    def test_atlas_domain_points_to_atlas_navigator(self):
+        name, url = navigator_for_domain("atlas-atlas")
+        assert name == "ATLAS Navigator"
+        assert url == ATLAS_NAVIGATOR_URL
+
+    @pytest.mark.parametrize("domain", ["enterprise-attack", "ics-attack", ""])
+    def test_attack_domains_point_to_attack_navigator(self, domain):
+        name, url = navigator_for_domain(domain)
+        assert name == "ATT&CK Navigator"
+        assert url == ATTACK_NAVIGATOR_URL
 
 
 class TestTacticShortname:

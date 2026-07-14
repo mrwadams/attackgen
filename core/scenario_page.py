@@ -12,6 +12,7 @@ Adding a new scenario page is now: write the widgets and prompt builder, then
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from datetime import datetime
@@ -20,7 +21,7 @@ import streamlit as st
 
 from core.feedback import render_feedback_widget
 from core.llm import call_llm_stream
-from core.navigator import layer_filename
+from core.navigator import layer_filename, navigator_for_domain
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 
@@ -283,9 +284,14 @@ def _render_layer_download(
         mime="application/json",
         key=key,
     )
+    # Point at the Navigator that actually loads this layer's domain — an ATLAS
+    # layer won't parse in the ATT&CK Navigator, or vice versa.
+    try:
+        domain = json.loads(layer_json).get("domain", "")
+    except (ValueError, TypeError):
+        domain = ""
+    nav_name, nav_url = navigator_for_domain(domain)
     st.caption(
-        "Upload to the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) "
-        "— or the [ATLAS Navigator](https://mitre-atlas.github.io/atlas-navigator/) for ATLAS "
-        "layers — via **Open Existing Layer → Upload from local**. Each Navigator only loads "
-        "layers for its own framework."
+        f"Upload to the [{nav_name}]({nav_url}) via "
+        "**Open Existing Layer → Upload from local**."
     )
