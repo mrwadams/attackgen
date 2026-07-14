@@ -148,6 +148,39 @@ class ATLASData:
             return self.tactics[tactic_id]["name"]
         return tactic_id
 
+    def get_mitigations_mitigating_technique(self, technique_id: str) -> List[Dict]:
+        """Get ATLAS mitigations that mitigate a technique (by ATLAS external ID).
+
+        ATLAS ships ``mitigates`` relationships (course-of-action -> technique)
+        but no detection strategies, so this is the whole defensive picture for
+        an ATLAS technique. Returns ``[]`` for an unknown ID or one with no
+        mitigations.
+        """
+        tech = self.techniques.get(technique_id)
+        if not tech:
+            return []
+        stix_id = tech["id"]
+        mitigation_by_stix = {obj["id"]: ext for ext, obj in self.mitigations.items()}
+
+        result = []
+        seen = set()
+        for rel in self.relationships:
+            if rel.get("relationship_type") != "mitigates":
+                continue
+            if rel.get("target_ref") != stix_id:
+                continue
+            ext_id = mitigation_by_stix.get(rel.get("source_ref"))
+            if not ext_id or ext_id in seen:
+                continue
+            seen.add(ext_id)
+            obj = self.mitigations[ext_id]
+            result.append({
+                "external_id": ext_id,
+                "name": obj["name"],
+                "description": obj.get("description", ""),
+            })
+        return result
+
     def get_techniques_for_tactic(self, tactic_shortname: str) -> List[Dict]:
         """Get all techniques belonging to a specific tactic"""
         result = []

@@ -4,6 +4,11 @@ from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
 from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
+from core.detections import (
+    build_defense_report,
+    is_defense_narrative_on,
+    render_defense_narrative_toggle,
+)
 from core.navigator import build_layer, dumps, tactic_shortname
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
@@ -130,6 +135,32 @@ def build_layer_payload():
     if layer is None:
         return None
     return dumps(layer)
+
+
+def build_defense_payload():
+    """Join the scenario's techniques to their detection strategies + mitigations.
+
+    Uses the same ``selected_techniques_df`` the prompt and layer were built
+    from, so the Detection & Response companion matches the scenario's kill
+    chain. Returns ``None`` when there's no defensive data.
+    """
+    if selected_techniques_df.empty:
+        return None
+    technique_ids = [str(row["ATT&CK ID"]) for _, row in selected_techniques_df.iterrows()]
+    if matrix == "ATLAS":
+        return build_defense_report(
+            matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
+        )
+    return build_defense_report(
+        matrix=matrix,
+        technique_ids=technique_ids,
+        mitre_data=attack_data[matrix.lower()],
+    )
+
+
+def _inline_controls():
+    render_ai_uplift_toggle("threat_group")
+    render_defense_narrative_toggle("threat_group")
 
 
 # ------------------ Streamlit UI ------------------ #
@@ -330,8 +361,10 @@ run_scenario_page(
     download_name=f"AttackGen {selected_group_alias} {matrix}.md",
     trace_name="Threat Group Scenario",
     trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
-    inline_control=lambda: render_ai_uplift_toggle("threat_group"),
+    inline_control=_inline_controls,
     build_layer=build_layer_payload,
+    build_defense=build_defense_payload,
+    defense_narrative=is_defense_narrative_on("threat_group"),
 )
 
 

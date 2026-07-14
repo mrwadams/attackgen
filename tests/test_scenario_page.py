@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -21,22 +22,23 @@ from core.scenario_page import _unique_filenames, run_scenario_page
 
 class TestUniqueFilenames:
     def test_meaningful_sanitised_and_timestamped(self):
-        md, layer = _unique_filenames("AttackGen APT29 Enterprise.md")
+        md, layer, detection = _unique_filenames("AttackGen APT29 Enterprise.md")
         assert re.fullmatch(r"AttackGen_APT29_Enterprise_\d{8}-\d{6}\.md", md)
-        # The layer always shares the markdown's stem + timestamp.
+        # The layer and detection downloads always share the markdown's stem.
         assert layer == md[:-3] + "_layer.json"
+        assert detection == md[:-3] + "_detection.md"
 
     def test_special_characters_collapse(self):
-        md, _ = _unique_filenames("Weird / Name & C&C.md")
+        md, _layer, _detection = _unique_filenames("Weird / Name & C&C.md")
         assert re.fullmatch(r"Weird_Name_C_C_\d{8}-\d{6}\.md", md)
 
     def test_long_title_is_capped(self):
-        md, _ = _unique_filenames("A" * 200 + ".md")
+        md, _layer, _detection = _unique_filenames("A" * 200 + ".md")
         stem = md[: -len("_20260714-153045.md")]  # strip the "_<timestamp>.md" suffix
         assert len(stem) <= 80
 
     def test_empty_base_falls_back(self):
-        md, _ = _unique_filenames(".md")
+        md, _layer, _detection = _unique_filenames(".md")
         assert md.startswith("scenario_")
 
 
@@ -54,7 +56,8 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     @contextmanager
     def _status(*_args, **_kwargs):
-        yield None
+        # Yield a real object: production code calls `status.update(...)`.
+        yield SimpleNamespace(update=lambda *_a, **_k: None)
 
     @contextmanager
     def _expander(*_args, **_kwargs):
@@ -453,3 +456,166 @@ def test_no_layer_download_when_build_layer_absent(
 
     assert fake_session_state["ai_insider_scenario_layer"] is None
     assert all(d.get("mime") != "application/json" for d in downloads)
+
+
+# --- Detection & Response (purple-team) companion ----------------------------
+
+# A minimal report shaped like core.detections.build_defense_report output.
+_DEFENSE_REPORT = {
+    "matrix": "Enterprise",
+    "techniques": [
+        {
+            "id": "T1059",
+            "name": "Command and Scripting Interpreter",
+            "detection_strategies": [
+                {"id": "DET0516", "name": "Behavioral Detection", "analytics": []}
+            ],
+            "mitigations": [{"id": "M1042", "name": "Disable or Remove Feature", "description": ""}],
+        }
+    ],
+    "log_sources": ["WinEventLog:Security (EventCode=4624)"],
+}
+
+
+def test_defense_persisted_and_offered_for_download(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "# Scenario"
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    downloads = _capture_downloads(monkeypatch)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_defense=lambda: _DEFENSE_REPORT,
+        defense_narrative=False,
+    )
+
+    # Deterministic-only (no narrative): one model call, defense state persisted.
+    assert len(mock_litellm_completion.calls) == 1
+    state = fake_session_state["threat_group_scenario_defense"]
+    assert state["narrative_md"] is None
+    assert "Command and Scripting Interpreter (T1059)" in state["deterministic_md"]
+
+    md_name = fake_session_state["threat_group_scenario_filename"]
+    detection_downloads = [
+        d for d in downloads if d.get("file_name", "").endswith("_detection.md")
+    ]
+    assert len(detection_downloads) == 1
+    assert detection_downloads[0]["file_name"] == md_name[:-3] + "_detection.md"
+    # The download bundles the deterministic reference.
+    assert "Detection & Response Reference" not in detection_downloads[0]["data"]  # no narrative section
+    assert "## 🛡️ Detection & Response" in detection_downloads[0]["data"]
+
+
+def test_defense_narrative_makes_second_llm_call_and_persists(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "## Detection walkthrough\n\nStage 1."
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_defense=lambda: _DEFENSE_REPORT,
+        defense_narrative=True,
+    )
+
+    # Two model calls: the scenario, then the purple-team narrative.
+    assert len(mock_litellm_completion.calls) == 2
+    state = fake_session_state["threat_group_scenario_defense"]
+    assert state["narrative_md"] and "Detection walkthrough" in state["narrative_md"]
+    # The combined download carries both the narrative and the reference section.
+    assert "Detection & Response Reference" in state["download_md"]
+
+
+def test_no_defense_download_when_build_defense_returns_none(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "# Scenario"
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    downloads = _capture_downloads(monkeypatch)
+
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="custom_scenario.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+        build_defense=lambda: None,  # e.g. ATLAS technique with no mitigations
+        defense_narrative=True,  # even requested, nothing to narrate
+    )
+
+    # No defensive data -> no narrative call, no detection download.
+    assert len(mock_litellm_completion.calls) == 1
+    assert fake_session_state["custom_scenario_defense"] is None
+    assert all(not d.get("file_name", "").endswith("_detection.md") for d in downloads)
+
+
+def test_persisted_defense_survives_rerun(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A plain rerun must re-offer the Detection & Response download."""
+    stub_streamlit["button_returns"] = False
+    fake_session_state["threat_group_scenario_generated"] = True
+    fake_session_state["threat_group_scenario_text"] = "# Prior scenario"
+    fake_session_state["threat_group_scenario_filename"] = "scn_20260714-153045.md"
+    fake_session_state["threat_group_scenario_layer"] = None
+    fake_session_state["threat_group_scenario_defense"] = {
+        "deterministic_md": "## 🛡️ Detection & Response",
+        "narrative_md": None,
+        "download_md": "# Detection & Response — scn\n\n## 🛡️ Detection & Response",
+        "filename": "scn_20260714-153045_detection.md",
+    }
+
+    downloads = _capture_downloads(monkeypatch)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: None,
+        is_ready=lambda: False,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_defense=lambda: None,
+    )
+
+    detection_downloads = [
+        d for d in downloads if d.get("file_name", "").endswith("_detection.md")
+    ]
+    assert len(detection_downloads) == 1
+    assert detection_downloads[0]["file_name"] == "scn_20260714-153045_detection.md"

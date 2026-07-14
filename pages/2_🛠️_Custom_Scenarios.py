@@ -4,6 +4,11 @@ from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData
 from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
+from core.detections import (
+    build_defense_report,
+    is_defense_narrative_on,
+    render_defense_narrative_toggle,
+)
 from core.navigator import build_layer, dumps, parse_technique_id
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
@@ -187,6 +192,31 @@ def build_layer_payload():
     return dumps(layer)
 
 
+def build_defense_payload():
+    """Join the selected techniques to their detection strategies + mitigations.
+
+    Parses the same multiselect the prompt and layer were built from. Returns
+    ``None`` when nothing is selected or there's no defensive data.
+    """
+    technique_ids = [tid for tid in (parse_technique_id(d) for d in selected_techniques) if tid]
+    if not technique_ids:
+        return None
+    if matrix == "ATLAS":
+        return build_defense_report(
+            matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
+        )
+    return build_defense_report(
+        matrix=matrix,
+        technique_ids=technique_ids,
+        mitre_data=attack_data[matrix.lower()],
+    )
+
+
+def _inline_controls():
+    render_ai_uplift_toggle("custom")
+    render_defense_narrative_toggle("custom")
+
+
 def template_selection(template, current_matrix):
     try:
         if template not in incident_response_templates[current_matrix]:
@@ -318,8 +348,10 @@ run_scenario_page(
     download_name=f"AttackGen Custom {selected_template} {matrix}.md",
     trace_name="Custom Scenario",
     trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
-    inline_control=lambda: render_ai_uplift_toggle("custom"),
+    inline_control=_inline_controls,
     build_layer=build_layer_payload,
+    build_defense=build_defense_payload,
+    defense_narrative=is_defense_narrative_on("custom"),
 )
 
 
