@@ -41,6 +41,12 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.13.1
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Fix: OpenAI GPT-5.x scenario generation | - Correct Reasoning-Model Handling: OpenAI's GPT-5.x reasoning models reject any sampling `temperature` other than their default, so every GPT-5.x generation was failing with `BadRequestError: 'temperature' does not support 0.7 with this model`. AttackGen no longer sends a custom temperature to these models, while other providers keep the configured value. |
+| Model registry refresh | - Latest Models: Refreshed the model list against each provider's current docs — **OpenAI GPT-5.6** (Sol / Terra / Luna tiers), **Claude Fable 5** and **Claude Sonnet 5**, with one prior generation kept per provider for continuity.<br><br>- Removed Stale Entries: Dropped models that providers have superseded or are retiring — notably Groq's `qwen3-32b` (shut down 17 Jul 2026) and Mistral's Magistral Medium — so the sidebar can't offer a model that errors on selection.<br><br>- Added a fast/cheap Groq tier (`llama-3.1-8b-instant`). |
+
 ### v0.13
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |

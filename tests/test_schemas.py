@@ -19,7 +19,7 @@ def test_from_session_state_reads_populated_keys(fake_session_state) -> None:
     fake_session_state.update(
         {
             "chosen_model_provider": "Anthropic API",
-            "llm_model_name": "claude-sonnet-4-6",
+            "llm_model_name": "claude-sonnet-5",
             "llm_api_key": "sk-test",
             "llm_api_base": "https://example.invalid/v1",
         }
@@ -28,7 +28,7 @@ def test_from_session_state_reads_populated_keys(fake_session_state) -> None:
     config = LLMConfig.from_session_state()
 
     assert config.provider == "Anthropic API"
-    assert config.model_name == "claude-sonnet-4-6"
+    assert config.model_name == "claude-sonnet-5"
     assert config.api_key == "sk-test"
     assert config.api_base == "https://example.invalid/v1"
 

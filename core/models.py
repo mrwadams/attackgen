@@ -1,11 +1,11 @@
 """Unified model registry — single source of truth for providers and models.
 
 To add or update a model, edit the MODELS list below. Nothing else needs to change.
-Mirrored from mrwadams/stride-gpt:stride_gpt/models.py (reviewed 2026-05-30).
+Model list last refreshed against provider docs 2026-07-14.
 
 Provider model listing pages:
   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/models
-  - OpenAI:    https://platform.openai.com/docs/models
+  - OpenAI:    https://developers.openai.com/api/docs/models
   - Google AI: https://ai.google.dev/gemini-api/docs/models
   - Mistral:   https://docs.mistral.ai/getting-started/models
   - Groq:      https://console.groq.com/docs/models
@@ -94,73 +94,74 @@ PROVIDERS: dict[str, ProviderInfo] = {
 # ---------------------------------------------------------------------------
 
 MODELS: list[ModelInfo] = [
-    # --- OpenAI ---
+    # --- OpenAI (all gpt-5.x are reasoning models: max_completion_tokens, and
+    #     they reject any temperature other than the default — see core/llm.py) ---
+    ModelInfo(
+        model_id="gpt-5.6-sol",
+        provider_key="OpenAI API",
+        uses_max_completion_tokens=True,
+        help_text="GPT-5.6 Sol is OpenAI's flagship frontier reasoning model for complex work.",
+    ),
+    ModelInfo(
+        model_id="gpt-5.6-terra",
+        provider_key="OpenAI API",
+        uses_max_completion_tokens=True,
+        help_text="GPT-5.6 Terra balances intelligence and cost for everyday work.",
+    ),
+    ModelInfo(
+        model_id="gpt-5.6-luna",
+        provider_key="OpenAI API",
+        uses_max_completion_tokens=True,
+        help_text="GPT-5.6 Luna is the fast, cost-efficient option for high-volume workloads.",
+    ),
     ModelInfo(
         model_id="gpt-5.5",
         provider_key="OpenAI API",
         uses_max_completion_tokens=True,
-        help_text="GPT-5.5 is OpenAI's latest flagship model.",
-    ),
-    ModelInfo(
-        model_id="gpt-5.4",
-        provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
-        help_text="GPT-5.4 is OpenAI's previous flagship model with 1M+ context.",
-    ),
-    ModelInfo(
-        model_id="gpt-5.4-pro",
-        provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
-        help_text="GPT-5.4 Pro produces smarter, more precise responses.",
-    ),
-    ModelInfo(
-        model_id="gpt-5.4-mini",
-        provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
-        help_text="GPT-5.4 Mini is a fast, cost-efficient version.",
-    ),
-    ModelInfo(
-        model_id="gpt-5.4-nano",
-        provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
-        help_text="GPT-5.4 Nano is the fastest and most affordable option.",
+        help_text="GPT-5.5 is OpenAI's previous-generation flagship model.",
     ),
     # --- Anthropic ---
     ModelInfo(
-        model_id="claude-sonnet-4-6",
+        model_id="claude-fable-5",
         provider_key="Anthropic API",
         supports_thinking=True,
-        help_text="Claude Sonnet 4.6 offers the best balance of performance and efficiency.",
+        help_text="Claude Fable 5 is Anthropic's most capable model for long-running agents and hard reasoning.",
     ),
     ModelInfo(
         model_id="claude-opus-4-8",
         provider_key="Anthropic API",
         supports_thinking=True,
-        help_text="Claude Opus 4.8 is the most capable Claude model.",
+        help_text="Claude Opus 4.8 excels at complex agentic coding and enterprise work.",
+    ),
+    ModelInfo(
+        model_id="claude-sonnet-5",
+        provider_key="Anthropic API",
+        supports_thinking=True,
+        help_text="Claude Sonnet 5 offers the best balance of speed and near-Opus intelligence.",
     ),
     ModelInfo(
         model_id="claude-opus-4-7",
         provider_key="Anthropic API",
         supports_thinking=True,
-        help_text="Claude Opus 4.7 is the previous-generation Opus.",
+        help_text="Claude Opus 4.7 is the previous-generation Opus, kept for continuity.",
     ),
     ModelInfo(
         model_id="claude-haiku-4-5-20251001",
         provider_key="Anthropic API",
         help_text="Claude Haiku 4.5 is the fastest and most cost-effective Claude model.",
     ),
-    # --- Google AI ---
+    # --- Google AI (all Gemini 3.x support extended thinking) ---
     ModelInfo(
         model_id="gemini-3.1-pro-preview",
         provider_key="Google AI API",
         supports_thinking=True,
-        help_text="Gemini 3.1 Pro is Google's most capable model with 1M context.",
+        help_text="Gemini 3.1 Pro is Google's highest-reasoning model with 1M context.",
     ),
     ModelInfo(
         model_id="gemini-3.5-flash",
         provider_key="Google AI API",
         supports_thinking=True,
-        help_text="Gemini 3.5 Flash is Google's latest fast model with 1M context.",
+        help_text="Gemini 3.5 Flash is Google's GA flagship fast model with 1M context.",
     ),
     ModelInfo(
         model_id="gemini-3.1-flash-lite",
@@ -168,48 +169,32 @@ MODELS: list[ModelInfo] = [
         supports_thinking=True,
         help_text="Gemini 3.1 Flash Lite is the most cost-efficient option with 1M context.",
     ),
-    ModelInfo(
-        model_id="gemini-3-flash-preview",
-        provider_key="Google AI API",
-        supports_thinking=True,
-        help_text="Gemini 3 Flash is optimized for speed with 1M context.",
-    ),
     # --- Mistral ---
     ModelInfo(
         model_id="mistral-large-2512",
         provider_key="Mistral API",
-        help_text="Mistral Large 3 offers premium capabilities.",
-    ),
-    ModelInfo(
-        model_id="mistral-small-2603",
-        provider_key="Mistral API",
-        help_text="Mistral Small 4 merges reasoning, vision, and coding in a 256k-context model.",
+        help_text="Mistral Large 3 offers premium, general-purpose capabilities.",
     ),
     ModelInfo(
         model_id="mistral-medium-3-5",
         provider_key="Mistral API",
-        help_text="Mistral Medium 3.5 provides balanced performance.",
+        help_text="Mistral Medium 3.5 is a frontier-class model tuned for agentic and coding use.",
     ),
     ModelInfo(
-        model_id="mistral-medium-2508",
+        model_id="mistral-small-2603",
         provider_key="Mistral API",
-        help_text="Mistral Medium 3.1 provides balanced performance.",
-    ),
-    ModelInfo(
-        model_id="magistral-medium-2509",
-        provider_key="Mistral API",
-        help_text="Magistral Medium is a reasoning-focused model.",
+        help_text="Mistral Small 4 unifies instruct, reasoning, and coding in an efficient model.",
     ),
     # --- Groq ---
     ModelInfo(
         model_id="openai/gpt-oss-120b",
         provider_key="Groq API",
-        help_text="GPT-OSS 120B is an open-source reasoning model on Groq.",
+        help_text="GPT-OSS 120B is an open-weight reasoning model on Groq.",
     ),
     ModelInfo(
         model_id="openai/gpt-oss-20b",
         provider_key="Groq API",
-        help_text="GPT-OSS 20B is a fast open-source model on Groq.",
+        help_text="GPT-OSS 20B is a fast open-weight model on Groq.",
     ),
     ModelInfo(
         model_id="llama-3.3-70b-versatile",
@@ -217,9 +202,9 @@ MODELS: list[ModelInfo] = [
         help_text="Llama 3.3 70B excels at general-purpose tasks.",
     ),
     ModelInfo(
-        model_id="qwen/qwen3-32b",
+        model_id="llama-3.1-8b-instant",
         provider_key="Groq API",
-        help_text="Qwen3 32B delivers balanced performance.",
+        help_text="Llama 3.1 8B is Groq's fastest, most cost-efficient tier.",
     ),
     # --- Custom: no static list; the user types the model name in the sidebar ---
 ]

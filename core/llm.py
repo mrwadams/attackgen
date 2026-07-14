@@ -78,13 +78,21 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     prefix = get_litellm_prefix(config.provider)
     model = prefix + config.model_name
 
+    # OpenAI reasoning models (gpt-5.x) use max_completion_tokens instead of
+    # max_tokens, and reject any temperature other than the default (1) — sending
+    # temperature=0.7 to them is a 400 BadRequest. Detect once; drive both below.
+    is_openai_reasoning = model_uses_completion_tokens(config.provider, config.model_name)
+
     kwargs: dict = {
         "model": model,
-        "temperature": config.temperature,
         # Retry transient errors (429s, timeouts, 5xx). LiteLLM defers to the
         # provider SDK, which uses exponential backoff and respects Retry-After.
         "num_retries": 3,
     }
+
+    # Only send temperature to models that accept a custom value.
+    if not is_openai_reasoning:
+        kwargs["temperature"] = config.temperature
 
     if config.api_key:
         kwargs["api_key"] = config.api_key
@@ -92,8 +100,7 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     if config.api_base:
         kwargs["api_base"] = config.api_base
 
-    # OpenAI reasoning models (gpt-5.x) use max_completion_tokens
-    if model_uses_completion_tokens(config.provider, config.model_name):
+    if is_openai_reasoning:
         if config.max_tokens:
             kwargs["max_completion_tokens"] = config.max_tokens
     elif config.provider == "Anthropic API":
