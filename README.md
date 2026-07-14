@@ -41,6 +41,11 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.13 (Unreleased)
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| ATT&CK Navigator Layer Export | - Downloadable Layer: Every generated scenario on the Threat Group and Custom Scenario pages now offers an ATT&CK Navigator layer (`.json`) alongside the Markdown download, so a scenario's techniques can be visualised, annotated and shared directly in the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/).<br><br>- All Three Matrices: Enterprise and ICS layers open in the MITRE ATT&CK Navigator; ATLAS layers open in the [ATLAS Navigator](https://mitre-atlas.github.io/atlas-navigator/) fork. The correct domain is set automatically per matrix.<br><br>- Techniques Stay Visible: Scored sub-techniques automatically expand their parent and technique IDs are surfaced in the layout, so the scenario's highlighted techniques are immediately apparent rather than hidden in collapsed rows.<br><br>- No Extra LLM Call: The layer is a local serialisation of the techniques already selected for the scenario — no additional model call or external lookup. |
+
 ### v0.12
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
