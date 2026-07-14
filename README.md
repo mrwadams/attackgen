@@ -41,7 +41,7 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
-### v0.13 (Unreleased)
+### v0.13
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
 | Purple-Team Mode: Detection & Response | - Defensive Companion: Every Threat Group and Custom scenario now surfaces a **Detection & Response** section that joins each of the scenario's techniques to the MITRE ATT&CK detection strategies, analytics, log sources and mitigations already in the shipped data — turning a red-only narrative into a purple-team exercise ("here's the attack, and here's exactly what your SOC should have seen").<br><br>- No LLM Call for the Facts: The detection section is a **local data join**, not a model call — so the analytics, log sources and mitigations it lists are the real, current MITRE content rather than model guesses. It's offered as its own `..._detection.md` download alongside the scenario and layer.<br><br>- Log Sources to Enable: A per-scenario roll-up lists the distinct log sources the detections read (e.g. `WinEventLog:Security (EventCode=4624)`), so a SOC can see at a glance what telemetry the exercise assumes.<br><br>- Optional Purple-Team Narrative: A per-page **🟣 Purple-team narrative** toggle adds a second model pass that walks the scenario stage by stage from the defender's side — what should fire, what the analyst sees, how to respond — grounded strictly in the detections and mitigations above (no invented detections).<br><br>- ATLAS Aware: ATLAS scenarios list mitigations (ATLAS has no detection strategies yet) and say so, rather than showing nothing. |
