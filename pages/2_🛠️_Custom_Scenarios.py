@@ -4,7 +4,7 @@ from mitreattack.stix20 import MitreAttackData
 
 from atlas_parser import ATLASData
 from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
-from core.navigator import build_layer, dumps, layer_filename, parse_technique_id
+from core.navigator import build_layer, dumps, parse_technique_id
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 from core.styles import inject_emoji_fonts
@@ -166,8 +166,8 @@ def build_layer_payload():
     """Serialise the chosen techniques as an ATT&CK Navigator layer.
 
     The multiselect carries no phase information, so techniques are emitted
-    without a tactic (valid — Navigator places them by ID). Returns
-    ``(layer_json, filename)`` or ``None`` when the matrix has no Navigator.
+    without a tactic (valid — Navigator places them by ID). Returns the layer
+    JSON, or ``None`` when the matrix has no Navigator.
     """
     techniques = []
     for display in selected_techniques:
@@ -184,7 +184,7 @@ def build_layer_payload():
     )
     if layer is None:
         return None
-    return dumps(layer), layer_filename("custom_scenario.md")
+    return dumps(layer)
 
 
 def template_selection(template, current_matrix):
@@ -315,7 +315,7 @@ run_scenario_page(
     page_id="custom",
     build_messages=lambda: messages,
     is_ready=_ready,
-    download_name="custom_scenario.md",
+    download_name=f"AttackGen Custom {selected_template} {matrix}.md",
     trace_name="Custom Scenario",
     trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
     inline_control=lambda: render_ai_uplift_toggle("custom"),

@@ -8,6 +8,7 @@ anything — we only care about the control flow at the seam.
 
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 from typing import Any
 
@@ -15,7 +16,28 @@ import pytest
 import streamlit as st
 
 import core.llm as llm_module
-from core.scenario_page import run_scenario_page
+from core.scenario_page import _unique_filenames, run_scenario_page
+
+
+class TestUniqueFilenames:
+    def test_meaningful_sanitised_and_timestamped(self):
+        md, layer = _unique_filenames("AttackGen APT29 Enterprise.md")
+        assert re.fullmatch(r"AttackGen_APT29_Enterprise_\d{8}-\d{6}\.md", md)
+        # The layer always shares the markdown's stem + timestamp.
+        assert layer == md[:-3] + "_layer.json"
+
+    def test_special_characters_collapse(self):
+        md, _ = _unique_filenames("Weird / Name & C&C.md")
+        assert re.fullmatch(r"Weird_Name_C_C_\d{8}-\d{6}\.md", md)
+
+    def test_long_title_is_capped(self):
+        md, _ = _unique_filenames("A" * 200 + ".md")
+        stem = md[: -len("_20260714-153045.md")]  # strip the "_<timestamp>.md" suffix
+        assert len(stem) <= 80
+
+    def test_empty_base_falls_back(self):
+        md, _ = _unique_filenames(".md")
+        assert md.startswith("scenario_")
 
 
 @pytest.fixture
@@ -257,26 +279,34 @@ def test_layer_persisted_and_offered_for_download(
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
-    payload = ('{"domain": "enterprise-attack"}', "threat_group_scenario_layer.json")
+    layer_json = '{"domain": "enterprise-attack"}'
 
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
         is_ready=lambda: True,
-        download_name="threat_group_scenario.md",
+        download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda: payload,
+        build_layer=lambda: layer_json,
     )
 
-    # The captured layer is persisted verbatim for later reruns.
-    assert fake_session_state["threat_group_scenario_layer"] == payload
+    # The layer is persisted as (json, generated_filename) for later reruns.
+    stored_json, stored_layer_name = fake_session_state["threat_group_scenario_layer"]
+    assert stored_json == layer_json
 
-    # Both the markdown scenario and the Navigator layer are offered.
+    md_name = fake_session_state["threat_group_scenario_filename"]
+    # Meaningful, sanitised, timestamped, and the layer shares the md's stem.
+    assert re.fullmatch(r"AttackGen_APT29_Enterprise_\d{8}-\d{6}\.md", md_name)
+    assert stored_layer_name == md_name[:-3] + "_layer.json"
+
+    # Both the markdown scenario and the Navigator layer are offered, named to match.
+    md_downloads = [d for d in downloads if d.get("mime") == "text/markdown"]
     layer_downloads = [d for d in downloads if d.get("mime") == "application/json"]
+    assert md_downloads[0]["file_name"] == md_name
     assert len(layer_downloads) == 1
-    assert layer_downloads[0]["data"] == payload[0]
-    assert layer_downloads[0]["file_name"] == "threat_group_scenario_layer.json"
+    assert layer_downloads[0]["data"] == layer_json
+    assert layer_downloads[0]["file_name"] == stored_layer_name
 
 
 def test_no_layer_download_when_build_layer_returns_none(
@@ -317,11 +347,14 @@ def test_persisted_scenario_and_downloads_survive_rerun(
     """A plain rerun (e.g. after a download click) must keep the scenario and
     both download buttons — not blank the page because Generate is unpressed."""
     stub_streamlit["button_returns"] = False  # Generate not clicked this run.
+    md_name = "AttackGen_APT29_Enterprise_20260714-153045.md"
+    layer_name = "AttackGen_APT29_Enterprise_20260714-153045_layer.json"
     fake_session_state["threat_group_scenario_generated"] = True
     fake_session_state["threat_group_scenario_text"] = "# Prior scenario"
+    fake_session_state["threat_group_scenario_filename"] = md_name
     fake_session_state["threat_group_scenario_layer"] = (
         '{"domain": "enterprise-attack"}',
-        "threat_group_scenario_layer.json",
+        layer_name,
     )
 
     downloads = _capture_downloads(monkeypatch)
@@ -330,17 +363,19 @@ def test_persisted_scenario_and_downloads_survive_rerun(
         page_id="threat_group",
         build_messages=lambda: None,
         is_ready=lambda: False,
-        download_name="threat_group_scenario.md",
+        download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
         build_layer=lambda: None,
     )
 
-    # Both the markdown scenario and the persisted layer are re-offered.
-    assert any(d.get("mime") == "text/markdown" for d in downloads)
+    # Both downloads re-offered with the names fixed at generation time — not
+    # re-timestamped by this rerun.
+    md_downloads = [d for d in downloads if d.get("mime") == "text/markdown"]
+    assert md_downloads[0]["file_name"] == md_name
     layer_downloads = [d for d in downloads if d.get("mime") == "application/json"]
     assert len(layer_downloads) == 1
-    assert layer_downloads[0]["file_name"] == "threat_group_scenario_layer.json"
+    assert layer_downloads[0]["file_name"] == layer_name
 
 
 def test_no_layer_download_when_build_layer_absent(
