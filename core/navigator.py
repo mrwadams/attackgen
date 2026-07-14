@@ -38,9 +38,9 @@ ATTACK_NAVIGATOR_URL = "https://mitre-attack.github.io/attack-navigator/"
 ATLAS_NAVIGATOR_URL = "https://mitre-atlas.github.io/atlas-navigator/"
 
 # The ATT&CK release the bundled data was cut from (data/enterprise-attack.json
-# is v18.1). Bump when the STIX bundles are refreshed. Only stamped on the
+# is v19.1). Bump when the STIX bundles are refreshed. Only stamped on the
 # ATT&CK domains — ATLAS layers carry no `attack` version.
-ATTACK_VERSION = "18"
+ATTACK_VERSION = "19"
 
 # Layer schema version and the highlight applied to every technique in the
 # scenario. Green matches AttackGen's brand accent.
