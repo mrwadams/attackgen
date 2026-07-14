@@ -1,750 +1,698 @@
 [
     {
         "group": "admin@338",
-        "url": "https://attack.mitre.org/groups/G0018/"
+        "url": "https://attack.mitre.org/groups/G0018"
     },
     {
         "group": "Agrius",
-        "url": "https://attack.mitre.org/groups/G1030/"
+        "url": "https://attack.mitre.org/groups/G1030"
     },
     {
         "group": "Ajax Security Team",
-        "url": "https://attack.mitre.org/groups/G0130/"
+        "url": "https://attack.mitre.org/groups/G0130"
     },
     {
         "group": "Akira",
-        "url": "https://attack.mitre.org/groups/G1024/"
+        "url": "https://attack.mitre.org/groups/G1024"
     },
     {
         "group": "Andariel",
-        "url": "https://attack.mitre.org/groups/G0138/"
+        "url": "https://attack.mitre.org/groups/G0138"
     },
     {
         "group": "Aoqin Dragon",
-        "url": "https://attack.mitre.org/groups/G1007/"
+        "url": "https://attack.mitre.org/groups/G1007"
     },
     {
         "group": "AppleJeus",
-        "url": "https://attack.mitre.org/groups/G1049/"
+        "url": "https://attack.mitre.org/groups/G1049"
     },
     {
         "group": "APT-C-23",
-        "url": "https://attack.mitre.org/groups/G1028/"
+        "url": "https://attack.mitre.org/groups/G1028"
     },
     {
         "group": "APT-C-36",
-        "url": "https://attack.mitre.org/groups/G0099/"
+        "url": "https://attack.mitre.org/groups/G0099"
     },
     {
         "group": "APT1",
-        "url": "https://attack.mitre.org/groups/G0006/"
+        "url": "https://attack.mitre.org/groups/G0006"
     },
     {
         "group": "APT12",
-        "url": "https://attack.mitre.org/groups/G0005/"
+        "url": "https://attack.mitre.org/groups/G0005"
     },
     {
         "group": "APT16",
-        "url": "https://attack.mitre.org/groups/G0023/"
+        "url": "https://attack.mitre.org/groups/G0023"
     },
     {
         "group": "APT17",
-        "url": "https://attack.mitre.org/groups/G0025/"
+        "url": "https://attack.mitre.org/groups/G0025"
     },
     {
         "group": "APT18",
-        "url": "https://attack.mitre.org/groups/G0026/"
+        "url": "https://attack.mitre.org/groups/G0026"
     },
     {
         "group": "APT19",
-        "url": "https://attack.mitre.org/groups/G0073/"
+        "url": "https://attack.mitre.org/groups/G0073"
     },
     {
         "group": "APT28",
-        "url": "https://attack.mitre.org/groups/G0007/"
+        "url": "https://attack.mitre.org/groups/G0007"
     },
     {
         "group": "APT29",
-        "url": "https://attack.mitre.org/groups/G0016/"
+        "url": "https://attack.mitre.org/groups/G0016"
     },
     {
         "group": "APT3",
-        "url": "https://attack.mitre.org/groups/G0022/"
+        "url": "https://attack.mitre.org/groups/G0022"
     },
     {
         "group": "APT30",
-        "url": "https://attack.mitre.org/groups/G0013/"
+        "url": "https://attack.mitre.org/groups/G0013"
     },
     {
         "group": "APT32",
-        "url": "https://attack.mitre.org/groups/G0050/"
+        "url": "https://attack.mitre.org/groups/G0050"
     },
     {
         "group": "APT33",
-        "url": "https://attack.mitre.org/groups/G0064/"
-    },
-    {
-        "group": "APT34",
-        "url": "https://attack.mitre.org/groups/G0057/"
+        "url": "https://attack.mitre.org/groups/G0064"
     },
     {
         "group": "APT37",
-        "url": "https://attack.mitre.org/groups/G0067/"
+        "url": "https://attack.mitre.org/groups/G0067"
     },
     {
         "group": "APT38",
-        "url": "https://attack.mitre.org/groups/G0082/"
+        "url": "https://attack.mitre.org/groups/G0082"
     },
     {
         "group": "APT39",
-        "url": "https://attack.mitre.org/groups/G0087/"
+        "url": "https://attack.mitre.org/groups/G0087"
     },
     {
         "group": "APT41",
-        "url": "https://attack.mitre.org/groups/G0096/"
+        "url": "https://attack.mitre.org/groups/G0096"
     },
     {
         "group": "APT42",
-        "url": "https://attack.mitre.org/groups/G1044/"
+        "url": "https://attack.mitre.org/groups/G1044"
     },
     {
         "group": "APT5",
-        "url": "https://attack.mitre.org/groups/G1023/"
+        "url": "https://attack.mitre.org/groups/G1023"
     },
     {
         "group": "Aquatic Panda",
-        "url": "https://attack.mitre.org/groups/G0143/"
+        "url": "https://attack.mitre.org/groups/G0143"
     },
     {
         "group": "Axiom",
-        "url": "https://attack.mitre.org/groups/G0001/"
+        "url": "https://attack.mitre.org/groups/G0001"
     },
     {
         "group": "BackdoorDiplomacy",
-        "url": "https://attack.mitre.org/groups/G0135/"
+        "url": "https://attack.mitre.org/groups/G0135"
     },
     {
         "group": "BITTER",
-        "url": "https://attack.mitre.org/groups/G1002/"
+        "url": "https://attack.mitre.org/groups/G1002"
     },
     {
         "group": "BlackByte",
-        "url": "https://attack.mitre.org/groups/G1043/"
+        "url": "https://attack.mitre.org/groups/G1043"
     },
     {
         "group": "BlackOasis",
-        "url": "https://attack.mitre.org/groups/G0063/"
+        "url": "https://attack.mitre.org/groups/G0063"
     },
     {
         "group": "BlackTech",
-        "url": "https://attack.mitre.org/groups/G0098/"
+        "url": "https://attack.mitre.org/groups/G0098"
     },
     {
         "group": "Blue Mockingbird",
-        "url": "https://attack.mitre.org/groups/G0108/"
+        "url": "https://attack.mitre.org/groups/G0108"
     },
     {
         "group": "BRONZE BUTLER",
-        "url": "https://attack.mitre.org/groups/G0060/"
+        "url": "https://attack.mitre.org/groups/G0060"
     },
     {
         "group": "Carbanak",
-        "url": "https://attack.mitre.org/groups/G0008/"
-    },
-    {
-        "group": "Charming Kitten",
-        "url": "https://attack.mitre.org/groups/G0058/"
+        "url": "https://attack.mitre.org/groups/G0008"
     },
     {
         "group": "Chimera",
-        "url": "https://attack.mitre.org/groups/G0114/"
+        "url": "https://attack.mitre.org/groups/G0114"
     },
     {
         "group": "Cinnamon Tempest",
-        "url": "https://attack.mitre.org/groups/G1021/"
+        "url": "https://attack.mitre.org/groups/G1021"
     },
     {
         "group": "Cleaver",
-        "url": "https://attack.mitre.org/groups/G0003/"
+        "url": "https://attack.mitre.org/groups/G0003"
     },
     {
         "group": "Cobalt Group",
-        "url": "https://attack.mitre.org/groups/G0080/"
+        "url": "https://attack.mitre.org/groups/G0080"
     },
     {
         "group": "Confucius",
-        "url": "https://attack.mitre.org/groups/G0142/"
+        "url": "https://attack.mitre.org/groups/G0142"
     },
     {
         "group": "Contagious Interview",
-        "url": "https://attack.mitre.org/groups/G1052/"
+        "url": "https://attack.mitre.org/groups/G1052"
     },
     {
         "group": "CopyKittens",
-        "url": "https://attack.mitre.org/groups/G0052/"
-    },
-    {
-        "group": "CostaRicto",
-        "url": "https://attack.mitre.org/groups/G0132/"
+        "url": "https://attack.mitre.org/groups/G0052"
     },
     {
         "group": "CURIUM",
-        "url": "https://attack.mitre.org/groups/G1012/"
+        "url": "https://attack.mitre.org/groups/G1012"
     },
     {
         "group": "Daggerfly",
-        "url": "https://attack.mitre.org/groups/G1034/"
+        "url": "https://attack.mitre.org/groups/G1034"
     },
     {
         "group": "Dark Caracal",
-        "url": "https://attack.mitre.org/groups/G0070/"
+        "url": "https://attack.mitre.org/groups/G0070"
     },
     {
         "group": "Darkhotel",
-        "url": "https://attack.mitre.org/groups/G0012/"
+        "url": "https://attack.mitre.org/groups/G0012"
     },
     {
         "group": "DarkHydrus",
-        "url": "https://attack.mitre.org/groups/G0079/"
+        "url": "https://attack.mitre.org/groups/G0079"
     },
     {
         "group": "DarkVishnya",
-        "url": "https://attack.mitre.org/groups/G0105/"
+        "url": "https://attack.mitre.org/groups/G0105"
     },
     {
         "group": "Deep Panda",
-        "url": "https://attack.mitre.org/groups/G0009/"
+        "url": "https://attack.mitre.org/groups/G0009"
     },
     {
         "group": "Dragonfly",
-        "url": "https://attack.mitre.org/groups/G0035/"
-    },
-    {
-        "group": "Dragonfly 2.0",
-        "url": "https://attack.mitre.org/groups/G0074/"
+        "url": "https://attack.mitre.org/groups/G0035"
     },
     {
         "group": "DragonOK",
-        "url": "https://attack.mitre.org/groups/G0017/"
-    },
-    {
-        "group": "Dust Storm",
-        "url": "https://attack.mitre.org/groups/G0031/"
+        "url": "https://attack.mitre.org/groups/G0017"
     },
     {
         "group": "Earth Lusca",
-        "url": "https://attack.mitre.org/groups/G1006/"
+        "url": "https://attack.mitre.org/groups/G1006"
     },
     {
         "group": "Elderwood",
-        "url": "https://attack.mitre.org/groups/G0066/"
+        "url": "https://attack.mitre.org/groups/G0066"
     },
     {
         "group": "Ember Bear",
-        "url": "https://attack.mitre.org/groups/G1003/"
+        "url": "https://attack.mitre.org/groups/G1003"
     },
     {
         "group": "Equation",
-        "url": "https://attack.mitre.org/groups/G0020/"
+        "url": "https://attack.mitre.org/groups/G0020"
     },
     {
         "group": "Evilnum",
-        "url": "https://attack.mitre.org/groups/G0120/"
+        "url": "https://attack.mitre.org/groups/G0120"
     },
     {
         "group": "EXOTIC LILY",
-        "url": "https://attack.mitre.org/groups/G1011/"
+        "url": "https://attack.mitre.org/groups/G1011"
     },
     {
         "group": "Ferocious Kitten",
-        "url": "https://attack.mitre.org/groups/G0137/"
+        "url": "https://attack.mitre.org/groups/G0137"
     },
     {
         "group": "FIN10",
-        "url": "https://attack.mitre.org/groups/G0051/"
+        "url": "https://attack.mitre.org/groups/G0051"
     },
     {
         "group": "FIN13",
-        "url": "https://attack.mitre.org/groups/G1016/"
+        "url": "https://attack.mitre.org/groups/G1016"
     },
     {
         "group": "FIN4",
-        "url": "https://attack.mitre.org/groups/G0085/"
+        "url": "https://attack.mitre.org/groups/G0085"
     },
     {
         "group": "FIN5",
-        "url": "https://attack.mitre.org/groups/G0053/"
+        "url": "https://attack.mitre.org/groups/G0053"
     },
     {
         "group": "FIN6",
-        "url": "https://attack.mitre.org/groups/G0037/"
+        "url": "https://attack.mitre.org/groups/G0037"
     },
     {
         "group": "FIN7",
-        "url": "https://attack.mitre.org/groups/G0046/"
+        "url": "https://attack.mitre.org/groups/G0046"
     },
     {
         "group": "FIN8",
-        "url": "https://attack.mitre.org/groups/G0061/"
+        "url": "https://attack.mitre.org/groups/G0061"
     },
     {
         "group": "Fox Kitten",
-        "url": "https://attack.mitre.org/groups/G0117/"
-    },
-    {
-        "group": "Frankenstein",
-        "url": "https://attack.mitre.org/groups/G0101/"
+        "url": "https://attack.mitre.org/groups/G0117"
     },
     {
         "group": "GALLIUM",
-        "url": "https://attack.mitre.org/groups/G0093/"
+        "url": "https://attack.mitre.org/groups/G0093"
     },
     {
         "group": "Gallmaker",
-        "url": "https://attack.mitre.org/groups/G0084/"
+        "url": "https://attack.mitre.org/groups/G0084"
     },
     {
         "group": "Gamaredon Group",
-        "url": "https://attack.mitre.org/groups/G0047/"
+        "url": "https://attack.mitre.org/groups/G0047"
     },
     {
         "group": "GCMAN",
-        "url": "https://attack.mitre.org/groups/G0036/"
-    },
-    {
-        "group": "Gelsemium",
-        "url": "https://attack.mitre.org/groups/G0141/"
+        "url": "https://attack.mitre.org/groups/G0036"
     },
     {
         "group": "GOLD SOUTHFIELD",
-        "url": "https://attack.mitre.org/groups/G0115/"
+        "url": "https://attack.mitre.org/groups/G0115"
     },
     {
         "group": "Gorgon Group",
-        "url": "https://attack.mitre.org/groups/G0078/"
+        "url": "https://attack.mitre.org/groups/G0078"
     },
     {
         "group": "Group5",
-        "url": "https://attack.mitre.org/groups/G0043/"
+        "url": "https://attack.mitre.org/groups/G0043"
     },
     {
         "group": "HAFNIUM",
-        "url": "https://attack.mitre.org/groups/G0125/"
+        "url": "https://attack.mitre.org/groups/G0125"
     },
     {
         "group": "HEXANE",
-        "url": "https://attack.mitre.org/groups/G1001/"
+        "url": "https://attack.mitre.org/groups/G1001"
     },
     {
         "group": "Higaisa",
-        "url": "https://attack.mitre.org/groups/G0126/"
-    },
-    {
-        "group": "Honeybee",
-        "url": "https://attack.mitre.org/groups/G0072/"
+        "url": "https://attack.mitre.org/groups/G0126"
     },
     {
         "group": "INC Ransom",
-        "url": "https://attack.mitre.org/groups/G1032/"
+        "url": "https://attack.mitre.org/groups/G1032"
     },
     {
         "group": "Inception",
-        "url": "https://attack.mitre.org/groups/G0100/"
+        "url": "https://attack.mitre.org/groups/G0100"
     },
     {
         "group": "IndigoZebra",
-        "url": "https://attack.mitre.org/groups/G0136/"
+        "url": "https://attack.mitre.org/groups/G0136"
     },
     {
         "group": "Indrik Spider",
-        "url": "https://attack.mitre.org/groups/G0119/"
+        "url": "https://attack.mitre.org/groups/G0119"
     },
     {
         "group": "Ke3chang",
-        "url": "https://attack.mitre.org/groups/G0004/"
+        "url": "https://attack.mitre.org/groups/G0004"
     },
     {
         "group": "Kimsuky",
-        "url": "https://attack.mitre.org/groups/G0094/"
+        "url": "https://attack.mitre.org/groups/G0094"
     },
     {
         "group": "LAPSUS$",
-        "url": "https://attack.mitre.org/groups/G1004/"
+        "url": "https://attack.mitre.org/groups/G1004"
     },
     {
         "group": "Lazarus Group",
-        "url": "https://attack.mitre.org/groups/G0032/"
+        "url": "https://attack.mitre.org/groups/G0032"
     },
     {
         "group": "LazyScripter",
-        "url": "https://attack.mitre.org/groups/G0140/"
+        "url": "https://attack.mitre.org/groups/G0140"
     },
     {
         "group": "Leafminer",
-        "url": "https://attack.mitre.org/groups/G0077/"
+        "url": "https://attack.mitre.org/groups/G0077"
     },
     {
         "group": "Leviathan",
-        "url": "https://attack.mitre.org/groups/G0065/"
+        "url": "https://attack.mitre.org/groups/G0065"
     },
     {
         "group": "Lotus Blossom",
-        "url": "https://attack.mitre.org/groups/G0030/"
+        "url": "https://attack.mitre.org/groups/G0030"
     },
     {
         "group": "LuminousMoth",
-        "url": "https://attack.mitre.org/groups/G1014/"
+        "url": "https://attack.mitre.org/groups/G1014"
     },
     {
         "group": "Machete",
-        "url": "https://attack.mitre.org/groups/G0095/"
+        "url": "https://attack.mitre.org/groups/G0095"
     },
     {
         "group": "Magic Hound",
-        "url": "https://attack.mitre.org/groups/G0059/"
+        "url": "https://attack.mitre.org/groups/G0059"
     },
     {
         "group": "Malteiro",
-        "url": "https://attack.mitre.org/groups/G1026/"
+        "url": "https://attack.mitre.org/groups/G1026"
     },
     {
         "group": "Medusa Group",
-        "url": "https://attack.mitre.org/groups/G1051/"
+        "url": "https://attack.mitre.org/groups/G1051"
     },
     {
         "group": "menuPass",
-        "url": "https://attack.mitre.org/groups/G0045/"
+        "url": "https://attack.mitre.org/groups/G0045"
     },
     {
         "group": "Metador",
-        "url": "https://attack.mitre.org/groups/G1013/"
+        "url": "https://attack.mitre.org/groups/G1013"
+    },
+    {
+        "group": "MirrorFace",
+        "url": "https://attack.mitre.org/groups/G1054"
     },
     {
         "group": "Moafee",
-        "url": "https://attack.mitre.org/groups/G0002/"
+        "url": "https://attack.mitre.org/groups/G0002"
     },
     {
         "group": "Mofang",
-        "url": "https://attack.mitre.org/groups/G0103/"
+        "url": "https://attack.mitre.org/groups/G0103"
     },
     {
         "group": "Molerats",
-        "url": "https://attack.mitre.org/groups/G0021/"
-    },
-    {
-        "group": "MONSOON",
-        "url": "https://attack.mitre.org/groups/G0042/"
+        "url": "https://attack.mitre.org/groups/G0021"
     },
     {
         "group": "Moonstone Sleet",
-        "url": "https://attack.mitre.org/groups/G1036/"
+        "url": "https://attack.mitre.org/groups/G1036"
     },
     {
         "group": "Moses Staff",
-        "url": "https://attack.mitre.org/groups/G1009/"
+        "url": "https://attack.mitre.org/groups/G1009"
     },
     {
         "group": "MoustachedBouncer",
-        "url": "https://attack.mitre.org/groups/G1019/"
+        "url": "https://attack.mitre.org/groups/G1019"
     },
     {
         "group": "MuddyWater",
-        "url": "https://attack.mitre.org/groups/G0069/"
+        "url": "https://attack.mitre.org/groups/G0069"
     },
     {
         "group": "Mustang Panda",
-        "url": "https://attack.mitre.org/groups/G0129/"
+        "url": "https://attack.mitre.org/groups/G0129"
     },
     {
         "group": "Mustard Tempest",
-        "url": "https://attack.mitre.org/groups/G1020/"
+        "url": "https://attack.mitre.org/groups/G1020"
     },
     {
         "group": "Naikon",
-        "url": "https://attack.mitre.org/groups/G0019/"
+        "url": "https://attack.mitre.org/groups/G0019"
     },
     {
         "group": "NEODYMIUM",
-        "url": "https://attack.mitre.org/groups/G0055/"
-    },
-    {
-        "group": "Night Dragon",
-        "url": "https://attack.mitre.org/groups/G0014/"
+        "url": "https://attack.mitre.org/groups/G0055"
     },
     {
         "group": "Nomadic Octopus",
-        "url": "https://attack.mitre.org/groups/G0133/"
+        "url": "https://attack.mitre.org/groups/G0133"
     },
     {
         "group": "OilRig",
-        "url": "https://attack.mitre.org/groups/G0049/"
-    },
-    {
-        "group": "Operation Wocao",
-        "url": "https://attack.mitre.org/groups/G0116/"
+        "url": "https://attack.mitre.org/groups/G0049"
     },
     {
         "group": "Orangeworm",
-        "url": "https://attack.mitre.org/groups/G0071/"
+        "url": "https://attack.mitre.org/groups/G0071"
     },
     {
         "group": "Patchwork",
-        "url": "https://attack.mitre.org/groups/G0040/"
+        "url": "https://attack.mitre.org/groups/G0040"
     },
     {
         "group": "PittyTiger",
-        "url": "https://attack.mitre.org/groups/G0011/"
+        "url": "https://attack.mitre.org/groups/G0011"
     },
     {
         "group": "PLATINUM",
-        "url": "https://attack.mitre.org/groups/G0068/"
+        "url": "https://attack.mitre.org/groups/G0068"
     },
     {
         "group": "Play",
-        "url": "https://attack.mitre.org/groups/G1040/"
+        "url": "https://attack.mitre.org/groups/G1040"
     },
     {
         "group": "POLONIUM",
-        "url": "https://attack.mitre.org/groups/G1005/"
+        "url": "https://attack.mitre.org/groups/G1005"
     },
     {
         "group": "Poseidon Group",
-        "url": "https://attack.mitre.org/groups/G0033/"
+        "url": "https://attack.mitre.org/groups/G0033"
     },
     {
         "group": "PROMETHIUM",
-        "url": "https://attack.mitre.org/groups/G0056/"
+        "url": "https://attack.mitre.org/groups/G0056"
     },
     {
         "group": "Putter Panda",
-        "url": "https://attack.mitre.org/groups/G0024/"
+        "url": "https://attack.mitre.org/groups/G0024"
     },
     {
         "group": "Rancor",
-        "url": "https://attack.mitre.org/groups/G0075/"
+        "url": "https://attack.mitre.org/groups/G0075"
     },
     {
         "group": "RedCurl",
-        "url": "https://attack.mitre.org/groups/G1039/"
+        "url": "https://attack.mitre.org/groups/G1039"
     },
     {
         "group": "RedEcho",
-        "url": "https://attack.mitre.org/groups/G1042/"
+        "url": "https://attack.mitre.org/groups/G1042"
     },
     {
         "group": "Rocke",
-        "url": "https://attack.mitre.org/groups/G0106/"
+        "url": "https://attack.mitre.org/groups/G0106"
     },
     {
         "group": "RTM",
-        "url": "https://attack.mitre.org/groups/G0048/"
+        "url": "https://attack.mitre.org/groups/G0048"
     },
     {
         "group": "Saint Bear",
-        "url": "https://attack.mitre.org/groups/G1031/"
+        "url": "https://attack.mitre.org/groups/G1031"
     },
     {
         "group": "Salt Typhoon",
-        "url": "https://attack.mitre.org/groups/G1045/"
+        "url": "https://attack.mitre.org/groups/G1045"
     },
     {
         "group": "Sandworm Team",
-        "url": "https://attack.mitre.org/groups/G0034/"
+        "url": "https://attack.mitre.org/groups/G0034"
     },
     {
         "group": "Scarlet Mimic",
-        "url": "https://attack.mitre.org/groups/G0029/"
+        "url": "https://attack.mitre.org/groups/G0029"
     },
     {
         "group": "Scattered Spider",
-        "url": "https://attack.mitre.org/groups/G1015/"
+        "url": "https://attack.mitre.org/groups/G1015"
     },
     {
         "group": "Sea Turtle",
-        "url": "https://attack.mitre.org/groups/G1041/"
-    },
-    {
-        "group": "Sharpshooter",
-        "url": "https://attack.mitre.org/groups/G0104/"
+        "url": "https://attack.mitre.org/groups/G1041"
     },
     {
         "group": "SideCopy",
-        "url": "https://attack.mitre.org/groups/G1008/"
+        "url": "https://attack.mitre.org/groups/G1008"
     },
     {
         "group": "Sidewinder",
-        "url": "https://attack.mitre.org/groups/G0121/"
+        "url": "https://attack.mitre.org/groups/G0121"
     },
     {
         "group": "Silence",
-        "url": "https://attack.mitre.org/groups/G0091/"
+        "url": "https://attack.mitre.org/groups/G0091"
     },
     {
         "group": "Silent Librarian",
-        "url": "https://attack.mitre.org/groups/G0122/"
+        "url": "https://attack.mitre.org/groups/G0122"
     },
     {
         "group": "SilverTerrier",
-        "url": "https://attack.mitre.org/groups/G0083/"
+        "url": "https://attack.mitre.org/groups/G0083"
     },
     {
         "group": "Sowbug",
-        "url": "https://attack.mitre.org/groups/G0054/"
+        "url": "https://attack.mitre.org/groups/G0054"
     },
     {
         "group": "Star Blizzard",
-        "url": "https://attack.mitre.org/groups/G1033/"
+        "url": "https://attack.mitre.org/groups/G1033"
     },
     {
         "group": "Stealth Falcon",
-        "url": "https://attack.mitre.org/groups/G0038/"
-    },
-    {
-        "group": "Stolen Pencil",
-        "url": "https://attack.mitre.org/groups/G0086/"
+        "url": "https://attack.mitre.org/groups/G0038"
     },
     {
         "group": "Storm-0501",
-        "url": "https://attack.mitre.org/groups/G1053/"
+        "url": "https://attack.mitre.org/groups/G1053"
     },
     {
         "group": "Storm-1811",
-        "url": "https://attack.mitre.org/groups/G1046/"
+        "url": "https://attack.mitre.org/groups/G1046"
     },
     {
         "group": "Strider",
-        "url": "https://attack.mitre.org/groups/G0041/"
+        "url": "https://attack.mitre.org/groups/G0041"
     },
     {
         "group": "Suckfly",
-        "url": "https://attack.mitre.org/groups/G0039/"
+        "url": "https://attack.mitre.org/groups/G0039"
     },
     {
         "group": "TA2541",
-        "url": "https://attack.mitre.org/groups/G1018/"
+        "url": "https://attack.mitre.org/groups/G1018"
     },
     {
         "group": "TA459",
-        "url": "https://attack.mitre.org/groups/G0062/"
+        "url": "https://attack.mitre.org/groups/G0062"
     },
     {
         "group": "TA505",
-        "url": "https://attack.mitre.org/groups/G0092/"
+        "url": "https://attack.mitre.org/groups/G0092"
     },
     {
         "group": "TA551",
-        "url": "https://attack.mitre.org/groups/G0127/"
+        "url": "https://attack.mitre.org/groups/G0127"
     },
     {
         "group": "TA577",
-        "url": "https://attack.mitre.org/groups/G1037/"
+        "url": "https://attack.mitre.org/groups/G1037"
     },
     {
         "group": "TA578",
-        "url": "https://attack.mitre.org/groups/G1038/"
-    },
-    {
-        "group": "Taidoor",
-        "url": "https://attack.mitre.org/groups/G0015/"
+        "url": "https://attack.mitre.org/groups/G1038"
     },
     {
         "group": "TeamTNT",
-        "url": "https://attack.mitre.org/groups/G0139/"
+        "url": "https://attack.mitre.org/groups/G0139"
     },
     {
         "group": "TEMP.Veles",
-        "url": "https://attack.mitre.org/groups/G0088/"
+        "url": "https://attack.mitre.org/groups/G0088"
     },
     {
         "group": "The White Company",
-        "url": "https://attack.mitre.org/groups/G0089/"
+        "url": "https://attack.mitre.org/groups/G0089"
     },
     {
         "group": "Threat Group-1314",
-        "url": "https://attack.mitre.org/groups/G0028/"
+        "url": "https://attack.mitre.org/groups/G0028"
     },
     {
         "group": "Threat Group-3390",
-        "url": "https://attack.mitre.org/groups/G0027/"
+        "url": "https://attack.mitre.org/groups/G0027"
     },
     {
         "group": "Thrip",
-        "url": "https://attack.mitre.org/groups/G0076/"
+        "url": "https://attack.mitre.org/groups/G0076"
     },
     {
         "group": "ToddyCat",
-        "url": "https://attack.mitre.org/groups/G1022/"
+        "url": "https://attack.mitre.org/groups/G1022"
     },
     {
         "group": "Tonto Team",
-        "url": "https://attack.mitre.org/groups/G0131/"
+        "url": "https://attack.mitre.org/groups/G0131"
     },
     {
         "group": "Transparent Tribe",
-        "url": "https://attack.mitre.org/groups/G0134/"
+        "url": "https://attack.mitre.org/groups/G0134"
     },
     {
         "group": "Tropic Trooper",
-        "url": "https://attack.mitre.org/groups/G0081/"
+        "url": "https://attack.mitre.org/groups/G0081"
     },
     {
         "group": "Turla",
-        "url": "https://attack.mitre.org/groups/G0010/"
-    },
-    {
-        "group": "UNC2452",
-        "url": "https://attack.mitre.org/groups/G0118/"
+        "url": "https://attack.mitre.org/groups/G0010"
     },
     {
         "group": "UNC3886",
-        "url": "https://attack.mitre.org/groups/G1048/"
+        "url": "https://attack.mitre.org/groups/G1048"
     },
     {
         "group": "Velvet Ant",
-        "url": "https://attack.mitre.org/groups/G1047/"
+        "url": "https://attack.mitre.org/groups/G1047"
+    },
+    {
+        "group": "VOID MANTICORE",
+        "url": "https://attack.mitre.org/groups/G1055"
     },
     {
         "group": "Volatile Cedar",
-        "url": "https://attack.mitre.org/groups/G0123/"
+        "url": "https://attack.mitre.org/groups/G0123"
     },
     {
         "group": "Volt Typhoon",
-        "url": "https://attack.mitre.org/groups/G1017/"
+        "url": "https://attack.mitre.org/groups/G1017"
     },
     {
         "group": "Water Galura",
-        "url": "https://attack.mitre.org/groups/G1050/"
+        "url": "https://attack.mitre.org/groups/G1050"
     },
     {
         "group": "Whitefly",
-        "url": "https://attack.mitre.org/groups/G0107/"
+        "url": "https://attack.mitre.org/groups/G0107"
     },
     {
         "group": "Windigo",
-        "url": "https://attack.mitre.org/groups/G0124/"
+        "url": "https://attack.mitre.org/groups/G0124"
     },
     {
         "group": "Windshift",
-        "url": "https://attack.mitre.org/groups/G0112/"
+        "url": "https://attack.mitre.org/groups/G0112"
     },
     {
         "group": "Winnti Group",
-        "url": "https://attack.mitre.org/groups/G0044/"
+        "url": "https://attack.mitre.org/groups/G0044"
     },
     {
         "group": "Winter Vivern",
-        "url": "https://attack.mitre.org/groups/G1035/"
+        "url": "https://attack.mitre.org/groups/G1035"
     },
     {
         "group": "WIRTE",
-        "url": "https://attack.mitre.org/groups/G0090/"
+        "url": "https://attack.mitre.org/groups/G0090"
     },
     {
         "group": "Wizard Spider",
-        "url": "https://attack.mitre.org/groups/G0102/"
+        "url": "https://attack.mitre.org/groups/G0102"
     },
     {
         "group": "ZIRCONIUM",
-        "url": "https://attack.mitre.org/groups/G0128/"
+        "url": "https://attack.mitre.org/groups/G0128"
     }
 ]

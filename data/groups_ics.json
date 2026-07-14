@@ -1,66 +1,58 @@
 [
     {
         "group": "ALLANITE",
-        "url": "https://attack.mitre.org/groups/G1000/"
+        "url": "https://attack.mitre.org/groups/G1000"
     },
     {
         "group": "APT33",
-        "url": "https://attack.mitre.org/groups/G0064/"
-    },
-    {
-        "group": "APT34",
-        "url": "https://attack.mitre.org/groups/G0057/"
+        "url": "https://attack.mitre.org/groups/G0064"
     },
     {
         "group": "APT38",
-        "url": "https://attack.mitre.org/groups/G0082/"
+        "url": "https://attack.mitre.org/groups/G0082"
     },
     {
         "group": "CyberAv3ngers",
-        "url": "https://attack.mitre.org/groups/G1027/"
+        "url": "https://attack.mitre.org/groups/G1027"
     },
     {
         "group": "Dragonfly",
-        "url": "https://attack.mitre.org/groups/G0035/"
-    },
-    {
-        "group": "Dragonfly 2.0",
-        "url": "https://attack.mitre.org/groups/G0074/"
+        "url": "https://attack.mitre.org/groups/G0035"
     },
     {
         "group": "FIN6",
-        "url": "https://attack.mitre.org/groups/G0037/"
+        "url": "https://attack.mitre.org/groups/G0037"
     },
     {
         "group": "FIN7",
-        "url": "https://attack.mitre.org/groups/G0046/"
+        "url": "https://attack.mitre.org/groups/G0046"
     },
     {
         "group": "GOLD SOUTHFIELD",
-        "url": "https://attack.mitre.org/groups/G0115/"
+        "url": "https://attack.mitre.org/groups/G0115"
     },
     {
         "group": "HEXANE",
-        "url": "https://attack.mitre.org/groups/G1001/"
+        "url": "https://attack.mitre.org/groups/G1001"
     },
     {
         "group": "Lazarus Group",
-        "url": "https://attack.mitre.org/groups/G0032/"
+        "url": "https://attack.mitre.org/groups/G0032"
     },
     {
         "group": "OilRig",
-        "url": "https://attack.mitre.org/groups/G0049/"
+        "url": "https://attack.mitre.org/groups/G0049"
     },
     {
         "group": "Sandworm Team",
-        "url": "https://attack.mitre.org/groups/G0034/"
+        "url": "https://attack.mitre.org/groups/G0034"
     },
     {
         "group": "TEMP.Veles",
-        "url": "https://attack.mitre.org/groups/G0088/"
+        "url": "https://attack.mitre.org/groups/G0088"
     },
     {
         "group": "Wizard Spider",
-        "url": "https://attack.mitre.org/groups/G0102/"
+        "url": "https://attack.mitre.org/groups/G0102"
     }
 ]
