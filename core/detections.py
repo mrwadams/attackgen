@@ -211,7 +211,7 @@ def defense_to_markdown(report: dict) -> str:
     if report["matrix"] == "ATLAS":
         lines += [
             "_MITRE ATLAS defines mitigations for these techniques but does not "
-            "yet publish detection strategies, so only mitigations are listed._",
+            + "yet publish detection strategies, so only mitigations are listed._",
             "",
         ]
 
@@ -247,7 +247,7 @@ def defense_to_markdown(report: dict) -> str:
         if not technique["detection_strategies"] and not technique["mitigations"]:
             lines += [
                 "_No ATT&CK detection strategies or mitigations are listed for "
-                "this technique._",
+                + "this technique._",
                 "",
             ]
 
