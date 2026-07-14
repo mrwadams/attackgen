@@ -73,17 +73,20 @@ class TestBuildDefenseReportEnterprise:
         analytic = strategy["analytics"][0]
         assert analytic["name"] == "Analytic 1428"
         assert analytic["platforms"] == ["Windows"]
-        assert analytic["log_sources"] == ["WinEventLog:Security (EventCode=4688)"]
+        assert analytic["log_sources"] == [
+            {"name": "WinEventLog:Security", "channel": "EventCode=4688"}
+        ]
         assert tech["mitigations"][0]["id"] == "M1042"
 
-    def test_log_sources_rolled_up_and_deduped(self):
+    def test_log_sources_rolled_up_by_name_and_deduped(self):
         report = build_defense_report(
             matrix="Enterprise",
             technique_ids=["T1059", "T1059"],  # duplicate collapses
             mitre_data=FakeMitreData(),
         )
         assert len(report["techniques"]) == 1
-        assert report["log_sources"] == ["WinEventLog:Security (EventCode=4688)"]
+        # Roll-up is by source *name* (the "enable these" list), not name+channel.
+        assert report["log_sources"] == ["WinEventLog:Security"]
 
     def test_unknown_technique_dropped(self):
         # Only a bogus ID -> nothing resolves -> None.
@@ -135,6 +138,38 @@ class TestBuildDefenseReportAtlas:
         assert (
             build_defense_report(matrix="ATLAS", technique_ids=["AML.T0051"]) is None
         )
+
+
+class TestLogSourceHygiene:
+    def test_none_channel_dropped_and_rollup_dedupes_by_name(self):
+        class _Fake(FakeMitreData):
+            def get_analytics_by_detection_strategy(self, strategy_id):
+                return [
+                    {
+                        "name": "Analytic X",
+                        "x_mitre_platforms": ["Windows"],
+                        "x_mitre_log_source_references": [
+                            {"name": "WinEventLog:Sysmon", "channel": "EventCode=1"},
+                            {"name": "WinEventLog:Sysmon", "channel": "EventCode=3, 22"},
+                            # MITRE stores a literal "None" for channel-less sources.
+                            {"name": "Application Log", "channel": "None"},
+                        ],
+                        "description": "",
+                    }
+                ]
+
+        report = build_defense_report(
+            matrix="Enterprise", technique_ids=["T1059"], mitre_data=_Fake()
+        )
+        # Roll-up dedupes by source name: Sysmon once (not once per EventCode).
+        assert report["log_sources"] == ["WinEventLog:Sysmon", "Application Log"]
+
+        md = defense_to_markdown(report)
+        # The literal "None" channel never renders as "(None)".
+        assert "(None)" not in md
+        assert "Application Log" in md  # still listed, just without a bogus channel
+        # Per-analytic detail keeps the real channels.
+        assert "WinEventLog:Sysmon (EventCode=1)" in md
 
 
 class TestDefenseToMarkdown:

@@ -70,16 +70,28 @@ def _field(obj, name):
     return getattr(obj, name, None)
 
 
-def _analytic_log_sources(analytic) -> list[str]:
-    """Human-readable log sources an analytic reads, e.g. ``"auditd:SYSCALL (…)"``."""
-    sources: list[str] = []
+def _analytic_log_sources(analytic) -> list[dict]:
+    """Structured log sources an analytic reads: a ``name`` + optional ``channel``.
+
+    MITRE stores a literal string ``"None"`` in the channel field for sources
+    with no specific channel; treat that (and blanks) as absent so it never
+    renders as an ugly ``"(None)"``.
+    """
+    sources: list[dict] = []
     for ref in _field(analytic, "x_mitre_log_source_references") or []:
         name = ref.get("name")
         if not name:
             continue
         channel = ref.get("channel")
-        sources.append(f"{name} ({channel})" if channel else name)
+        if not channel or str(channel).strip().lower() == "none":
+            channel = None
+        sources.append({"name": name, "channel": channel})
     return sources
+
+
+def _format_log_source(source: dict) -> str:
+    """Render one structured log source as ``"name (channel)"`` or ``"name"``."""
+    return f"{source['name']} ({source['channel']})" if source["channel"] else source["name"]
 
 
 def _enterprise_technique(data, external_id: str) -> dict | None:
@@ -147,16 +159,23 @@ def _atlas_technique(atlas_data, external_id: str) -> dict | None:
 
 
 def _rollup_log_sources(techniques: list[dict]) -> list[str]:
-    """Dedupe the log sources across every analytic, preserving first-seen order."""
+    """Distinct log-source *names* across every analytic, first-seen order.
+
+    Deduped by source name (not name+channel), so the roll-up reads as an
+    actionable "enable these" checklist rather than a wall of near-duplicates —
+    e.g. ``WinEventLog:Sysmon`` appears once, not once per EventCode. The
+    per-channel specifics stay in each technique's analytic lines.
+    """
     seen: set[str] = set()
     ordered: list[str] = []
     for technique in techniques:
         for strategy in technique["detection_strategies"]:
             for analytic in strategy["analytics"]:
                 for source in analytic["log_sources"]:
-                    if source not in seen:
-                        seen.add(source)
-                        ordered.append(source)
+                    name = source["name"]
+                    if name not in seen:
+                        seen.add(name)
+                        ordered.append(name)
     return ordered
 
 
@@ -231,7 +250,9 @@ def defense_to_markdown(report: dict) -> str:
                 lines.append(f"- {strategy['name']}{suffix}")
                 for analytic in strategy["analytics"]:
                     platforms = ", ".join(analytic["platforms"])
-                    sources = "; ".join(analytic["log_sources"])
+                    sources = "; ".join(
+                        _format_log_source(s) for s in analytic["log_sources"]
+                    )
                     detail = " — ".join(x for x in (platforms, sources) if x)
                     tail = f" — {detail}" if detail else ""
                     lines.append(f"    - {analytic['name']}{tail}")
