@@ -63,6 +63,9 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     def _expander(*_args, **_kwargs):
         yield None
 
+    def _tabs(labels, *_args, **_kwargs):
+        return [_FakeTab() for _ in labels]
+
     def _noop(*_args, **_kwargs):
         return None
 
@@ -74,6 +77,7 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "button", _button)
     monkeypatch.setattr(st, "status", _status)
     monkeypatch.setattr(st, "expander", _expander)
+    monkeypatch.setattr(st, "tabs", _tabs)
     monkeypatch.setattr(st, "markdown", _noop)
     monkeypatch.setattr(st, "caption", _noop)
     monkeypatch.setattr(st, "write", _noop)
@@ -89,6 +93,14 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "secrets", {})
 
     return controls
+
+
+class _FakeTab:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
 
 
 class _FakePlaceholder:
@@ -582,6 +594,67 @@ def test_no_defense_download_when_build_defense_returns_none(
     assert len(mock_litellm_completion.calls) == 1
     assert fake_session_state["custom_scenario_defense"] is None
     assert all(not d.get("file_name", "").endswith("_detection.md") for d in downloads)
+
+
+def test_result_is_tabbed_when_defense_present(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a Detection & Response companion, scenario + defence go in tabs so
+    the reader switches rather than scrolls through both stacked outputs."""
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "# Scenario"
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    tab_calls: list[list[str]] = []
+    monkeypatch.setattr(st, "tabs", lambda labels, *a, **k: (tab_calls.append(labels) or [_FakeTab() for _ in labels]))
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_defense=lambda: _DEFENSE_REPORT,
+        defense_narrative=False,
+    )
+
+    assert tab_calls == [["📄 Scenario", "🛡️ Detection & Response"]]
+
+
+def test_result_not_tabbed_without_defense(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    disable_langsmith_tracing,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No companion (e.g. page 3) -> plain single-column render, no tabs."""
+    stub_streamlit["button_returns"] = True
+    mock_litellm_completion.content = "# Scenario"
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    tab_calls: list[list[str]] = []
+    monkeypatch.setattr(st, "tabs", lambda labels, *a, **k: (tab_calls.append(labels) or [_FakeTab() for _ in labels]))
+
+    run_scenario_page(
+        page_id="ai_insider",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="ai_insider_threat_scenario.md",
+        trace_name="AI Insider Threat Scenario",
+        trace_tags=("ai_insider_scenario",),
+    )
+
+    assert tab_calls == []
 
 
 def test_persisted_defense_survives_rerun(

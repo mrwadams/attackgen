@@ -219,12 +219,14 @@ def _generate_and_render(
     st.markdown("---")
     if scenario_text:
         thinking, cleaned = clean_model_response(scenario_text)
-        # Replace the live-streamed view with the canonical cleaned render so
-        # any code-fence stripping (or other tidy-ups) takes effect.
-        stream_placeholder.empty()
         if thinking:
             with st.expander("View Model's Reasoning"):
                 st.markdown(thinking)
+        # Build the defense companion first — this may stream a second (purple-
+        # team narrative) model call that takes 20-40s. The scenario's live
+        # stream is deliberately left on screen throughout, so it doesn't vanish
+        # while the narrative generates; only once both are done do we swap the
+        # live streams for the canonical, tabbed result below.
         defense_state = _build_defense_state(
             report=defense_report,
             run_narrative=defense_narrative,
@@ -233,6 +235,7 @@ def _generate_and_render(
             human_name=human_name,
             trace_name=trace_name,
         )
+        stream_placeholder.empty()
         _persist_and_render(
             cleaned=cleaned,
             page_id=page_id,
@@ -319,7 +322,7 @@ def _stream_defense_narrative(
         return None
 
     # Replace the live stream with the canonical cleaned render (done by the
-    # caller via _render_defense), mirroring the main scenario's handling.
+    # caller via _render_defense_body), mirroring the main scenario's handling.
     placeholder.empty()
     _, cleaned = clean_model_response("".join(chunks))
     return cleaned or None
@@ -347,16 +350,14 @@ def _persist_and_render(
     st.session_state["last_scenario"] = True
     st.session_state["last_scenario_text"] = cleaned
 
-    st.markdown(cleaned)
-    st.download_button(
-        label="Download Scenario",
-        data=cleaned,
+    _render_result(
+        page_id=page_id,
+        cleaned=cleaned,
         file_name=download_name,
-        mime="text/markdown",
-        key=f"{page_id}_download",
+        layer_payload=layer_payload,
+        defense_state=defense_state,
+        variant="current",
     )
-    _render_layer_download(layer_payload, key=f"{page_id}_download_layer")
-    _render_defense(defense_state, key=f"{page_id}_download_defense")
 
 
 def _render_previous(
@@ -373,37 +374,75 @@ def _render_previous(
     # the layer) across the reruns a download click triggers.
     file_name = st.session_state.get(filename_key) or download_name
     st.markdown("Displaying previously generated scenario:")
-    st.markdown(text)
+    _render_result(
+        page_id=page_id,
+        cleaned=text,
+        file_name=file_name,
+        layer_payload=st.session_state.get(layer_key),
+        defense_state=st.session_state.get(defense_key),
+        variant="previous",
+    )
+
+
+def _render_result(
+    *,
+    page_id: str,
+    cleaned: str,
+    file_name: str,
+    layer_payload: tuple[str, str] | None,
+    defense_state: dict | None,
+    variant: str,
+) -> None:
+    """Render the finished scenario and its Detection & Response companion.
+
+    When a companion exists, the two long outputs go in side-by-side tabs so the
+    reader switches rather than scrolls; otherwise the scenario renders plainly.
+    ``variant`` ("current" / "previous") namespaces the download-button keys so a
+    generation run and a plain rerun can't collide on a Streamlit widget key.
+    """
+    if defense_state:
+        scenario_tab, defense_tab = st.tabs(["📄 Scenario", "🛡️ Detection & Response"])
+        with scenario_tab:
+            _render_scenario(page_id, cleaned, file_name, layer_payload, variant)
+        with defense_tab:
+            _render_defense_body(page_id, defense_state, variant)
+    else:
+        _render_scenario(page_id, cleaned, file_name, layer_payload, variant)
+
+
+def _render_scenario(
+    page_id: str,
+    cleaned: str,
+    file_name: str,
+    layer_payload: tuple[str, str] | None,
+    variant: str,
+) -> None:
+    st.markdown(cleaned)
     st.download_button(
         label="Download Scenario",
-        data=text,
+        data=cleaned,
         file_name=file_name,
         mime="text/markdown",
-        key=f"{page_id}_download_previous",
+        key=f"{page_id}_download_{variant}",
     )
-    _render_layer_download(
-        st.session_state.get(layer_key), key=f"{page_id}_download_layer_previous"
-    )
-    _render_defense(
-        st.session_state.get(defense_key), key=f"{page_id}_download_defense_previous"
-    )
+    _render_layer_download(layer_payload, key=f"{page_id}_download_layer_{variant}")
 
 
-def _render_defense(defense_state: dict | None, *, key: str) -> None:
-    """Render the Detection & Response companion, if one was produced.
+def _render_defense_body(page_id: str, defense_state: dict, variant: str) -> None:
+    """Render the Detection & Response tab body.
 
     The optional narrative reads inline (it's the digestible walkthrough); the
-    deterministic STIX join sits in an expander as reference. A single download
-    bundles both into one Markdown file.
+    deterministic STIX join sits in an expander as reference — expanded when
+    there's no narrative so the tab is never empty. A single download bundles
+    both into one Markdown file.
     """
-    if not defense_state:
-        return
-    if defense_state.get("narrative_md"):
-        st.markdown("---")
-        st.markdown(defense_state["narrative_md"])
+    narrative_md = defense_state.get("narrative_md")
+    if narrative_md:
+        st.markdown(narrative_md)
     if defense_state.get("deterministic_md"):
         with st.expander(
-            "🛡️ Detection & Response reference (MITRE detection strategies & mitigations)"
+            "🛡️ Detection & Response reference (MITRE detection strategies & mitigations)",
+            expanded=not narrative_md,
         ):
             st.markdown(defense_state["deterministic_md"])
     st.download_button(
@@ -411,7 +450,7 @@ def _render_defense(defense_state: dict | None, *, key: str) -> None:
         data=defense_state["download_md"],
         file_name=defense_state["filename"],
         mime="text/markdown",
-        key=key,
+        key=f"{page_id}_download_defense_{variant}",
     )
 
 
