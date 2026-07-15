@@ -32,7 +32,6 @@ class ProviderInfo:
 class ModelInfo:
     model_id: str
     provider_key: str
-    uses_max_completion_tokens: bool = False   # OpenAI reasoning models (gpt-5.x)
     supports_thinking: bool = False            # Claude/Gemini extended thinking
     help_text: str = ""
 
@@ -94,30 +93,27 @@ PROVIDERS: dict[str, ProviderInfo] = {
 # ---------------------------------------------------------------------------
 
 MODELS: list[ModelInfo] = [
-    # --- OpenAI (all gpt-5.x are reasoning models: max_completion_tokens, and
-    #     they reject any temperature other than the default — see core/llm.py) ---
+    # --- OpenAI (all current chat models use max_completion_tokens, and the
+    #     gpt-5.x reasoning models reject any temperature other than the
+    #     default — both handled by provider in core/llm.py) ---
     ModelInfo(
         model_id="gpt-5.6-sol",
         provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
         help_text="GPT-5.6 Sol is OpenAI's flagship frontier reasoning model for complex work.",
     ),
     ModelInfo(
         model_id="gpt-5.6-terra",
         provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
         help_text="GPT-5.6 Terra balances intelligence and cost for everyday work.",
     ),
     ModelInfo(
         model_id="gpt-5.6-luna",
         provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
         help_text="GPT-5.6 Luna is the fast, cost-efficient option for high-volume workloads.",
     ),
     ModelInfo(
         model_id="gpt-5.5",
         provider_key="OpenAI API",
-        uses_max_completion_tokens=True,
         help_text="GPT-5.5 is OpenAI's previous-generation flagship model.",
     ),
     # --- Anthropic ---
@@ -230,8 +226,3 @@ def get_provider(provider_key: str) -> ProviderInfo | None:
 def get_litellm_prefix(provider_key: str) -> str:
     provider = PROVIDERS.get(provider_key)
     return provider.litellm_prefix if provider else ""
-
-
-def model_uses_completion_tokens(provider_key: str, model_id: str) -> bool:
-    model = get_model(provider_key, model_id)
-    return bool(model and model.uses_max_completion_tokens)

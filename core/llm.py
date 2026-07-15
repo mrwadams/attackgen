@@ -28,7 +28,6 @@ import streamlit as st  # noqa: E402
 from core.models import (
     get_litellm_prefix,
     get_provider,
-    model_uses_completion_tokens,
 )
 from core.schemas import LLMConfig
 
@@ -78,10 +77,11 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     prefix = get_litellm_prefix(config.provider)
     model = prefix + config.model_name
 
-    # OpenAI reasoning models (gpt-5.x) use max_completion_tokens instead of
-    # max_tokens, and reject any temperature other than the default (1) — sending
-    # temperature=0.7 to them is a 400 BadRequest. Detect once; drive both below.
-    is_openai_reasoning = model_uses_completion_tokens(config.provider, config.model_name)
+    # OpenAI's chat models use max_completion_tokens instead of the deprecated
+    # max_tokens, and the gpt-5.x reasoning family rejects any temperature other
+    # than the default (1) — sending temperature=0.7 to them is a 400 BadRequest.
+    # Both are properties of the OpenAI provider, so route on it directly.
+    is_openai = config.provider == "OpenAI API"
 
     kwargs: dict = {
         "model": model,
@@ -91,7 +91,7 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     }
 
     # Only send temperature to models that accept a custom value.
-    if not is_openai_reasoning:
+    if not is_openai:
         kwargs["temperature"] = config.temperature
 
     if config.api_key:
@@ -100,7 +100,7 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     if config.api_base:
         kwargs["api_base"] = config.api_base
 
-    if is_openai_reasoning:
+    if is_openai:
         if config.max_tokens:
             kwargs["max_completion_tokens"] = config.max_tokens
     elif config.provider == "Anthropic API":

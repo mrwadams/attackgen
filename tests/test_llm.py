@@ -18,7 +18,9 @@ def test_kwargs_always_set_num_retries_to_three() -> None:
     assert kwargs["num_retries"] == 3
 
 
-def test_openai_reasoning_model_uses_max_completion_tokens() -> None:
+def test_openai_provider_uses_max_completion_tokens() -> None:
+    """Routing is keyed off the OpenAI provider, not a per-model flag: every
+    current OpenAI chat model takes max_completion_tokens, not max_tokens."""
     config = LLMConfig(
         provider="OpenAI API",
         model_name="gpt-5.5",
@@ -32,16 +34,17 @@ def test_openai_reasoning_model_uses_max_completion_tokens() -> None:
     assert kwargs["model"] == "gpt-5.5"
 
 
-def test_openai_reasoning_model_without_max_tokens_omits_completion_tokens() -> None:
+def test_openai_provider_without_max_tokens_omits_completion_tokens() -> None:
     config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert "max_completion_tokens" not in kwargs
     assert "max_tokens" not in kwargs
 
 
-def test_openai_reasoning_model_omits_temperature() -> None:
+def test_openai_provider_omits_temperature() -> None:
     """gpt-5.x reject any temperature but the default (1), so we must not send
-    one — otherwise litellm raises BadRequestError (regression: v0.13)."""
+    one — otherwise litellm raises BadRequestError (regression: v0.13). The
+    whole OpenAI family is the reasoning family, so we gate on the provider."""
     config = LLMConfig(
         provider="OpenAI API", model_name="gpt-5.5", api_key="k", temperature=0.7
     )
