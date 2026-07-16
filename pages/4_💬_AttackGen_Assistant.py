@@ -28,6 +28,17 @@ DEFENSE_SYSTEM_PROMPT = (
     "Markdown syntax with headers, bullet points, and formatting for readability."
 )
 
+BOTH_SYSTEM_PROMPT = (
+    "You are an AI assistant that helps users refine an incident response scenario and its "
+    "accompanying purple-team Detection & Response narrative together. When a requested change "
+    "affects both — a different threat actor, industry, technique, or timeline — apply it "
+    "consistently across the two so the attacker's scenario and the defender's walkthrough stay "
+    "aligned, and make clear which output each part of your response applies to. Only respond to "
+    "questions or requests relating to the scenario, its detection and response, or incident "
+    "response testing in general. Format your responses using proper Markdown syntax with "
+    "headers, bullet points, and formatting for readability."
+)
+
 
 st.set_page_config(page_title="AttackGen Assistant", page_icon=":speech_balloon:")
 inject_emoji_fonts()
@@ -47,38 +58,54 @@ if not scenario_text:
     st.stop()
 
 
-# Pick the artifact to edit. The Detection & Response option only appears when a
-# purple-team narrative was generated alongside the scenario (page 1/2 toggle).
+# Pick what to edit. The Detection & Response and combined options only appear
+# when a purple-team narrative was generated alongside the scenario (page 1/2
+# toggle). The combined option refines both together so a change made to one can
+# be carried consistently into the other.
 if defense_narrative:
     choice = st.radio(
         "Editing:",
-        ["Scenario", "Detection & Response"],
+        ["Scenario", "Detection & Response", "Scenario + Detection & Response"],
         horizontal=True,
         key="assistant_target",
     )
 else:
     choice = "Scenario"
-target = "defense" if choice == "Detection & Response" else "scenario"
+target = {
+    "Detection & Response": "defense",
+    "Scenario + Detection & Response": "both",
+}.get(choice, "scenario")
 
 if target == "defense":
-    artifact = defense_narrative
+    panels = [("Detection & Response Narrative", defense_narrative)]
     system_prompt = DEFENSE_SYSTEM_PROMPT
-    expander_label = "Detection & Response Narrative"
     greeting = "Hi, I can help you refine the Detection & Response narrative for your scenario."
     trace_name = "AttackGen Assistant — Detection & Response"
     trace_tags = ("assistant", "purple_team_narrative")
+elif target == "both":
+    panels = [
+        ("Generated Scenario", scenario_text),
+        ("Detection & Response Narrative", defense_narrative),
+    ]
+    system_prompt = BOTH_SYSTEM_PROMPT
+    greeting = (
+        "Hi, I can help you refine the scenario and its Detection & Response narrative "
+        "together, keeping changes consistent across both."
+    )
+    trace_name = "AttackGen Assistant — Scenario + Detection & Response"
+    trace_tags = ("assistant", "purple_team_narrative")
 else:
-    artifact = scenario_text
+    panels = [("Generated Scenario", scenario_text)]
     system_prompt = SCENARIO_SYSTEM_PROMPT
-    expander_label = "Generated Scenario"
     greeting = "Hi, I can help you update and ask questions about your incident response scenario."
     trace_name = "AttackGen Assistant"
     trace_tags = ("assistant",)
 
 
-with st.expander(expander_label):
-    with st.container(height=400, border=True):
-        st.markdown(artifact)
+for label, content in panels:
+    with st.expander(label):
+        with st.container(height=400, border=True):
+            st.markdown(content)
 
 chat_container = st.empty()
 
@@ -95,16 +122,24 @@ with chat_container:
 
 
 def generate_response(user_input, chat_history):
-    if target == "defense":
+    if target == "both":
+        context = (
+            f"Here is the incident response scenario:\n\n{scenario_text}\n\n"
+            f"Here is the accompanying Detection & Response narrative:\n\n{defense_narrative}\n\n"
+            f"The user wants to refine both together. When a requested change affects both, "
+            f"apply it consistently across them and show the update to each.\n\n"
+            f"Chat history:\n{chat_history}\n\nUser: {user_input}"
+        )
+    elif target == "defense":
         context = (
             f"Here is the scenario, for reference:\n\n{scenario_text}\n\n"
             f"Here is the current Detection & Response narrative the user wants to refine:"
-            f"\n\n{artifact}\n\n"
+            f"\n\n{defense_narrative}\n\n"
             f"Chat history:\n{chat_history}\n\nUser: {user_input}"
         )
     else:
         context = (
-            f"Here is the scenario that the user previously generated:\n\n{artifact}\n\n"
+            f"Here is the scenario that the user previously generated:\n\n{scenario_text}\n\n"
             f"Chat history:\n{chat_history}\n\nUser: {user_input}"
         )
     messages = [
