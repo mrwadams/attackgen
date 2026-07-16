@@ -41,6 +41,11 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 
 ## Releases
 
+### v0.14 (unreleased)
+| What's new? | Why is it useful? |
+| ----------- | ----------------- |
+| Assistant Refines the Detection & Response Output | - Purple-Team Editing: The AttackGen Assistant can now refine the **Detection & Response** narrative, not just the scenario. When a scenario is generated with the 🟣 Purple-team narrative toggle (Threat Group / Custom pages), an **Editing:** selector appears on the Assistant page so the chat can target either the scenario or the defender's walkthrough — previously the Assistant only had the scenario text.<br><br>- Combined Editing Mode: A third **Scenario + Detection & Response** target refines both together, so a cross-cutting change — a different industry, threat actor, technique or timeline — is applied consistently across the attacker's scenario and the defender's narrative rather than being made twice and drifting apart.<br><br>- Deterministic Facts Untouched: Only the LLM narrative is a refinement target; the local STIX detection join is never LLM-edited. Each editing mode keeps its own chat history, and the combined pass is tagged `purple_team_narrative` in LangSmith. |
+
 ### v0.13.1
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
