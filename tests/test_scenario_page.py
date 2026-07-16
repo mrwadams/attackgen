@@ -203,6 +203,8 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
     # Cross-page handoff for the Assistant page.
     assert fake_session_state["last_scenario"] is True
     assert fake_session_state["last_scenario_text"] == cleaned
+    # No defense companion here, so nothing for the Assistant to refine there.
+    assert fake_session_state["last_defense_narrative"] is None
 
     # The artifact flag is set.
     assert fake_session_state["threat_group_scenario_generated"] is True
@@ -520,6 +522,8 @@ def test_defense_persisted_and_offered_for_download(
     state = fake_session_state["threat_group_scenario_defense"]
     assert state["narrative_md"] is None
     assert "Command and Scripting Interpreter (T1059)" in state["deterministic_md"]
+    # Deterministic-only: no narrative for the Assistant to refine.
+    assert fake_session_state["last_defense_narrative"] is None
 
     md_name = fake_session_state["threat_group_scenario_filename"]
     detection_downloads = [
@@ -562,6 +566,8 @@ def test_defense_narrative_makes_second_llm_call_and_persists(
     assert state["narrative_md"] and "Detection walkthrough" in state["narrative_md"]
     # The combined download carries both the narrative and the reference section.
     assert "Detection & Response Reference" in state["download_md"]
+    # The narrative is handed to the Assistant so it can be refined there too.
+    assert fake_session_state["last_defense_narrative"] == state["narrative_md"]
 
 
 def test_no_defense_download_when_build_defense_returns_none(

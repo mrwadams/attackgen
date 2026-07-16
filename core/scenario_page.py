@@ -346,9 +346,15 @@ def _persist_and_render(
     st.session_state[layer_key] = layer_payload
     st.session_state[filename_key] = download_name
     st.session_state[defense_key] = defense_state
-    # Cross-page handoff for the AttackGen Assistant chat page.
+    # Cross-page handoff for the AttackGen Assistant chat page. The defense
+    # narrative rides along so the Assistant can refine it too; set it
+    # unconditionally (None when there's no narrative) so a stale one from an
+    # earlier generation can't linger after a plain-scenario regen.
     st.session_state["last_scenario"] = True
     st.session_state["last_scenario_text"] = cleaned
+    st.session_state["last_defense_narrative"] = (
+        defense_state.get("narrative_md") if defense_state else None
+    )
 
     _render_result(
         page_id=page_id,
