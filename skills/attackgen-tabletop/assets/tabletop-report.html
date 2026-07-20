@@ -123,6 +123,14 @@
     body.participant .facilitator-only{display:block !important}
     section{break-inside:avoid;border:1px solid #ccc;box-shadow:none}
     details{border:none;padding:0}details summary::before{display:none}
+    /* Wide inline visuals (e.g. an optional SVG kill-chain ribbon) scale to the page. */
+    .ribbon{overflow:visible}.ribbon svg{width:100%;height:auto}
+    /* Wide tables: fit the page and wrap, rather than scroll-then-clip on paper. */
+    .tablewrap{overflow:visible}
+    table{font-size:11.5px}
+    th,td{padding:6px 7px;overflow-wrap:anywhere}
+    .tid,.phase,.scorecard td:last-child{white-space:normal}
+    code{white-space:normal;word-break:break-word}
     a{color:#000;text-decoration:none}
   }
 </style>
@@ -238,6 +246,20 @@
       btn.setAttribute('aria-pressed',String(participant));
       btn.textContent=participant?'Switch to facilitator view':'Switch to participant view';
       note.textContent=participant?'Participant view — kill chain & detections hidden':'Facilitator view — all material visible';
+    });
+  })();
+
+  // Expand every <details> when printing, then restore. A closed <details>
+  // hides its content via the UA shadow-DOM slot, which author CSS on the
+  // light-DOM children cannot override — so force `open` in JS, otherwise
+  // collapsed question groups would be missing from the printed handout / PDF.
+  (function(){
+    function eachDetails(fn){Array.prototype.forEach.call(document.querySelectorAll('details'),fn);}
+    window.addEventListener('beforeprint',function(){
+      eachDetails(function(d){d.dataset._wasOpen=d.open?'1':'0';d.open=true;});
+    });
+    window.addEventListener('afterprint',function(){
+      eachDetails(function(d){d.open=d.dataset._wasOpen==='1';delete d.dataset._wasOpen;});
     });
   })();
 </script>

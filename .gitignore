@@ -9,6 +9,10 @@ venv/
 # System Files
 .DS_Store
 
+# Local agent/tooling directories
+.claude/
+.codex/
+
 # Python
 __pycache__/
 *.pyc
