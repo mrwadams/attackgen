@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabletop Exercise — REPLACE WITH SCENARIO TITLE</title>
+<!--
+  AttackGen tabletop report — canonical design reference for the
+  `attackgen-tabletop` skill. Self-contained: all CSS/JS/fonts/images inline, so
+  it renders offline, prints cleanly, and can be emailed. When the user asks for
+  an HTML report, CLONE this file's structure + CSS and replace the example
+  content (APT29 / Northgate) with the real exercise built from the AttackGen
+  MCP tool outputs. Keep everything inline and network-free.
+
+  Facilitator-only material (kill-chain table, detection scorecard) carries
+  class="facilitator-only"; the toolbar toggle hides it for a participant view.
+-->
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#12151a; --muted:#5b6472;
+    --line:#e4e7ec; --accent:#1DB954; --accent-ink:#0b6b31;
+    --red:#c0392b; --amber:#b7791f; --chip:#eef1f5;
+    --shadow:0 1px 2px rgba(16,21,26,.06),0 4px 16px rgba(16,21,26,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1116; --panel:#161b22; --ink:#e7ebf0; --muted:#9aa4b2;
+      --line:#262d38; --accent:#1DB954; --accent-ink:#4ade80;
+      --red:#f87171; --amber:#fbbf24; --chip:#1e242e;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px 96px}
+  a{color:var(--accent-ink)}
+
+  /* Toolbar */
+  .toolbar{
+    position:sticky;top:0;z-index:10;display:flex;gap:8px;align-items:center;
+    flex-wrap:wrap;padding:10px 20px;background:color-mix(in srgb,var(--panel) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+  }
+  .toolbar .spacer{flex:1}
+  button{
+    font:inherit;font-size:14px;padding:7px 12px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  }
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04210f;font-weight:600}
+  button[aria-pressed="true"]{background:var(--chip);border-color:var(--accent)}
+  .mode-note{font-size:13px;color:var(--muted)}
+
+  /* Header */
+  header.hero{padding:40px 0 12px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);font-weight:700}
+  h1{font-size:30px;line-height:1.2;margin:.35em 0 .1em}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .badge{font-size:13px;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+  .badge b{color:var(--muted);font-weight:600}
+
+  section{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;margin:18px 0;box-shadow:var(--shadow)}
+  section h2{font-size:20px;margin:.1em 0 .6em;display:flex;align-items:baseline;gap:10px}
+  section h2 .n{color:var(--accent-ink);font-variant-numeric:tabular-nums}
+  h3{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1.4em 0 .5em}
+
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin:.4em 0}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .tid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;white-space:nowrap;color:var(--accent-ink)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:var(--chip);padding:1px 5px;border-radius:5px}
+
+  /* Inject timeline */
+  .timeline{list-style:none;margin:0;padding:0 0 0 4px}
+  .timeline li{position:relative;padding:0 0 22px 28px;border-left:2px solid var(--line)}
+  .timeline li:last-child{border-left-color:transparent}
+  .timeline li::before{content:"";position:absolute;left:-7px;top:2px;width:12px;height:12px;border-radius:50%;
+    background:var(--panel);border:2px solid var(--muted)}
+  .timeline li.start::before{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)}
+  .timeline .when{font-weight:700;font-size:14px}
+  .timeline .start-tag{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:#04210f;background:var(--accent);border-radius:999px;padding:2px 8px}
+  .timeline .body{color:var(--ink);margin-top:2px}
+  .timeline .tags{margin-top:4px}
+  .tag{display:inline-block;font-size:12px;background:var(--chip);border:1px solid var(--line);
+    border-radius:6px;padding:1px 7px;margin:2px 4px 0 0}
+
+  details{border:1px solid var(--line);border-radius:10px;padding:0 14px;margin:10px 0;background:var(--bg)}
+  details[open]{padding-bottom:8px}
+  summary{cursor:pointer;font-weight:600;padding:12px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸";color:var(--muted);margin-right:8px;display:inline-block;transition:transform .15s}
+  details[open] summary::before{transform:rotate(90deg)}
+  ol.q{margin:0 0 6px 1.1em;padding:0}ol.q li{margin:.35em 0}
+
+  /* Detection scorecard */
+  .scorecard td:last-child{white-space:nowrap}
+  .score{display:inline-flex;gap:4px}
+  .score label{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;cursor:pointer;color:var(--muted)}
+  .score input{display:none}
+  .score input:checked+span{font-weight:700}
+  .score .yes input:checked~*{color:var(--accent-ink)}
+  .checklist{list-style:none;margin:0;padding:0}
+  .checklist li{padding:6px 0 6px 30px;position:relative}
+  .checklist li::before{content:"";position:absolute;left:0;top:7px;width:16px;height:16px;border:2px solid var(--muted);border-radius:4px}
+
+  .facilitator-only{display:block}
+  body.participant .facilitator-only{display:none !important}
+  .fac-flag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);
+    border:1px solid var(--amber);border-radius:999px;padding:1px 8px;margin-left:8px}
+
+  footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
+
+  /* Print: clean facilitator handout */
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--ink:#000;--muted:#444;--line:#bbb;--chip:#f0f0f0;--shadow:none}
+    .toolbar,button{display:none !important}
+    body.participant .facilitator-only{display:block !important}
+    section{break-inside:avoid;border:1px solid #ccc;box-shadow:none}
+    details{border:none;padding:0}details summary::before{display:none}
+    a{color:#000;text-decoration:none}
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <strong style="font-size:14px">AttackGen Tabletop</strong>
+  <span class="spacer"></span>
+  <span class="mode-note" id="modeNote">Facilitator view — all material visible</span>
+  <button id="viewToggle" aria-pressed="false">Switch to participant view</button>
+  <button class="primary" onclick="window.print()">Print / PDF</button>
+</div>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">Incident Response Tabletop Exercise</div>
+  <!-- FILL: scenario title -->
+  <h1>Cozy Bear Comes Calling — APT29 vs. Northgate Financial</h1>
+  <div class="meta">
+    <span class="badge"><b>Framework</b> MITRE ATT&amp;CK (Enterprise)</span>
+    <span class="badge"><b>Threat actor</b> APT29 · Cozy Bear · Midnight Blizzard</span>
+    <span class="badge"><b>Target</b> Large financial services (1,000+)</span>
+    <span class="badge"><b>Type</b> Purple-team tabletop</span>
+    <span class="badge"><b>Seed</b> 42</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="n">1.</span> Scenario Narrative</h2>
+  <!-- FILL: 2–3 paragraphs. British English. Establish target estate + how the actor works the kill chain at a high level + what capability is under test. -->
+  <p><strong>Northgate Financial Group</strong> is a large, publicly listed firm running a hybrid identity estate… <em>(replace with the generated narrative).</em></p>
+</section>
+
+<section>
+  <h2><span class="n">2.</span> Kill Chain <span class="fac-flag">Facilitator</span></h2>
+  <div class="facilitator-only">
+    <!-- FILL: one row per technique from get_kill_chain, in phase order. Use only those techniques. -->
+    <table>
+      <thead><tr><th>#</th><th>Phase</th><th>Technique (ID)</th><th>Scenario action</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Initial Access</td><td class="tid">Trusted Relationship (T1199)</td><td>Compromise of a delegated-admin MSP grants a trusted foothold — no phishing of staff required.</td></tr>
+        <!-- … more rows … -->
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">3.</span> Inject Schedule</h2>
+  <!-- FILL: chronological injects; mark the exercise start point with class="start" + a start-tag. Tie each to a technique ID. -->
+  <ol class="timeline">
+    <li><div class="when">Day 0 — 08:00</div><div class="body">Perimeter scanning noise appears in edge/IDS logs. <em>(Low signal — likely dismissed.)</em></div><div class="tags"><span class="tag">T1595.002</span></div></li>
+    <li class="start"><div class="when">Day 9 — 09:00<span class="start-tag">IR team starts here</span></div><div class="body">A junior analyst flags ~40 GB of anomalous encrypted egress overnight.</div><div class="tags"><span class="tag">T1048.002</span></div></li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="n">4.</span> Discussion Questions</h2>
+  <!-- FILL: group by NIST SP 800-61 phase; questions specific to this kill chain + estate. -->
+  <details open><summary>Detection &amp; Analysis</summary>
+    <ol class="q"><li>Which Day 0–8 injects would your tooling actually surface, and which sit unalerted?</li></ol>
+  </details>
+  <details><summary>Containment</summary><ol class="q"><li>How do you contain a compromised MSP/delegated-admin relationship without breaking operations?</li></ol></details>
+  <details><summary>Eradication &amp; Recovery</summary><ol class="q"><li>How do you enumerate and remove <em>all</em> attacker-added delegations and role assignments?</li></ol></details>
+  <details><summary>Post-Incident</summary><ol class="q"><li>Which regulatory clocks trigger (ICO 72-hour, FCA, client contracts)?</li></ol></details>
+</section>
+
+<section>
+  <h2><span class="n">5.</span> Detection &amp; Response Scorecard <span class="fac-flag">Facilitator</span></h2>
+  <div class="facilitator-only">
+    <p style="color:var(--muted);font-size:14px">Built from the AttackGen <code>get_detection_report</code> output. Tick whether each detection fired during the exercise to score coverage.</p>
+    <!-- FILL: one row per technique with its DET id, key log sources, mitigations. -->
+    <table class="scorecard">
+      <thead><tr><th>Technique</th><th>Detection (DET)</th><th>Key log sources</th><th>Mitigations</th><th>Fired?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="tid">T1558.003<br>Kerberoasting</td><td>DET0157</td>
+          <td><code>WinEventLog:Security</code> 4769; <code>Sysmon</code> 10</td>
+          <td>M1027 · M1041 · M1026</td>
+          <td><span class="score">
+            <label class="yes"><input type="radio" name="s-T1558"><span>Yes</span></label>
+            <label><input type="radio" name="s-T1558"><span>Partial</span></label>
+            <label><input type="radio" name="s-T1558"><span>No</span></label>
+          </span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">6.</span> Success Criteria</h2>
+  <!-- FILL: what a passing team demonstrates. -->
+  <ul class="checklist">
+    <li>Connects the Day 9 egress signal back to the Day 2 MSP entry point via identity correlation.</li>
+    <li>Enumerates and revokes <em>all</em> attacker-added mailbox delegations, tokens, and role assignments.</li>
+    <li>Triggers the correct regulatory notifications within required windows.</li>
+  </ul>
+</section>
+
+<footer>
+  Attack &amp; detection data from the <strong>AttackGen</strong> MCP server (MITRE ATT&amp;CK v18). Exercise authored for tabletop use — validate against your own environment before relying on it.
+</footer>
+</div>
+
+<script>
+  // Facilitator ⇄ participant view. Participant view hides the kill-chain table
+  // and detection scorecard (reveal them at the hotwash). Inline, self-contained.
+  (function(){
+    var btn=document.getElementById('viewToggle'), note=document.getElementById('modeNote');
+    btn.addEventListener('click',function(){
+      var participant=document.body.classList.toggle('participant');
+      btn.setAttribute('aria-pressed',String(participant));
+      btn.textContent=participant?'Switch to facilitator view':'Switch to participant view';
+      note.textContent=participant?'Participant view — kill chain & detections hidden':'Facilitator view — all material visible';
+    });
+  })();
+</script>
+</body>
+</html>
