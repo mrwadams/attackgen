@@ -1,5 +1,5 @@
 langsmith
-litellm>=1.83.7
+litellm>=1.93.0
 mitreattack-python
 openai
 pandas
