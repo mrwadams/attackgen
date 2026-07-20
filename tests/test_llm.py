@@ -158,3 +158,20 @@ def test_call_llm_passes_built_kwargs_to_litellm(
     assert kwargs["max_tokens"] == 16000
     assert kwargs["api_key"] == "k"
     assert kwargs["num_retries"] == 3
+
+
+def test_stash_run_id_swallows_missing_streamlit_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Headless callers hit the traced path without a Streamlit ScriptRunContext.
+
+    Writing to ``st.session_state`` then raises; ``_stash_run_id`` must swallow it
+    so an MCP-server generate call doesn't crash when LANGCHAIN_API_KEY is set.
+    """
+    class _Exploding:
+        def __setitem__(self, key, value):
+            raise RuntimeError("no ScriptRunContext")
+
+    monkeypatch.setattr(llm_module.st, "session_state", _Exploding())
+    # Must not raise.
+    llm_module._stash_run_id("some-run-id")

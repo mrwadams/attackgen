@@ -68,11 +68,19 @@ def is_ai_uplift_on(page_id: str) -> bool:
     return bool(st.session_state.get(f"{page_id}_ai_uplift", False))
 
 
+def append_ai_uplift(user_content: str, ai_uplift: bool) -> str:
+    """Append the AI-enhanced framing to ``user_content`` when ``ai_uplift`` is on.
+
+    The pure, Streamlit-free core of ``apply_ai_uplift`` — takes an explicit
+    boolean so headless callers (the MCP server, ``core.prompts``) can reuse the
+    exact framing without reading ``st.session_state``.
+    """
+    return user_content + AI_UPLIFT_PROMPT if ai_uplift else user_content
+
+
 def apply_ai_uplift(user_content: str, page_id: str) -> str:
     """Append the AI-enhanced framing to ``user_content`` when the toggle is on."""
-    if is_ai_uplift_on(page_id):
-        return user_content + AI_UPLIFT_PROMPT
-    return user_content
+    return append_ai_uplift(user_content, is_ai_uplift_on(page_id))
 
 
 def uplift_trace_tags(base_tags: tuple[str, ...], page_id: str) -> tuple[str, ...]:

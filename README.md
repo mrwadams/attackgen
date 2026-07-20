@@ -11,6 +11,7 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 - [LangSmith Setup](#langsmith-setup)
 - [Data Setup](#data-setup)
 - [Running AttackGen](#running-attackgen)
+- [MCP Server](#mcp-server)
 - [Usage](#usage)
 - [Security Best Practices](#security-best-practices)
 - [Contributing](#contributing)
@@ -236,6 +237,57 @@ streamlit run 00_👋_Welcome.py
 ```
 
 You can also try the app on [Streamlit Community Cloud](https://attackgen.streamlit.app/).
+
+## MCP Server
+
+AttackGen ships an [MCP](https://modelcontextprotocol.io/) server so agentic workflows (Claude Code, Claude Desktop, Cursor, and other MCP clients) can drive scenario generation without the Streamlit UI. It exposes **two tiers of tools**:
+
+- **Data tools — no API key, no LLM call.** These surface AttackGen's MITRE data: list threat groups / ATLAS case studies, resolve a group's kill chain, build the purple-team Detection & Response report, produce an ATT&CK Navigator layer, and list the AI insider-threat options. Where useful they also return a ready-to-run prompt, so **your client's own model** can write the scenario — meaning these work even if you have no separate provider API key. This is the surface that is safe to host over HTTP.
+- **Generate tools — bring-your-own-key.** `generate_threat_group_scenario`, `generate_custom_scenario` and `generate_ai_insider_scenario` call an LLM server-side and return a finished Markdown scenario. The provider, model and key are supplied per call; if you omit `api_key`, LiteLLM falls back to the matching environment variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) — i.e. **your own** key. Because these read credentials from the process environment, keep them on **local stdio** and do not expose them on a shared host.
+
+### Install and run
+
+The `mcp` dependency is included in `requirements.txt`. Install the project (an editable install also gives you the `attackgen-mcp` console script):
+
+```
+pip install -r requirements.txt
+# optional, for the console script:
+pip install -e .
+```
+
+Launch the server (stdio):
+
+```
+python -m mcp_server      # or: attackgen-mcp
+```
+
+### Add it to a client
+
+**Claude Code:**
+
+```
+claude mcp add attackgen -- python -m mcp_server
+```
+
+**Claude Desktop** (`claude_desktop_config.json`) — keys go in `env`:
+
+```json
+{
+  "mcpServers": {
+    "attackgen": {
+      "command": "python",
+      "args": ["-m", "mcp_server"],
+      "cwd": "/absolute/path/to/attackgen",
+      "env": {
+        "OPENAI_API_KEY": "sk-...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
+You can set `ATTACKGEN_PROVIDER` and `ATTACKGEN_MODEL` in `env` to give the generate tools a default provider/model so callers don't have to pass them each time. The heavy MITRE bundles load lazily on the first data-tool call, so the server starts instantly.
 
 ## Usage
 

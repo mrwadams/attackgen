@@ -1,9 +1,9 @@
 import pandas as pd
 import streamlit as st
-from mitreattack.stix20 import MitreAttackData
 
-from atlas_parser import ATLASData
-from core.ai_uplift import apply_ai_uplift, render_ai_uplift_toggle, uplift_trace_tags
+from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
+from core.attack_data import list_technique_options, load_attack_data
+from core.prompts import build_custom_messages
 from core.detections import (
     build_defense_report,
     is_defense_narrative_on,
@@ -60,47 +60,15 @@ incident_response_templates = {
 
 
 # ------------------ Data Loading ------------------ #
-
-@st.cache_resource
-def load_attack_data():
-    return {
-        "enterprise": MitreAttackData("./data/enterprise-attack.json"),
-        "ics": MitreAttackData("./data/ics-attack.json"),
-        "atlas": ATLASData("./data/stix-atlas.json"),
-    }
-
+# Loaders + technique listing live in core/attack_data.py (shared with the MCP
+# server). load_attack_data() is lazily cached there.
 
 attack_data = load_attack_data()
 
 
-@st.cache_resource
 def load_techniques():
     try:
-        current_matrix = st.session_state.get("matrix", "Enterprise")
-        if current_matrix == "ATLAS":
-            techniques = attack_data["atlas"].get_techniques()
-            return pd.DataFrame([
-                {
-                    'id': tech['id'],
-                    'Technique Name': tech['name'],
-                    'External ID': tech['external_id'],
-                    'Display Name': f"{tech['name']} ({tech['external_id']})",
-                }
-                for tech in techniques
-            ])
-
-        techniques = attack_data[current_matrix.lower()].get_techniques()
-        rows = []
-        for technique in techniques:
-            for reference in technique.external_references:
-                if "external_id" in reference:
-                    rows.append({
-                        'id': technique.id,
-                        'Technique Name': technique.name,
-                        'External ID': reference['external_id'],
-                        'Display Name': f"{technique.name} ({reference['external_id']})",
-                    })
-        return pd.DataFrame(rows)
+        return pd.DataFrame(list_technique_options(matrix))
     except Exception as e:
         print(f"Error in load_techniques: {e}")
         return pd.DataFrame()
@@ -110,61 +78,19 @@ techniques_df = load_techniques()
 
 
 # ------------------ Prompt Construction ------------------ #
-
-SYSTEM_PROMPT = (
-    "You are a cybersecurity expert. Your task is to produce a comprehensive incident response "
-    "testing scenario based on the information provided. Format your response using proper "
-    "Markdown syntax with headers, bullet points, and formatting for readability."
-)
-
-ATLAS_HUMAN_TEMPLATE = """
-**Background information:**
-The company operates in the '{industry}' industry and is of size '{company_size}'.
-They deploy AI/ML systems that may be vulnerable to adversarial attacks.
-
-**Threat actor information:**
-{template_info}
-The threat actor is targeting the company's AI systems using the following ATLAS techniques:
-{selected_techniques_string}
-
-**Your task:**
-Create a custom incident response testing scenario focused on adversarial ML attacks. The goal is to test the company's incident response capabilities against threats to their AI/ML systems.
-
-Focus on realistic attack vectors that target AI/ML infrastructure, including model manipulation, data poisoning, adversarial inputs, prompt injection, and AI supply chain attacks.
-
-Your response should be well structured and formatted using Markdown. Write in British English.
-"""
-
-ATTACK_HUMAN_TEMPLATE = """
-**Background information:**
-The company operates in the '{industry}' industry and is of size '{company_size}'.
-
-**Threat actor information:**
-{template_info}
-The threat actor is known to use the following ATT&CK techniques from the {matrix} Matrix:
-{selected_techniques_string}
-
-**Your task:**
-Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.
-
-Your response should be well structured and formatted using Markdown.
-"""
+# Prompt text lives in core/prompts.py (shared with the MCP server). This page
+# only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
 def build_messages(selected_techniques_string, template_info):
-    template = ATLAS_HUMAN_TEMPLATE if matrix == "ATLAS" else ATTACK_HUMAN_TEMPLATE
-    user_content = template.format(
-        industry=industry,
-        company_size=company_size,
+    return build_custom_messages(
+        matrix=matrix,
         selected_techniques_string=selected_techniques_string,
         template_info=template_info,
-        matrix=matrix,
+        industry=industry,
+        company_size=company_size,
+        ai_uplift=is_ai_uplift_on("custom"),
     )
-    user_content = apply_ai_uplift(user_content, page_id="custom")
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_content},
-    ]
 
 
 def build_layer_payload():

@@ -1,5 +1,6 @@
 langsmith
 litellm>=1.83.7
+mcp>=1.2.0
 mitreattack-python
 openai
 pandas
