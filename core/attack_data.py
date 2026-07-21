@@ -97,6 +97,7 @@ def load_attack_data() -> dict:
 # ---------------------------------------------------------------------------
 
 _GROUPS_FILE = {"Enterprise": "groups.json", "ICS": "groups_ics.json"}
+_CAMPAIGNS_FILE = {"Enterprise": "campaigns.json", "ICS": "campaigns_ics.json"}
 
 
 @lru_cache(maxsize=4)
@@ -111,6 +112,21 @@ def list_threat_groups(matrix: str) -> tuple[dict, ...]:
     filename = _GROUPS_FILE.get(matrix)
     if filename is None:
         raise ValueError(f"Unknown matrix '{matrix}'.")
+    df = pd.read_json(str(_DATA_DIR / filename))
+    return tuple({"group": str(r["group"]), "url": str(r["url"])} for _, r in df.iterrows())
+
+
+@lru_cache(maxsize=4)
+def list_campaigns(matrix: str) -> tuple[dict, ...]:
+    """Documented ATT&CK campaigns (Enterprise/ICS) as ``{group,url}`` dicts.
+
+    Mirrors ``list_threat_groups``; the ``"group"`` key is reused so the page and
+    MCP listing code stay uniform. Campaigns exist only in the Enterprise and ICS
+    matrices — ATLAS has no campaign objects and raises ``ValueError``.
+    """
+    filename = _CAMPAIGNS_FILE.get(matrix)
+    if filename is None:
+        raise ValueError(f"No campaigns for matrix '{matrix}' (Enterprise/ICS only).")
     df = pd.read_json(str(_DATA_DIR / filename))
     return tuple({"group": str(r["group"]), "url": str(r["url"])} for _, r in df.iterrows())
 
@@ -221,8 +237,54 @@ def resolve_threat_group_kill_chain(
         return KillChain(matrix, group_alias, [], "", [])
 
     techniques = mitre.get_techniques_used_by_group(group[0].id)
+    return _kill_chain_from_relationships(
+        matrix, group_alias, techniques, mitre, sample=True, seed=seed
+    )
+
+
+def resolve_campaign_kill_chain(matrix: str, campaign_alias: str) -> KillChain:
+    """Resolve an Enterprise/ICS campaign to its full documented kill chain.
+
+    A campaign is a documented real-world intrusion, so — unlike a threat group —
+    every technique observed in the campaign is replayed (no per-phase sampling),
+    matching ``resolve_case_study_kill_chain``'s behaviour for ATLAS. Techniques
+    are still deduped for display, phase-normalised and ordered by
+    ``PHASE_ORDER_ATTACK``. Returns an empty ``KillChain`` when the campaign is
+    unknown or has no associated techniques.
+    """
+    mitre = mitre_data_for_matrix(matrix)
+    campaign = mitre.get_campaigns_by_alias(campaign_alias)
+    if not campaign:
+        return KillChain(matrix, campaign_alias, [], "", [])
+
+    techniques = mitre.get_techniques_used_by_campaign(campaign[0].id)
+    return _kill_chain_from_relationships(
+        matrix, campaign_alias, techniques, mitre, sample=False
+    )
+
+
+def _kill_chain_from_relationships(
+    matrix: str,
+    alias: str,
+    techniques: list,
+    mitre: MitreAttackData,
+    *,
+    sample: bool,
+    seed: int | None = None,
+) -> KillChain:
+    """Turn ATT&CK ``uses`` relationships into a ``KillChain``.
+
+    Shared by the group and campaign resolvers. ``techniques`` is the relationship
+    list returned by ``get_techniques_used_by_group`` /
+    ``get_techniques_used_by_campaign`` (each entry has an ``object`` technique).
+    Derives name/ID/phase, dedupes for display, normalises phase names and orders
+    by ``PHASE_ORDER_ATTACK``. When ``sample`` is true, one technique per phase is
+    drawn from the *non-deduplicated* set (threat-group behaviour; ``seed`` makes
+    the draw deterministic); when false, the full deduped set is used (campaign
+    behaviour — the whole documented intrusion).
+    """
     if not techniques:
-        return KillChain(matrix, group_alias, [], "", [])
+        return KillChain(matrix, alias, [], "", [])
 
     techniques_df = pd.DataFrame(techniques)
     techniques_df_llm = techniques_df.copy()
@@ -241,6 +303,18 @@ def resolve_threat_group_kill_chain(
     techniques_df = techniques_df.sort_values("Phase Name")
     techniques_df_llm = techniques_df_llm.sort_values("Phase Name")
 
+    all_records = _records(techniques_df.sort_values("Phase Name"))
+
+    if not sample:
+        # Full documented chain (campaign / no sampling): techniques == all.
+        return KillChain(
+            matrix=matrix,
+            group_alias=alias,
+            techniques=all_records,
+            kill_chain_string=_kill_chain_string(all_records),
+            all_techniques=all_records,
+        )
+
     selected_techniques_df = (
         techniques_df_llm.groupby("Phase Name", observed=False)
         .apply(
@@ -250,11 +324,10 @@ def resolve_threat_group_kill_chain(
         .reset_index()
     )
 
-    all_records = _records(techniques_df.sort_values("Phase Name"))
     sampled_records = _records(selected_techniques_df)
     return KillChain(
         matrix=matrix,
-        group_alias=group_alias,
+        group_alias=alias,
         techniques=sampled_records,
         kill_chain_string=_kill_chain_string(sampled_records),
         all_techniques=all_records,

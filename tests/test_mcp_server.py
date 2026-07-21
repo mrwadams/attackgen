@@ -40,13 +40,15 @@ def canned_kill_chain(monkeypatch):
     )
     monkeypatch.setattr(s.ad, "resolve_threat_group_kill_chain", lambda *a, **k: kc)
     monkeypatch.setattr(s.ad, "resolve_case_study_kill_chain", lambda *a, **k: kc)
+    monkeypatch.setattr(s.ad, "resolve_campaign_kill_chain", lambda *a, **k: kc)
     return kc
 
 
 EXPECTED_TOOLS = {
-    "list_threat_groups", "list_case_studies", "get_kill_chain", "get_detection_report",
-    "get_navigator_layer", "list_ai_insider_options", "get_ai_insider_prompt",
-    "generate_threat_group_scenario", "generate_custom_scenario", "generate_ai_insider_scenario",
+    "list_threat_groups", "list_case_studies", "list_campaigns", "get_kill_chain",
+    "get_detection_report", "get_navigator_layer", "list_ai_insider_options",
+    "get_ai_insider_prompt", "generate_threat_group_scenario", "generate_campaign_scenario",
+    "generate_custom_scenario", "generate_ai_insider_scenario",
 }
 
 
@@ -117,6 +119,45 @@ class TestGenerateTools:
         assert out == "custom scenario"
         _args, kwargs = mock_litellm_completion.calls[0]
         assert "T1566" in kwargs["messages"][1]["content"]
+
+    def test_generate_campaign_scenario(self, no_langsmith, canned_kill_chain, mock_litellm_completion):
+        mock_litellm_completion.content = "# Campaign Scenario"
+        out = s.generate_campaign_scenario(
+            "Enterprise", "Operation Wocao", "Finance", "Large",
+            provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+        )
+        assert out == "# Campaign Scenario"
+        _args, kwargs = mock_litellm_completion.calls[0]
+        assert kwargs["model"] == "anthropic/claude-sonnet-5"
+        # Framed as a documented campaign, with the campaign name interpolated.
+        user = kwargs["messages"][1]["content"]
+        assert "Operation Wocao" in user and "real-world" in user
+
+    def test_campaign_empty_kill_chain_raises(self, monkeypatch):
+        empty = KillChain("Enterprise", "C0027", [], "", [])
+        monkeypatch.setattr(s.ad, "resolve_campaign_kill_chain", lambda *a, **k: empty)
+        with pytest.raises(ValueError):
+            s.generate_campaign_scenario(
+                "Enterprise", "C0027", "Finance", "Large",
+                provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            )
+
+    def test_controls_flow_into_prompt_and_tags(
+        self, no_langsmith, canned_kill_chain, mock_litellm_completion
+    ):
+        mock_litellm_completion.content = "scenario"
+        s.generate_threat_group_scenario(
+            "Enterprise", "APT29", "Finance", "Large",
+            provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            controls="EDR everywhere, no egress logging",
+        )
+        _args, kwargs = mock_litellm_completion.calls[0]
+        user = kwargs["messages"][1]["content"]
+        assert "Defensive control overlay" in user
+        assert "EDR everywhere, no egress logging" in user
+        # The control_overlay trace tag is attached only when controls are supplied.
+        assert s._maybe_controls(("t",), "x") == ("t", "control_overlay")
+        assert s._maybe_controls(("t",), "  ") == ("t",)
 
     def test_bad_provider_raises(self, canned_kill_chain):
         with pytest.raises(ValueError):

@@ -1,0 +1,226 @@
+[
+    {
+        "group": "2015 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0028"
+    },
+    {
+        "group": "2016 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0025"
+    },
+    {
+        "group": "2022 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0034"
+    },
+    {
+        "group": "2025 Poland Wiper Attacks",
+        "url": "https://attack.mitre.org/campaigns/C0063"
+    },
+    {
+        "group": "3CX Supply Chain Attack",
+        "url": "https://attack.mitre.org/campaigns/C0057"
+    },
+    {
+        "group": "Anthropic AI-orchestrated Campaign",
+        "url": "https://attack.mitre.org/campaigns/C0062"
+    },
+    {
+        "group": "APT28 Nearest Neighbor Campaign",
+        "url": "https://attack.mitre.org/campaigns/C0051"
+    },
+    {
+        "group": "APT41 DUST",
+        "url": "https://attack.mitre.org/campaigns/C0040"
+    },
+    {
+        "group": "ArcaneDoor",
+        "url": "https://attack.mitre.org/campaigns/C0046"
+    },
+    {
+        "group": "C0010",
+        "url": "https://attack.mitre.org/campaigns/C0010"
+    },
+    {
+        "group": "C0011",
+        "url": "https://attack.mitre.org/campaigns/C0011"
+    },
+    {
+        "group": "C0015",
+        "url": "https://attack.mitre.org/campaigns/C0015"
+    },
+    {
+        "group": "C0017",
+        "url": "https://attack.mitre.org/campaigns/C0017"
+    },
+    {
+        "group": "C0018",
+        "url": "https://attack.mitre.org/campaigns/C0018"
+    },
+    {
+        "group": "C0021",
+        "url": "https://attack.mitre.org/campaigns/C0021"
+    },
+    {
+        "group": "C0026",
+        "url": "https://attack.mitre.org/campaigns/C0026"
+    },
+    {
+        "group": "C0027",
+        "url": "https://attack.mitre.org/campaigns/C0027"
+    },
+    {
+        "group": "C0032",
+        "url": "https://attack.mitre.org/campaigns/C0032"
+    },
+    {
+        "group": "C0033",
+        "url": "https://attack.mitre.org/campaigns/C0033"
+    },
+    {
+        "group": "CostaRicto",
+        "url": "https://attack.mitre.org/campaigns/C0004"
+    },
+    {
+        "group": "Cutting Edge",
+        "url": "https://attack.mitre.org/campaigns/C0029"
+    },
+    {
+        "group": "FLORAHOX Activity",
+        "url": "https://attack.mitre.org/campaigns/C0053"
+    },
+    {
+        "group": "Frankenstein",
+        "url": "https://attack.mitre.org/campaigns/C0001"
+    },
+    {
+        "group": "FrostyGoop Incident",
+        "url": "https://attack.mitre.org/campaigns/C0041"
+    },
+    {
+        "group": "FunnyDream",
+        "url": "https://attack.mitre.org/campaigns/C0007"
+    },
+    {
+        "group": "HomeLand Justice",
+        "url": "https://attack.mitre.org/campaigns/C0038"
+    },
+    {
+        "group": "Indian Critical Infrastructure Intrusions",
+        "url": "https://attack.mitre.org/campaigns/C0043"
+    },
+    {
+        "group": "J-magic Campaign",
+        "url": "https://attack.mitre.org/campaigns/C0050"
+    },
+    {
+        "group": "Juicy Mix",
+        "url": "https://attack.mitre.org/campaigns/C0044"
+    },
+    {
+        "group": "KV Botnet Activity",
+        "url": "https://attack.mitre.org/campaigns/C0035"
+    },
+    {
+        "group": "Leviathan Australian Intrusions",
+        "url": "https://attack.mitre.org/campaigns/C0049"
+    },
+    {
+        "group": "Night Dragon",
+        "url": "https://attack.mitre.org/campaigns/C0002"
+    },
+    {
+        "group": "Operation AkaiRyū",
+        "url": "https://attack.mitre.org/campaigns/C0060"
+    },
+    {
+        "group": "Operation CuckooBees",
+        "url": "https://attack.mitre.org/campaigns/C0012"
+    },
+    {
+        "group": "Operation Digital Eye",
+        "url": "https://attack.mitre.org/campaigns/C0061"
+    },
+    {
+        "group": "Operation Dream Job",
+        "url": "https://attack.mitre.org/campaigns/C0022"
+    },
+    {
+        "group": "Operation Dust Storm",
+        "url": "https://attack.mitre.org/campaigns/C0016"
+    },
+    {
+        "group": "Operation Ghost",
+        "url": "https://attack.mitre.org/campaigns/C0023"
+    },
+    {
+        "group": "Operation Honeybee",
+        "url": "https://attack.mitre.org/campaigns/C0006"
+    },
+    {
+        "group": "Operation MidnightEclipse",
+        "url": "https://attack.mitre.org/campaigns/C0048"
+    },
+    {
+        "group": "Operation Sharpshooter",
+        "url": "https://attack.mitre.org/campaigns/C0013"
+    },
+    {
+        "group": "Operation Spalax",
+        "url": "https://attack.mitre.org/campaigns/C0005"
+    },
+    {
+        "group": "Operation Wocao",
+        "url": "https://attack.mitre.org/campaigns/C0014"
+    },
+    {
+        "group": "Outer Space",
+        "url": "https://attack.mitre.org/campaigns/C0042"
+    },
+    {
+        "group": "Pikabot Distribution February 2024",
+        "url": "https://attack.mitre.org/campaigns/C0036"
+    },
+    {
+        "group": "Quad7 Activity",
+        "url": "https://attack.mitre.org/campaigns/C0055"
+    },
+    {
+        "group": "RedDelta Modified PlugX Infection Chain Operations",
+        "url": "https://attack.mitre.org/campaigns/C0047"
+    },
+    {
+        "group": "RedPenguin",
+        "url": "https://attack.mitre.org/campaigns/C0056"
+    },
+    {
+        "group": "Salesforce Data Exfiltration",
+        "url": "https://attack.mitre.org/campaigns/C0059"
+    },
+    {
+        "group": "ShadowRay",
+        "url": "https://attack.mitre.org/campaigns/C0045"
+    },
+    {
+        "group": "SharePoint ToolShell Exploitation",
+        "url": "https://attack.mitre.org/campaigns/C0058"
+    },
+    {
+        "group": "SolarWinds Compromise",
+        "url": "https://attack.mitre.org/campaigns/C0024"
+    },
+    {
+        "group": "SPACEHOP Activity",
+        "url": "https://attack.mitre.org/campaigns/C0052"
+    },
+    {
+        "group": "Triton Safety Instrumented System Attack",
+        "url": "https://attack.mitre.org/campaigns/C0030"
+    },
+    {
+        "group": "Versa Director Zero Day Exploitation",
+        "url": "https://attack.mitre.org/campaigns/C0039"
+    },
+    {
+        "group": "Water Curupira Pikabot Distribution",
+        "url": "https://attack.mitre.org/campaigns/C0037"
+    }
+]

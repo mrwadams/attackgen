@@ -38,6 +38,7 @@ from core.models import PROVIDERS, get_models_for_provider, get_provider
 from core.navigator import build_layer, dumps, parse_technique_id
 from core.prompts import (
     build_ai_insider_messages,
+    build_campaign_messages,
     build_custom_messages,
     build_threat_group_messages,
 )
@@ -129,6 +130,11 @@ def _generate(config: LLMConfig, messages: list[dict]) -> str:
     return cleaned
 
 
+def _maybe_controls(base_tags: tuple[str, ...], controls: str) -> tuple[str, ...]:
+    """Add a ``control_overlay`` trace tag when a control description is supplied."""
+    return base_tags + ("control_overlay",) if controls.strip() else base_tags
+
+
 # ===========================================================================
 # Tier A — data tools (no LLM, no API key)
 # ===========================================================================
@@ -156,12 +162,24 @@ def list_case_studies() -> list[dict]:
 
 
 @mcp.tool()
+def list_campaigns(matrix: Matrix = "Enterprise") -> list[dict]:
+    """List documented MITRE ATT&CK campaigns (Enterprise/ICS only).
+
+    Returns ``[{"group", "url"}]`` — real-world, documented intrusions. Use a
+    ``group`` value from here with ``generate_campaign_scenario``. Campaigns do
+    not exist in the ATLAS matrix.
+    """
+    return list(ad.list_campaigns(matrix))
+
+
+@mcp.tool()
 def get_kill_chain(
     matrix: Matrix,
     group: str,
     seed: int | None = None,
     industry: str | None = None,
     company_size: str | None = None,
+    controls: str = "",
 ) -> dict:
     """Resolve a threat group / case study to its kill chain (no LLM call).
 
@@ -169,8 +187,10 @@ def get_kill_chain(
     ``seed`` for a deterministic draw); ATLAS uses the case study's full
     documented procedure. When both ``industry`` and ``company_size`` are given,
     a ready-to-run ``messages`` prompt is included so a client model can generate
-    the scenario directly. Returns ``techniques``, ``all_techniques``,
-    ``kill_chain_string`` and (optionally) ``messages``.
+    the scenario directly; pass ``controls`` (a description of the org's security
+    controls) to have that prompt assess the chain against them. Returns
+    ``techniques``, ``all_techniques``, ``kill_chain_string`` and (optionally)
+    ``messages``.
     """
     kc = _resolve_kill_chain(matrix, group, seed)
     result = asdict(kc)
@@ -181,6 +201,7 @@ def get_kill_chain(
             kill_chain_string=kc.kill_chain_string,
             industry=industry,
             company_size=company_size,
+            controls=controls,
         )
     else:
         result["messages"] = None
@@ -282,6 +303,7 @@ def generate_threat_group_scenario(
     api_key: str | None = None,
     api_base: str | None = None,
     ai_uplift: bool = False,
+    controls: str = "",
     seed: int | None = None,
     include_detection: bool = False,
 ) -> str:
@@ -289,7 +311,9 @@ def generate_threat_group_scenario(
 
     Resolves the kill chain, calls the model (BYO-key), and returns finished
     Markdown. ``api_key`` omitted → the provider's env var is used. ``ai_uplift``
-    adds the AI-enhanced-adversary framing; ``include_detection`` appends the
+    adds the AI-enhanced-adversary framing; ``controls`` (a description of the
+    org's security controls) makes the scenario assess the chain against them —
+    what would be blocked, detected or missed; ``include_detection`` appends the
     purple-team Detection & Response section.
     """
     kc = _resolve_kill_chain(matrix, group, seed)
@@ -302,10 +326,60 @@ def generate_threat_group_scenario(
         industry=industry,
         company_size=company_size,
         ai_uplift=ai_uplift,
+        controls=controls,
     )
     config = _make_config(
         provider, model, api_key=api_key, api_base=api_base,
-        trace_name="Threat Group Scenario (MCP)", trace_tags=("threat_group_scenario", "mcp"),
+        trace_name="Threat Group Scenario (MCP)",
+        trace_tags=_maybe_controls(("threat_group_scenario", "mcp"), controls),
+    )
+    scenario = _generate(config, messages)
+    if include_detection:
+        detection = _defense_markdown(matrix, [t["ATT&CK ID"] for t in kc.techniques])
+        if detection:
+            scenario = f"{scenario}\n\n---\n\n{detection}"
+    return scenario
+
+
+@mcp.tool()
+def generate_campaign_scenario(
+    matrix: Literal["Enterprise", "ICS"],
+    campaign: str,
+    industry: str,
+    company_size: str,
+    provider: str = _DEFAULT_PROVIDER,
+    model: str = _DEFAULT_MODEL,
+    api_key: str | None = None,
+    api_base: str | None = None,
+    ai_uplift: bool = False,
+    controls: str = "",
+    include_detection: bool = False,
+) -> str:
+    """Generate a scenario built around a real, documented ATT&CK campaign.
+
+    Unlike a threat group (whose techniques are sampled), a campaign replays the
+    *full* set of techniques observed in the actual intrusion. Campaigns exist
+    only in the Enterprise and ICS matrices. Use a ``campaign`` value from
+    ``list_campaigns``. Calls the model (BYO-key) and returns finished Markdown.
+    ``controls`` makes the scenario assess the chain against your stated defences;
+    ``include_detection`` appends the purple-team Detection & Response section.
+    """
+    kc = ad.resolve_campaign_kill_chain(matrix, campaign)
+    if not kc.techniques:
+        raise ValueError(f"No techniques found for campaign '{campaign}' in the {matrix} matrix.")
+    messages = build_campaign_messages(
+        matrix=matrix,
+        campaign_name=campaign,
+        kill_chain_string=kc.kill_chain_string,
+        industry=industry,
+        company_size=company_size,
+        ai_uplift=ai_uplift,
+        controls=controls,
+    )
+    config = _make_config(
+        provider, model, api_key=api_key, api_base=api_base,
+        trace_name="Campaign Scenario (MCP)",
+        trace_tags=_maybe_controls(("campaign_scenario", "mcp"), controls),
     )
     scenario = _generate(config, messages)
     if include_detection:
@@ -327,13 +401,15 @@ def generate_custom_scenario(
     api_base: str | None = None,
     template_info: str = "",
     ai_uplift: bool = False,
+    controls: str = "",
     include_detection: bool = False,
 ) -> str:
     """Generate a custom scenario from a chosen set of ATT&CK / ATLAS techniques.
 
     ``techniques`` may be bare IDs or ``"Name (ID)"`` labels. Calls the model
-    (BYO-key) and returns finished Markdown. ``include_detection`` appends the
-    purple-team Detection & Response section.
+    (BYO-key) and returns finished Markdown. ``controls`` (a description of the
+    org's security controls) makes the scenario assess the chain against them;
+    ``include_detection`` appends the purple-team Detection & Response section.
     """
     if not techniques:
         raise ValueError("At least one technique is required.")
@@ -345,10 +421,12 @@ def generate_custom_scenario(
         industry=industry,
         company_size=company_size,
         ai_uplift=ai_uplift,
+        controls=controls,
     )
     config = _make_config(
         provider, model, api_key=api_key, api_base=api_base,
-        trace_name="Custom Scenario (MCP)", trace_tags=("custom_scenario", "mcp"),
+        trace_name="Custom Scenario (MCP)",
+        trace_tags=_maybe_controls(("custom_scenario", "mcp"), controls),
     )
     scenario = _generate(config, messages)
     if include_detection:

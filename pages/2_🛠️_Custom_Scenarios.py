@@ -3,6 +3,12 @@ import streamlit as st
 
 from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
 from core.attack_data import list_technique_options, load_attack_data
+from core.controls import (
+    CONTROLS_LABEL,
+    controls_trace_tags,
+    get_controls,
+    render_controls_input,
+)
 from core.prompts import build_custom_messages
 from core.detections import (
     build_defense_report,
@@ -90,6 +96,7 @@ def build_messages(selected_techniques_string, template_info):
         industry=industry,
         company_size=company_size,
         ai_uplift=is_ai_uplift_on("custom"),
+        controls=get_controls("custom"),
     )
 
 
@@ -245,6 +252,10 @@ st.markdown(
     """
 )
 
+# Optional: describe your own controls so the scenario is measured against them.
+with st.expander(CONTROLS_LABEL):
+    render_controls_input("custom", label_visibility="collapsed")
+
 
 def _ready() -> bool:
     if model_provider != "Custom" and not st.session_state.get("llm_api_key"):
@@ -273,7 +284,9 @@ run_scenario_page(
     is_ready=_ready,
     download_name=f"AttackGen Custom {selected_template} {matrix}.md",
     trace_name="Custom Scenario",
-    trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
+    trace_tags=controls_trace_tags(
+        uplift_trace_tags(("custom_scenario",), page_id="custom"), page_id="custom"
+    ),
     inline_control=_inline_controls,
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,

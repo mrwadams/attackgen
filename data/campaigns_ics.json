@@ -1,0 +1,34 @@
+[
+    {
+        "group": "2015 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0028"
+    },
+    {
+        "group": "2016 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0025"
+    },
+    {
+        "group": "2022 Ukraine Electric Power Attack",
+        "url": "https://attack.mitre.org/campaigns/C0034"
+    },
+    {
+        "group": "2025 Poland Wiper Attacks",
+        "url": "https://attack.mitre.org/campaigns/C0063"
+    },
+    {
+        "group": "FrostyGoop Incident",
+        "url": "https://attack.mitre.org/campaigns/C0041"
+    },
+    {
+        "group": "Maroochy Water Breach",
+        "url": "https://attack.mitre.org/campaigns/C0020"
+    },
+    {
+        "group": "Triton Safety Instrumented System Attack",
+        "url": "https://attack.mitre.org/campaigns/C0030"
+    },
+    {
+        "group": "Unitronics Defacement Campaign",
+        "url": "https://attack.mitre.org/campaigns/C0031"
+    }
+]
