@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (e.g. OpenAI Codex) when working with code in this repository.
 
 ## Project Overview
 
@@ -83,7 +83,7 @@ pytest
 ### LLM Provider Support
 All providers go through `core/llm.py:call_llm`. Currently supported:
 - OpenAI API (GPT-5.x family)
-- Anthropic API (Codex 4.x family)
+- Anthropic API (Claude 4.x family)
 - Google AI API (Gemini 3.x family)
 - Mistral API
 - Groq API

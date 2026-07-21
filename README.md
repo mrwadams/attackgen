@@ -12,6 +12,7 @@ AttackGen is a cybersecurity incident response testing tool that leverages the p
 - [Data Setup](#data-setup)
 - [Running AttackGen](#running-attackgen)
 - [MCP Server](#mcp-server)
+- [Agent Skills](#agent-skills)
 - [Usage](#usage)
 - [Security Best Practices](#security-best-practices)
 - [Contributing](#contributing)
@@ -45,6 +46,8 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 ### v0.14 (unreleased)
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
+| MCP Server for Agentic Clients | - Scenario Generation as Tools: A new FastMCP server (`mcp_server.py`, official `mcp` SDK) exposes AttackGen to agentic clients over stdio, so an assistant like Claude Code or Claude Desktop can pull MITRE data and generate scenarios without the Streamlit UI.<br><br>- Two Tiers: **Data tools** (`list_threat_groups`, `list_case_studies`, `get_kill_chain`, `get_detection_report`, `get_navigator_layer`, `list_ai_insider_options`, `get_ai_insider_prompt`) make no LLM call and need no API key — they return structured MITRE data and, where useful, a ready-to-run prompt, so they're safe to host over HTTP. **Generate tools** (`generate_threat_group_scenario`, `generate_custom_scenario`, `generate_ai_insider_scenario`) take a bring-your-own-key config and return finished Markdown — keep these on local stdio.<br><br>- Shared Implementation: The server reuses the same headless `core/prompts.py` builders and `core/attack_data.py` loaders the Streamlit pages use, so scenarios match the app rather than drifting. Launch with `python -m mcp_server` or the `attackgen-mcp` console script. |
+| attackgen-tabletop Agent Skill | - Facilitator-Ready Tabletops: A new [Agent Skill](skills/) builds on the MCP data tools to turn a MITRE ATT&CK/ATLAS threat group or case study into a full IR tabletop / MSEL — scenario narrative, phase-mapped kill chain, timestamped injects, NIST SP 800-61 discussion questions and a detection-coverage scorecard.<br><br>- Runs on the Caller's Model: The skill supplies the exercise craft while the MCP server supplies the data, so it runs on the client's own model with no additional API key.<br><br>- Two Output Formats: Delivered as Markdown (default) or a self-contained, print-friendly HTML report. |
 | Assistant Refines the Detection & Response Output | - Purple-Team Editing: The AttackGen Assistant can now refine the **Detection & Response** narrative, not just the scenario. When a scenario is generated with the 🟣 Purple-team narrative toggle (Threat Group / Custom pages), an **Editing:** selector appears on the Assistant page so the chat can target either the scenario or the defender's walkthrough — previously the Assistant only had the scenario text.<br><br>- Combined Editing Mode: A third **Scenario + Detection & Response** target refines both together, so a cross-cutting change — a different industry, threat actor, technique or timeline — is applied consistently across the attacker's scenario and the defender's narrative rather than being made twice and drifting apart.<br><br>- Deterministic Facts Untouched: Only the LLM narrative is a refinement target; the local STIX detection join is never LLM-edited. Each editing mode keeps its own chat history, and the combined pass is tagged `purple_team_narrative` in LangSmith. |
 | Simpler Model Registry | - One Less Thing Per Model: The `max_completion_tokens` kwarg and the reasoning-model temperature rule are now routed from the **provider** rather than a per-model `uses_max_completion_tokens` flag — every current OpenAI chat model uses them, so the flag duplicated a fact the provider key already captured. Adding a new OpenAI model stays a one-entry edit to `MODELS`, with no extra flag to remember.<br><br>- No Behaviour Change: An internal simplification only — the wrapper builds identical LiteLLM kwargs for every current model. |
 
@@ -288,6 +291,14 @@ claude mcp add attackgen -- python -m mcp_server
 ```
 
 You can set `ATTACKGEN_PROVIDER` and `ATTACKGEN_MODEL` in `env` to give the generate tools a default provider/model so callers don't have to pass them each time. The heavy MITRE bundles load lazily on the first data-tool call, so the server starts instantly.
+
+## Agent Skills
+
+Paired with the MCP server is an **[Agent Skill](skills/)**, `attackgen-tabletop`, that turns AttackGen's MITRE data into a facilitator-ready incident response tabletop.
+
+Given a threat group or ATLAS case study, the skill produces a full tabletop / Master Scenario Events List (MSEL) — scenario narrative, phase-mapped kill chain, timestamped injects, NIST SP 800-61 discussion questions, and a detection-coverage scorecard — as Markdown or a self-contained, print-friendly HTML report.
+
+The division of labour is deliberate: the MCP **data tools** supply the facts (every technique ID traces back to a tool result) and the skill supplies the exercise craft, so it runs on your client's own model with **no additional API key**. Connect the MCP server (above), then point a skill-aware client such as Claude Code or Claude Desktop at the [`skills/`](skills/) directory. See [`skills/README.md`](skills/README.md) for per-client install locations and details.
 
 ## Usage
 
