@@ -37,6 +37,17 @@ pytest
 ```
 `pyproject.toml` sets `testpaths = ["tests"]` and `pythonpath = ["."]`, so `pytest` from the repo root discovers everything under `tests/` with no extra flags. It also declares `[project]`/`[build-system]` metadata and the `attackgen-mcp = "mcp_server:main"` console script, so `pip install -e .` makes the package importable and installs the MCP entry point.
 
+### Cutting a Release
+Releases are automated by `.github/workflows/release.yml`, which fires on **3-component semver tags** (`v*.*.*`, e.g. `v0.14.0`). Pushing such a tag runs the whole pipeline: **verify** the tag matches the packaged version → **test** (pytest on Python 3.10–3.13) → **build & push** a multi-arch (`linux/amd64,linux/arm64`) image to Docker Hub as `mrwadams/attackgen` (tagged `{version}`, `{major}.{minor}`, and `latest`) → **cut a GitHub Release** with generated notes. The image builds from the existing `Dockerfile` (its pinned base is a multi-arch OCI index, so arm64 works unchanged).
+
+To cut a release:
+```bash
+# 1. Bump the version in pyproject.toml (e.g. 0.14.0 -> 0.15.0) and land it on main via PR.
+# 2. Tag the merged commit on main and push the tag:
+git tag v0.15.0 && git push origin v0.15.0
+```
+The `verify` job **fails fast if the tag does not match `pyproject.toml`'s `version`**, so always bump the version first — never tag ahead of the packaged version. Use strict `X.Y.Z` tags (the `type=semver` Docker tagging needs three components; older two-component tags like `v0.13` predate this pipeline). The pipeline needs repo secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` (already configured). The emulated arm64 build is the long pole (~9 min); the run is otherwise fast.
+
 ## Architecture
 
 ### Core Components
