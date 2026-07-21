@@ -1,3 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "attackgen"
+version = "0.13.1"
+description = "Generate tailored incident-response scenarios from MITRE ATT&CK / ATLAS using LLMs"
+requires-python = ">=3.10"
+dependencies = [
+    "langsmith",
+    "litellm>=1.83.7",
+    "mcp>=1.2.0",
+    "mitreattack-python",
+    "openai",
+    "pandas",
+    "python-dotenv",
+    "streamlit",
+]
+
+[project.scripts]
+attackgen-mcp = "mcp_server:main"
+
+[tool.setuptools]
+py-modules = ["mcp_server", "atlas_parser"]
+packages = ["core", "data"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

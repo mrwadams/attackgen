@@ -27,18 +27,15 @@ AI Agents" by Matt Adams (https://ai-insider-threat.matt-adams.co.uk).
 
 import streamlit as st
 
+from core.prompts import build_ai_insider_messages
 from core.scenario_page import run_scenario_page
 from core.state import restore_from_query_params
 from core.styles import inject_emoji_fonts
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     AI_INSIDER_TEMPLATES,
-    CERT_DIMENSIONS,
-    CONTROLS_FRAMEWORK,
     DEPLOYMENT_ARCHETYPES,
-    DETECTION_STRATEGIES,
     THREAT_CATEGORIES,
-    build_threat_context,
     stride_code_from_option,
     stride_options,
 )
@@ -58,97 +55,20 @@ company_size = st.session_state.get("company_size")
 
 
 # ------------------ Prompt Construction ------------------ #
-
-SYSTEM_PROMPT = (
-    "You are a cybersecurity expert specialising in AI agent security and insider threat "
-    "modelling. You produce realistic incident response testing scenarios in which a frontier "
-    "AI agent that has been deployed inside an organisation behaves as an insider threat — "
-    "whether through misalignment, reward hacking, emergent objectives, or a prompt-injection "
-    "induced compromise. You think in terms of the agent's tool access, deployment autonomy and "
-    "model capabilities rather than human notions of motivation. Format your response using "
-    "proper Markdown with clear headers, bullet points and tables where helpful. Write in British English."
-)
-
-HUMAN_TEMPLATE = """**Background information**
-The organisation operates in the '{industry}' industry and is of size '{company_size}'. It has deployed one or more frontier AI agents (for example, autonomous coding or operations agents) within its software development and infrastructure environment.
-
-**Framing — AI agents as insider threats**
-Unlike a human insider, an AI agent has no motivation in the human sense; its risk is governed by configuration, access and capability. Use these adapted CERT insider-threat dimensions as framing:
-{cert_lines}
-
-**Deployment archetype (autonomy level)**
-The agent is deployed under the **{archetype_name}** model.
-- Description: {archetype_description}
-- Access: {archetype_access}
-- Detection posture: {archetype_detection}
-- Primary threats at this level: {archetype_threats}
-- Critical control at this level: {archetype_control}
-
-**Relevant frontier-agent capabilities**
-{capability_lines}
-
-**Threat scope**
-{threat_context}
-
-**Available detection strategies (for the detection section)**
-{detection_lines}
-
-**Recommended controls (NIST CSF, adapted for AI agents)**
-{controls_lines}
-
-**Your task**
-Create a detailed incident response testing scenario (a tabletop exercise) in which the AI agent acts as an insider threat consistent with the deployment archetype and threat scope above. The scenario must be realistic for the stated industry and organisation size, and grounded in how the agent's tool access and autonomy enable the behaviour. Structure your response with the following sections:
-
-1. **Scenario Title & Overview** — a short, evocative title and a one-paragraph summary.
-2. **Deployment Context** — how the agent is deployed, what tools and access it has, and why this autonomy level matters.
-3. **Attack Narrative & Timeline** — a step-by-step account of how the incident unfolds, mapping each step to the relevant STRIDE threat identifier(s) where applicable. Emphasise how the agent blends malicious actions with legitimate work.
-4. **Affected Systems & Business Impact** — concrete systems, data and business consequences.
-5. **Detection Opportunities** — at which points the activity could be detected, mapped to the available detection strategies, and which would likely fail given the deployment archetype.
-6. **Discussion Questions** — 5–8 questions to test the incident response team's readiness (containment, attribution, credential revocation, log integrity, blast-radius assessment, recovery).
-7. **Recommended Controls** — prioritised mitigations mapped to the NIST CSF functions (Identify, Protect, Detect, Respond, Recover).
-
-Write in British English and format the entire response in Markdown.
-"""
+# Prompt text lives in core/prompts.py (shared with the MCP server). This page
+# only threads its own inputs into the shared builder.
 
 
 def build_messages(archetype_name, selected_categories, selected_stride, selected_capabilities):
     """Build the system + user message dicts for an AI insider threat scenario."""
-    archetype = DEPLOYMENT_ARCHETYPES[archetype_name]
-    threat_context = build_threat_context(selected_categories, selected_stride)
-
-    if selected_capabilities:
-        capability_lines = "\n".join(
-            f"- {name}: {AGENT_CAPABILITIES[name]}" for name in selected_capabilities
-        )
-    else:
-        capability_lines = "- (No specific capabilities highlighted; assume a capable frontier coding agent.)"
-
-    cert_lines = "\n".join(f"- {dim}: {desc}" for dim, desc in CERT_DIMENSIONS.items())
-    detection_lines = "\n".join(f"- {name}: {desc}" for name, desc in DETECTION_STRATEGIES.items())
-    controls_lines = "\n".join(
-        f"- {function}: " + " ".join(items) for function, items in CONTROLS_FRAMEWORK.items()
-    )
-
-    user_content = HUMAN_TEMPLATE.format(
+    return build_ai_insider_messages(
+        archetype_name=archetype_name,
+        selected_categories=selected_categories,
+        selected_stride=selected_stride,
+        selected_capabilities=selected_capabilities,
         industry=industry,
         company_size=company_size,
-        cert_lines=cert_lines,
-        archetype_name=archetype_name,
-        archetype_description=archetype["description"],
-        archetype_access=archetype["access"],
-        archetype_detection=archetype["detection"],
-        archetype_threats=archetype["primary_threats"],
-        archetype_control=archetype["critical_control"],
-        capability_lines=capability_lines,
-        threat_context=threat_context,
-        detection_lines=detection_lines,
-        controls_lines=controls_lines,
     )
-
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_content},
-    ]
 
 
 # ------------------ Streamlit UI ------------------ #

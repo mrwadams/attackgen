@@ -131,6 +131,21 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _stash_run_id(run_id) -> None:
+    """Publish the LangSmith run id into session state for the feedback widget.
+
+    Wrapped in a try/except so headless callers (the MCP server, tests) that hit
+    the traced path without a Streamlit ``ScriptRunContext`` don't crash — off
+    Streamlit there's no feedback widget to feed, so silently skipping is correct.
+    """
+    try:
+        st.session_state["run_id"] = str(run_id)
+    except Exception:
+        # No Streamlit ScriptRunContext off the UI (MCP server, tests): there's
+        # no feedback widget to feed, so dropping the run id is the correct no-op.
+        pass
+
+
 def _raw_call(config: LLMConfig, messages: list[dict]) -> str:
     kwargs = _build_litellm_kwargs(config)
     response = litellm.completion(messages=messages, **kwargs)
@@ -161,7 +176,7 @@ def call_llm(config: LLMConfig, messages: list[dict]) -> str:
         )
         def _traced(messages: list[dict], *, run_tree) -> str:
             content = _raw_call(config, messages)
-            st.session_state["run_id"] = str(run_tree.id)
+            _stash_run_id(run_tree.id)
             return content
 
         return _traced(messages)
@@ -184,7 +199,7 @@ def call_llm_stream(config: LLMConfig, messages: list[dict]) -> Iterator[str]:
             client=_langsmith_client,
         )
         def _traced(messages: list[dict], *, run_tree) -> Iterator[str]:
-            st.session_state["run_id"] = str(run_tree.id)
+            _stash_run_id(run_tree.id)
             yield from _raw_stream(config, messages)
 
         return _traced(messages)

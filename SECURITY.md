@@ -186,6 +186,12 @@ AttackGen is designed for **legitimate cybersecurity testing and training purpos
    - Implement rate limiting if exposing the application publicly
    - Monitor API usage to prevent abuse
 
+5. **MCP Server Exposure**
+   - The MCP server (`mcp_server.py`) ships stdio-only, with no built-in authentication
+   - **Data tools** make no LLM call and require no API key, so they are safe to host over HTTP
+   - **Generate tools** call an LLM with a bring-your-own-key configuration — keep these on local stdio and do not expose them over the network
+   - See the [MCP Server](README.md#mcp-server) section of the README for the full tool breakdown
+
 ## Security Updates
 
 Security updates will be released as patch versions and documented in the release notes. Users are encouraged to:
