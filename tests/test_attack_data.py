@@ -37,6 +37,17 @@ class FakeMitreData:
         return []
 
     def get_techniques_used_by_group(self, stix_id):
+        return self._relationship_entries()
+
+    def get_campaigns_by_alias(self, alias):
+        if alias == "TESTCAMPAIGN":
+            return [SimpleNamespace(id="campaign--x")]
+        return []
+
+    def get_techniques_used_by_campaign(self, stix_id):
+        return self._relationship_entries()
+
+    def _relationship_entries(self):
         return [
             {"object": {"id": sid, "name": name, "kill_chain_phases": [{"phase_name": phase}]}}
             for sid, name, _ext, phase in self._TECHS
@@ -121,6 +132,47 @@ def test_sampling_covers_every_phase_present(fake_enterprise, seed):
     kc = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=seed)
     # Two phases present in the fake -> exactly two sampled techniques.
     assert len(kc.techniques) == 2
+
+
+class TestResolveCampaign:
+    """Campaigns replay the full documented chain — no per-phase sampling."""
+
+    def test_unknown_campaign_returns_empty(self, fake_enterprise):
+        kc = ad.resolve_campaign_kill_chain("Enterprise", "NOPE")
+        assert kc.techniques == [] and kc.all_techniques == [] and kc.kill_chain_string == ""
+
+    def test_full_chain_no_sampling(self, fake_enterprise):
+        kc = ad.resolve_campaign_kill_chain("Enterprise", "TESTCAMPAIGN")
+        # No sampling: the sampled set is the full deduped display set (3 techniques,
+        # both Initial Access ones kept — unlike the group resolver which samples one).
+        assert kc.techniques == kc.all_techniques
+        assert len(kc.techniques) == 3
+        phases = [t["Phase Name"] for t in kc.techniques]
+        # Phases ordered per PHASE_ORDER_ATTACK; hyphenated raw phase normalised.
+        assert phases == ["Initial Access", "Initial Access", "Command and Control"]
+
+    def test_output_is_json_native(self, fake_enterprise):
+        kc = ad.resolve_campaign_kill_chain("Enterprise", "TESTCAMPAIGN")
+        json.dumps(kc.techniques)
+        for t in kc.techniques:
+            assert set(t) == {"Technique Name", "ATT&CK ID", "Phase Name"}
+            assert all(isinstance(v, str) for v in t.values())
+
+    def test_group_resolver_unaffected_by_shared_helper(self, fake_enterprise):
+        # The refactor that extracted the shared helper must leave group sampling intact.
+        kc = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
+        assert len(kc.techniques) == 2  # one per phase
+        assert len(kc.all_techniques) == 3
+
+
+class TestListCampaigns:
+    def test_enterprise_shape(self):
+        campaigns = ad.list_campaigns("Enterprise")
+        assert campaigns and set(campaigns[0]) == {"group", "url"}
+
+    def test_atlas_raises(self):
+        with pytest.raises(ValueError):
+            ad.list_campaigns("ATLAS")
 
 
 class TestResolveCaseStudyAtlas:

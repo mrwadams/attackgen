@@ -19,6 +19,7 @@ do not "tidy" these; ``tests/test_prompts.py`` pins them.
 from __future__ import annotations
 
 from core.ai_uplift import append_ai_uplift
+from core.controls import append_controls
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     CERT_DIMENSIONS,
@@ -124,6 +125,7 @@ def build_threat_group_messages(
     industry: str,
     company_size: str,
     ai_uplift: bool = False,
+    controls: str = "",
 ) -> list[Message]:
     """Build the [system, user] messages for a Threat Group / ATLAS scenario."""
     template = THREAT_GROUP_ATLAS_TEMPLATE if matrix == "ATLAS" else THREAT_GROUP_ATTACK_TEMPLATE
@@ -135,6 +137,54 @@ def build_threat_group_messages(
         matrix=matrix,
     )
     user_content = append_ai_uplift(user_content, ai_uplift)
+    user_content = append_controls(user_content, controls)
+    return [
+        {"role": "system", "content": SCENARIO_SYSTEM_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+
+# --- Campaign (page 1, "Campaign" source) human template ---
+# Campaigns are documented, real-world intrusions. They exist only in the
+# Enterprise and ICS matrices (not ATLAS), so a single ATT&CK-style template
+# suffices. Unlike a threat group — whose techniques are sampled — a campaign
+# replays the *full* set of techniques observed in the actual intrusion.
+
+CAMPAIGN_ATTACK_TEMPLATE = """
+**Background information:**
+The company operates in the '{industry}' industry and is of size '{company_size}'.
+
+**Campaign information:**
+This scenario is based on the real-world, documented MITRE ATT&CK campaign '{campaign_name}'. The following techniques were observed during the actual intrusion, drawn from the MITRE ATT&CK {matrix} Matrix:
+{kill_chain_string}
+
+**Your task:**
+Create an incident response testing scenario grounded in this documented campaign. The goal of the scenario is to test the company's incident response capabilities against the techniques that were actually used in this real intrusion, focusing on the {matrix} environment. Keep the scenario faithful to how the campaign is known to have operated while adapting it to the company's industry and size.
+
+Your response should be well structured and formatted using Markdown. Write in British English.
+"""
+
+
+def build_campaign_messages(
+    *,
+    matrix: str,
+    campaign_name: str,
+    kill_chain_string: str,
+    industry: str,
+    company_size: str,
+    ai_uplift: bool = False,
+    controls: str = "",
+) -> list[Message]:
+    """Build the [system, user] messages for a Campaign scenario (Enterprise/ICS)."""
+    user_content = CAMPAIGN_ATTACK_TEMPLATE.format(
+        industry=industry,
+        company_size=company_size,
+        campaign_name=campaign_name,
+        kill_chain_string=kill_chain_string,
+        matrix=matrix,
+    )
+    user_content = append_ai_uplift(user_content, ai_uplift)
+    user_content = append_controls(user_content, controls)
     return [
         {"role": "system", "content": SCENARIO_SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -149,6 +199,7 @@ def build_custom_messages(
     industry: str,
     company_size: str,
     ai_uplift: bool = False,
+    controls: str = "",
 ) -> list[Message]:
     """Build the [system, user] messages for a Custom scenario."""
     template = CUSTOM_ATLAS_TEMPLATE if matrix == "ATLAS" else CUSTOM_ATTACK_TEMPLATE
@@ -160,6 +211,7 @@ def build_custom_messages(
         matrix=matrix,
     )
     user_content = append_ai_uplift(user_content, ai_uplift)
+    user_content = append_controls(user_content, controls)
     return [
         {"role": "system", "content": SCENARIO_SYSTEM_PROMPT},
         {"role": "user", "content": user_content},

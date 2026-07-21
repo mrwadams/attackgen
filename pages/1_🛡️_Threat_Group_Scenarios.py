@@ -4,10 +4,17 @@ import streamlit as st
 from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
 from core.attack_data import (
     load_attack_data,
+    resolve_campaign_kill_chain,
     resolve_case_study_kill_chain,
     resolve_threat_group_kill_chain,
 )
-from core.prompts import build_threat_group_messages
+from core.controls import (
+    CONTROLS_LABEL,
+    controls_trace_tags,
+    get_controls,
+    render_controls_input,
+)
+from core.prompts import build_campaign_messages, build_threat_group_messages
 from core.detections import (
     build_defense_report,
     is_defense_narrative_on,
@@ -49,20 +56,30 @@ def load_groups(matrix):
     return pd.read_json("./data/atlas-case-studies.json")
 
 
+@st.cache_resource
+def load_campaigns(matrix):
+    if matrix == "ICS":
+        return pd.read_json("./data/campaigns_ics.json")
+    return pd.read_json("./data/campaigns.json")
+
+
 # ------------------ Prompt Construction ------------------ #
 # Prompt text lives in core/prompts.py (shared with the MCP server). This page
 # only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
-def build_messages(matrix, selected_group_alias, kill_chain_string):
-    return build_threat_group_messages(
+def build_messages(matrix, source, selected_group_alias, kill_chain_string):
+    common = dict(
         matrix=matrix,
-        selected_group_alias=selected_group_alias,
         kill_chain_string=kill_chain_string,
         industry=industry,
         company_size=company_size,
         ai_uplift=is_ai_uplift_on("threat_group"),
+        controls=get_controls("threat_group"),
     )
+    if source == "Campaign":
+        return build_campaign_messages(campaign_name=selected_group_alias, **common)
+    return build_threat_group_messages(selected_group_alias=selected_group_alias, **common)
 
 
 def build_layer_payload():
@@ -124,9 +141,29 @@ def _inline_controls():
 st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
 
 matrix = st.session_state.get("matrix", "Enterprise")
-groups = load_groups(matrix)
 
+# For Enterprise/ICS the user can build from a threat actor *group* (techniques
+# sampled) or a documented *campaign* (full observed chain). ATLAS has neither —
+# it always uses a documented case study.
 if matrix == "ATLAS":
+    source = "ATLAS"
+else:
+    choice = st.radio(
+        "Build the scenario from:",
+        ["Threat actor group", "Campaign"],
+        horizontal=True,
+        key="threat_group_source",
+        help=(
+            "A threat actor group samples one technique per kill-chain phase. A "
+            "campaign replays the full set of techniques observed in a real, "
+            "documented intrusion."
+        ),
+    )
+    source = "Campaign" if choice == "Campaign" else "Group"
+
+groups = load_campaigns(matrix) if source == "Campaign" else load_groups(matrix)
+
+if source == "ATLAS":
     st.markdown(
         """
         ### Select a Case Study
@@ -138,6 +175,18 @@ if matrix == "ATLAS":
     )
     entity_label = "case study"
     select_placeholder = "Select Case Study"
+elif source == "Campaign":
+    st.markdown(
+        f"""
+        ### Select a Campaign
+
+        Use the drop-down selector below to select a documented campaign from the MITRE ATT&CK framework.
+
+        You can then optionally view all of the {matrix} ATT&CK techniques observed in the campaign and/or the campaign's page on the MITRE ATT&CK site.
+        """
+    )
+    entity_label = "campaign"
+    select_placeholder = "Select Campaign"
 else:
     st.markdown(
         f"""
@@ -169,22 +218,26 @@ selected_techniques_df = pd.DataFrame()
 try:
     if selected_group_alias != select_placeholder:
         group_url = groups[groups['group'] == selected_group_alias]['url'].values[0]
-        if matrix == "ATLAS":
+        if source == "ATLAS":
             st.markdown(f"[View case study on atlas.mitre.org]({group_url})")
+        elif source == "Campaign":
+            st.markdown(f"[View the {selected_group_alias} campaign on attack.mitre.org]({group_url})")
         else:
             st.markdown(f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
 
-        # Kill-chain resolution (incl. the per-phase sampling for ATT&CK) lives in
-        # core.attack_data, shared with the MCP server. This page just renders it.
-        if matrix == "ATLAS":
+        # Kill-chain resolution (incl. the per-phase sampling for groups, and the
+        # full documented chain for campaigns) lives in core.attack_data, shared
+        # with the MCP server. This page just renders it.
+        if source == "ATLAS":
             kill_chain = resolve_case_study_kill_chain(selected_group_alias)
+        elif source == "Campaign":
+            kill_chain = resolve_campaign_kill_chain(matrix, selected_group_alias)
         else:
             kill_chain = resolve_threat_group_kill_chain(matrix, selected_group_alias)
 
         if not kill_chain.all_techniques:
-            entity = "case study" if matrix == "ATLAS" else "threat group"
             st.warning(
-                f"There are no {matrix} techniques associated with the {entity}: {selected_group_alias}"
+                f"There are no {matrix} techniques associated with the {entity_label}: {selected_group_alias}"
             )
             st.stop()
 
@@ -198,19 +251,29 @@ try:
             st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
         kill_chain_string = kill_chain.kill_chain_string
-        messages = build_messages(matrix, selected_group_alias, kill_chain_string)
+        messages = build_messages(matrix, source, selected_group_alias, kill_chain_string)
 except Exception as e:
     st.error("An error occurred: " + str(e))
 
 
 st.markdown("")
 
-if matrix == "ATLAS":
+if source == "ATLAS":
     st.markdown(
         """
         ### Generate a Scenario
 
         Click the button below to generate a scenario based on the selected case study. The documented attack procedure from the case study will be used to generate the scenario.
+
+        It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+        """
+    )
+elif source == "Campaign":
+    st.markdown(
+        """
+        ### Generate a Scenario
+
+        Click the button below to generate a scenario based on the selected campaign. The full set of techniques observed in the documented campaign will be used to generate the scenario.
 
         It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
         """
@@ -225,6 +288,10 @@ else:
         It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
         """
     )
+
+# Optional: describe your own controls so the scenario is measured against them.
+with st.expander(CONTROLS_LABEL):
+    render_controls_input("threat_group", label_visibility="collapsed")
 
 
 def _ready() -> bool:
@@ -248,13 +315,17 @@ def _ready() -> bool:
     return True
 
 
+_base_tags = ("campaign_scenario",) if source == "Campaign" else ("threat_group_scenario",)
+
 run_scenario_page(
     page_id="threat_group",
     build_messages=lambda: messages,
     is_ready=_ready,
     download_name=f"AttackGen {selected_group_alias} {matrix}.md",
-    trace_name="Threat Group Scenario",
-    trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
+    trace_name="Campaign Scenario" if source == "Campaign" else "Threat Group Scenario",
+    trace_tags=controls_trace_tags(
+        uplift_trace_tags(_base_tags, page_id="threat_group"), page_id="threat_group"
+    ),
     inline_control=_inline_controls,
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,

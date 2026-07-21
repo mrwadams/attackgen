@@ -13,6 +13,7 @@ from core.prompts import (
     AI_INSIDER_SYSTEM_PROMPT,
     SCENARIO_SYSTEM_PROMPT,
     build_ai_insider_messages,
+    build_campaign_messages,
     build_custom_messages,
     build_threat_group_messages,
 )
@@ -75,6 +76,57 @@ class TestThreatGroupMessages:
         )[1]["content"]
         assert not base.endswith(AI_UPLIFT_PROMPT)
         assert upl.endswith(AI_UPLIFT_PROMPT)
+
+    def test_controls_append_only_when_supplied(self):
+        base = build_threat_group_messages(
+            matrix="Enterprise", selected_group_alias="APT29", kill_chain_string="x",
+            industry="F", company_size="L",
+        )[1]["content"]
+        withc = build_threat_group_messages(
+            matrix="Enterprise", selected_group_alias="APT29", kill_chain_string="x",
+            industry="F", company_size="L", controls="EDR, no egress logging",
+        )[1]["content"]
+        assert "Defensive control overlay" not in base
+        assert "Defensive control overlay" in withc
+        assert "EDR, no egress logging" in withc
+
+
+class TestCampaignMessages:
+    def test_shape_and_content(self):
+        msgs = build_campaign_messages(
+            matrix="Enterprise",
+            campaign_name="Operation Wocao",
+            kill_chain_string="Initial Access: Phishing (T1566)",
+            industry="Finance",
+            company_size="Large",
+        )
+        assert len(msgs) == 2
+        assert msgs[0] == {"role": "system", "content": SCENARIO_SYSTEM_PROMPT}
+        user = msgs[1]["content"]
+        assert "Operation Wocao" in user
+        assert "real-world" in user  # framed as a documented campaign
+        assert "Finance" in user and "Large" in user
+        assert "Enterprise" in user  # {matrix} interpolated
+        assert "Initial Access: Phishing (T1566)" in user
+        assert BRITISH in user
+
+    def test_ai_uplift_and_controls_append(self):
+        user = build_campaign_messages(
+            matrix="ICS", campaign_name="C0028", kill_chain_string="x",
+            industry="Energy", company_size="Large",
+            ai_uplift=True, controls="OT segmentation",
+        )[1]["content"]
+        assert "OT segmentation" in user  # controls description interpolated
+        assert "AI-enhanced adversary framing" in user  # ai_uplift present
+        assert "Defensive control overlay" in user
+
+    def test_no_modifiers_by_default(self):
+        user = build_campaign_messages(
+            matrix="Enterprise", campaign_name="C0027", kill_chain_string="x",
+            industry="F", company_size="L",
+        )[1]["content"]
+        assert "AI-enhanced adversary framing" not in user
+        assert "Defensive control overlay" not in user
 
 
 class TestCustomMessages:
