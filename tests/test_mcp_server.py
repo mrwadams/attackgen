@@ -15,6 +15,7 @@ import pytest
 import core.llm as llm_module
 import mcp_server as s
 from core.attack_data import KillChain
+from data.ai_insider_threats import DEPLOYMENT_ARCHETYPES
 from tests.test_detections import FakeMitreData
 
 
@@ -84,6 +85,16 @@ class TestDataTools:
         out = s.get_kill_chain("Enterprise", "APT29")
         assert out["messages"] is None
 
+    def test_get_ai_insider_prompt_builds_messages(self):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        out = s.get_ai_insider_prompt(
+            archetype, categories=[], stride=[], capabilities=[],
+            industry="Healthcare", company_size="Large",
+        )
+        msgs = out["messages"]
+        assert msgs[0]["role"] == "system"
+        assert archetype in msgs[1]["content"]
+
 
 class TestGenerateTools:
     def test_generate_threat_group_scenario(self, no_langsmith, canned_kill_chain, mock_litellm_completion):
@@ -132,3 +143,72 @@ class TestGenerateTools:
             s.generate_threat_group_scenario(
                 "Enterprise", "APT29", "F", "L", provider="Anthropic API", model=""
             )
+
+    def test_generate_ai_insider_scenario(self, no_langsmith, mock_litellm_completion):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        mock_litellm_completion.content = "# AI Insider Scenario"
+        out = s.generate_ai_insider_scenario(
+            archetype, [], [], [], "Healthcare", "Large",
+            provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+        )
+        assert out == "# AI Insider Scenario"
+        _args, kwargs = mock_litellm_completion.calls[0]
+        assert kwargs["model"] == "anthropic/claude-sonnet-5"
+        # The chosen archetype made it into the built prompt.
+        assert archetype in kwargs["messages"][1]["content"]
+
+    def test_empty_kill_chain_raises(self, monkeypatch):
+        """The guard fires before the model is ever called (no LLM mock needed)."""
+        empty = KillChain("Enterprise", "APT29", [], "", [])
+        monkeypatch.setattr(s.ad, "resolve_threat_group_kill_chain", lambda *a, **k: empty)
+        with pytest.raises(ValueError):
+            s.generate_threat_group_scenario(
+                "Enterprise", "APT29", "Finance", "Large",
+                provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            )
+
+    def test_empty_techniques_raises(self):
+        with pytest.raises(ValueError):
+            s.generate_custom_scenario(
+                "Enterprise", [], "Finance", "Large",
+                provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            )
+
+    def test_threat_group_include_detection_appends_report(
+        self, no_langsmith, mock_litellm_completion, monkeypatch
+    ):
+        # A T1059 kill chain so FakeMitreData resolves a detection join to append.
+        kc = KillChain(
+            matrix="Enterprise", group_alias="APT29",
+            techniques=[{
+                "Technique Name": "Command and Scripting Interpreter",
+                "ATT&CK ID": "T1059", "Phase Name": "Execution",
+            }],
+            kill_chain_string="Execution: Command and Scripting Interpreter (T1059)",
+            all_techniques=[],
+        )
+        monkeypatch.setattr(s.ad, "resolve_threat_group_kill_chain", lambda *a, **k: kc)
+        monkeypatch.setattr(s.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        mock_litellm_completion.content = "# Scenario body"
+        out = s.generate_threat_group_scenario(
+            "Enterprise", "APT29", "Finance", "Large",
+            provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            include_detection=True,
+        )
+        assert "# Scenario body" in out
+        assert "\n\n---\n\n" in out  # detection section separator
+        assert "Analytic 1428" in out  # the joined Detection & Response content
+
+    def test_custom_include_detection_appends_report(
+        self, no_langsmith, mock_litellm_completion, monkeypatch
+    ):
+        monkeypatch.setattr(s.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        mock_litellm_completion.content = "custom body"
+        out = s.generate_custom_scenario(
+            "Enterprise", ["Command and Scripting Interpreter (T1059)"], "Finance", "Large",
+            provider="OpenAI API", model="gpt-5.5", api_key="k",
+            include_detection=True,
+        )
+        assert "custom body" in out
+        assert "\n\n---\n\n" in out
+        assert "Analytic 1428" in out

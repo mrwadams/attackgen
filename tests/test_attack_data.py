@@ -46,6 +46,33 @@ class FakeMitreData:
         return {sid: ext for sid, _n, ext, _p in self._TECHS}[stix_id]
 
 
+class FakeTechniqueData:
+    """Stand-in for `MitreAttackData.get_techniques()` for list_technique_options.
+
+    Each technique carries multiple external_references; only those with an
+    ``external_id`` should produce a row, so the CAPEC ref below must be skipped.
+    """
+
+    def get_techniques(self):
+        return [
+            SimpleNamespace(
+                id="attack-pattern--1",
+                name="Spearphishing Attachment",
+                external_references=[
+                    {"source_name": "mitre-attack", "external_id": "T1566.001"},
+                    {"source_name": "capec"},  # no external_id -> must be skipped
+                ],
+            ),
+            SimpleNamespace(
+                id="attack-pattern--2",
+                name="Drive-by Compromise",
+                external_references=[
+                    {"source_name": "mitre-attack", "external_id": "T1189"},
+                ],
+            ),
+        ]
+
+
 @pytest.fixture
 def fake_enterprise(monkeypatch):
     monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
@@ -123,3 +150,33 @@ class TestListings:
     def test_unknown_matrix_raises(self):
         with pytest.raises(ValueError):
             ad.list_threat_groups("Mobile")
+
+
+class TestMitreDataForMatrix:
+    def test_rejects_atlas_and_unknown(self):
+        # ATLAS has no MitreAttackData bundle; anything unknown is a caller error.
+        # Both raise before any (53 MB) bundle load.
+        with pytest.raises(ValueError):
+            ad.mitre_data_for_matrix("ATLAS")
+        with pytest.raises(ValueError):
+            ad.mitre_data_for_matrix("Mobile")
+
+
+class TestListTechniqueOptions:
+    def test_attack_branch_builds_display_names(self, monkeypatch):
+        monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeTechniqueData())
+        opts = ad.list_technique_options("Enterprise")
+        # Three external_references across two techniques, but the CAPEC ref has
+        # no external_id -> exactly two rows.
+        assert len(opts) == 2
+        first = opts[0]
+        assert set(first) == {"id", "Technique Name", "External ID", "Display Name"}
+        assert first["External ID"] == "T1566.001"
+        assert first["Display Name"] == "Spearphishing Attachment (T1566.001)"
+
+    def test_atlas_branch_against_real_bundle(self):
+        opts = ad.list_technique_options("ATLAS")
+        assert opts, "expected bundled ATLAS techniques"
+        row = opts[0]
+        assert set(row) == {"id", "Technique Name", "External ID", "Display Name"}
+        assert row["Display Name"] == f"{row['Technique Name']} ({row['External ID']})"
