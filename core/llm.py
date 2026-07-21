@@ -141,6 +141,8 @@ def _stash_run_id(run_id) -> None:
     try:
         st.session_state["run_id"] = str(run_id)
     except Exception:
+        # No Streamlit ScriptRunContext off the UI (MCP server, tests): there's
+        # no feedback widget to feed, so dropping the run id is the correct no-op.
         pass
 
 
