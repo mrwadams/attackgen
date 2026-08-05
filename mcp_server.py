@@ -231,37 +231,86 @@ def list_ai_insider_options() -> dict:
     Returns the valid values to pass to ``get_ai_insider_prompt`` /
     ``generate_ai_insider_scenario``: ``archetypes``, ``threat_categories``,
     ``stride`` threats, agent ``capabilities`` and quick-start ``templates``.
+
+    Each entry in ``templates`` carries its ``name`` plus the selections it
+    applies (``archetype``, ``categories``, ``stride``) and its narrative
+    ``brief`` where it has one, so a template can be chosen on merit and passed
+    straight to ``template=``.
     """
     return {
         "archetypes": list(aip.DEPLOYMENT_ARCHETYPES.keys()),
         "threat_categories": list(aip.THREAT_CATEGORIES.keys()),
         "stride": aip.stride_options(),
         "capabilities": list(aip.AGENT_CAPABILITIES.keys()),
-        "templates": list(aip.AI_INSIDER_TEMPLATES.keys()),
+        "templates": [
+            {"name": name, **aip.resolve_template(name)}
+            for name in aip.AI_INSIDER_TEMPLATES
+        ],
+    }
+
+
+def _resolve_ai_insider_inputs(
+    template: str | None,
+    archetype: str,
+    categories: list[str] | None,
+    stride: list[str] | None,
+    capabilities: list[str] | None,
+    industry: str,
+    company_size: str,
+    scenario_seed: str | None,
+) -> dict:
+    """Merge a template's payload with explicit arguments into builder kwargs.
+
+    A template fills gaps; any explicitly-supplied value wins over it. Raises
+    ``ValueError`` when neither a template nor an archetype is given, or when
+    the organisation context is missing — ``template`` gives those arguments
+    defaults, so they are no longer required by the tool schema.
+    """
+    preset = aip.resolve_template(template) if template else {}
+    resolved_archetype = archetype or preset.get("archetype", "")
+    if not resolved_archetype:
+        raise ValueError("Supply either 'template' or 'archetype'.")
+    if not industry or not company_size:
+        raise ValueError("Both 'industry' and 'company_size' are required.")
+    seed = scenario_seed if scenario_seed is not None else preset.get("brief", "")
+    return {
+        "archetype_name": resolved_archetype,
+        "selected_categories": categories or preset.get("categories", []),
+        "selected_stride": stride or preset.get("stride", []),
+        "selected_capabilities": capabilities or [],
+        "industry": industry,
+        "company_size": company_size,
+        "scenario_seed": seed,
+        "required_decisions": preset.get("required_decisions", []),
     }
 
 
 @mcp.tool()
 def get_ai_insider_prompt(
-    archetype: str,
-    categories: list[str],
-    stride: list[str],
-    capabilities: list[str],
-    industry: str,
-    company_size: str,
+    archetype: str = "",
+    categories: list[str] | None = None,
+    stride: list[str] | None = None,
+    capabilities: list[str] | None = None,
+    industry: str = "",
+    company_size: str = "",
+    template: str | None = None,
+    scenario_seed: str | None = None,
 ) -> dict:
     """Build the AI insider-threat prompt (no LLM call).
 
     Returns ``{"messages"}`` — a ready-to-run [system, user] prompt a client model
     can generate from. Use ``list_ai_insider_options`` for valid argument values.
+
+    Pass ``template`` to apply a quick-start preset's archetype, categories,
+    STRIDE threats and narrative brief; any argument you also supply explicitly
+    overrides the template's value. ``scenario_seed`` is free-text framing that
+    replaces the template's brief. Supply either ``template`` or ``archetype``.
     """
     messages = build_ai_insider_messages(
-        archetype_name=archetype,
-        selected_categories=categories,
-        selected_stride=stride,
-        selected_capabilities=capabilities,
-        industry=industry,
-        company_size=company_size,
+        **_resolve_ai_insider_inputs(
+            template, archetype, categories, stride, capabilities,
+            industry, company_size, scenario_seed,
+        )
     )
     return {"messages": messages}
 
@@ -360,30 +409,35 @@ def generate_custom_scenario(
 
 @mcp.tool()
 def generate_ai_insider_scenario(
-    archetype: str,
-    categories: list[str],
-    stride: list[str],
-    capabilities: list[str],
-    industry: str,
-    company_size: str,
+    archetype: str = "",
+    categories: list[str] | None = None,
+    stride: list[str] | None = None,
+    capabilities: list[str] | None = None,
+    industry: str = "",
+    company_size: str = "",
     provider: str = _DEFAULT_PROVIDER,
     model: str = _DEFAULT_MODEL,
     api_key: str | None = None,
     api_base: str | None = None,
+    template: str | None = None,
+    scenario_seed: str | None = None,
 ) -> str:
     """Generate an AI insider-threat tabletop scenario (BYO-key).
 
     Models a frontier AI agent deployed inside the organisation acting as an
     insider threat. Use ``list_ai_insider_options`` for valid argument values.
     Returns finished Markdown.
+
+    Pass ``template`` to apply a quick-start preset's archetype, categories,
+    STRIDE threats and narrative brief; any argument you also supply explicitly
+    overrides the template's value. ``scenario_seed`` is free-text framing that
+    replaces the template's brief. Supply either ``template`` or ``archetype``.
     """
     messages = build_ai_insider_messages(
-        archetype_name=archetype,
-        selected_categories=categories,
-        selected_stride=stride,
-        selected_capabilities=capabilities,
-        industry=industry,
-        company_size=company_size,
+        **_resolve_ai_insider_inputs(
+            template, archetype, categories, stride, capabilities,
+            industry, company_size, scenario_seed,
+        )
     )
     config = _make_config(
         provider, model, api_key=api_key, api_base=api_base,

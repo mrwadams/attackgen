@@ -122,3 +122,45 @@ class TestAiInsiderMessages:
         assert "tabletop exercise" in user
         # No capabilities selected -> the fallback line is used.
         assert "assume a capable frontier coding agent" in user
+
+    def _build(self, **kwargs):
+        return build_ai_insider_messages(
+            archetype_name=next(iter(DEPLOYMENT_ARCHETYPES)),
+            selected_categories=[],
+            selected_stride=["E5"],
+            selected_capabilities=[],
+            industry="Healthcare",
+            company_size="Large",
+            **kwargs,
+        )[1]["content"]
+
+    def test_seed_block_renders_away_when_absent(self):
+        """No seed inputs -> no stray header, and the prompt is unchanged from
+        one built before the seed block existed."""
+        user = self._build()
+        assert "**Scenario seed**" not in user
+        assert "**Required decision points**" not in user
+        assert "**Threat scope**\n\n**Specific STRIDE threats in scope:**" in user
+        assert "\n\n\n" not in user  # no blank-line hole where the block would be
+
+    def test_scenario_seed_is_injected(self):
+        user = self._build(scenario_seed="An overnight evaluation run reaches a partner.")
+        assert "**Scenario seed**\nAn overnight evaluation run reaches a partner." in user
+        # Seed sits between the threat scope and the detection strategies.
+        assert user.index("**Threat scope**") < user.index("**Scenario seed**")
+        assert user.index("**Scenario seed**") < user.index("**Available detection strategies")
+
+    def test_blank_seed_is_treated_as_absent(self):
+        assert "**Scenario seed**" not in self._build(scenario_seed="   \n  ")
+
+    def test_required_decisions_are_bulleted_and_binding(self):
+        user = self._build(required_decisions=["Containment — halt the fleet.", "Rotation — revoke."])
+        assert "**Required decision points**" in user
+        assert "the Discussion Questions section must force" in user
+        assert "- Containment — halt the fleet." in user
+        assert "- Rotation — revoke." in user
+
+    def test_required_decisions_render_without_a_seed(self):
+        user = self._build(required_decisions=["Containment — halt the fleet."])
+        assert "**Scenario seed**" not in user
+        assert "**Required decision points**" in user

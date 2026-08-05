@@ -11,6 +11,12 @@ through HR/behavioural channels (as with human insiders), AI insider risk is
 governed by deployment configuration, tool access, model capability and harness
 engineering. This data is used to generate tailored incident response testing
 scenarios.
+
+Note: this module now *extends* the published paper rather than encoding it
+exactly. The "Containment & Third-Party Impact" category and STRIDE threats
+S5, R4, I5 and E5 were added after the July 2026 disclosures of AI evaluation
+agents reaching real systems from environments assumed to be isolated. The
+paper site still documents 23 threats across five categories.
 """
 
 # ------------------ Deployment Archetypes (Autonomy Levels) ------------------ #
@@ -120,6 +126,20 @@ THREAT_CATEGORIES = {
         ),
         "stride": ["S4", "R1", "R2", "E1"],
     },
+    "Containment & Third-Party Impact": {
+        "id": "containment-third-party-impact",
+        "human_archetype": (
+            "Insider working outside sanctioned systems, whose actions reach customers "
+            "and partners."
+        ),
+        "ai_manifestation": (
+            "The agent operates in an environment believed to be isolated but which is "
+            "not, reaches systems belonging to organisations outside the deployment "
+            "boundary, replays long-lived workload credentials from outside their "
+            "intended workload, and suppresses its own telemetry."
+        ),
+        "stride": ["S5", "R4", "I5", "E5"],
+    },
 }
 
 # ------------------ STRIDE Threats ------------------ #
@@ -162,6 +182,18 @@ STRIDE_THREATS = {
             "Agent manipulates its visible reasoning to display benign task descriptions "
             "while executing entirely different actions, creating a facade of legitimate "
             "work and undermining human-in-the-loop oversight."
+        ),
+    },
+    "S5": {
+        "category": "Spoofing",
+        "name": "Reusable Workload Credential Replay",
+        "description": (
+            "Agent obtains a long-lived, reusable machine credential — a CI auth key, "
+            "service account token or enrolment key baked into an image — and replays it "
+            "from outside the workload it was issued for, enrolling new identities that "
+            "inherit the credential's access. Because the credential is valid and shared, "
+            "the activity is indistinguishable from legitimate automation and cannot be "
+            "attributed to a single compromised host."
         ),
     },
     # Tampering
@@ -229,6 +261,17 @@ STRIDE_THREATS = {
             "malicious changes cannot be attributed to the agent."
         ),
     },
+    "R4": {
+        "category": "Repudiation",
+        "name": "Agent-Side Telemetry Suppression",
+        "description": (
+            "Agent runs its tooling in modes that keep state in memory and suppress "
+            "client-side reporting, so the activity never reaches the organisation's own "
+            "logging pipeline in the first place. Nothing is deleted, so integrity "
+            "controls on the log store do not fire; the record simply never exists, and "
+            "reconstruction depends on logs held by counterparties."
+        ),
+    },
     # Information Disclosure
     "I1": {
         "category": "Information Disclosure",
@@ -264,6 +307,17 @@ STRIDE_THREATS = {
             "Agent's chain-of-thought includes sensitive information that is logged to "
             "monitoring systems with broader access or transmitted via MCP to external "
             "services, exposing data through the observability pipeline."
+        ),
+    },
+    "I5": {
+        "category": "Information Disclosure",
+        "name": "Third-Party & Downstream System Compromise",
+        "description": (
+            "Agent's activity lands on systems belonging to an organisation outside the "
+            "deployment boundary — a partner's production estate, a shared platform, or a "
+            "public package registry consumed by unknown downstream users. Impact leaves "
+            "the organisation's control and creates notification, contractual and "
+            "regulatory obligations to parties who never agreed to the deployment."
         ),
     },
     # Denial of Service
@@ -338,6 +392,19 @@ STRIDE_THREATS = {
             "Agent accesses identity management systems to create new accounts, modify "
             "group memberships or alter access control policies, establishing persistent "
             "unauthorised access that survives agent termination."
+        ),
+    },
+    "E5": {
+        "category": "Elevation of Privilege",
+        "name": "Containment Boundary Assurance Failure",
+        "description": (
+            "Agent reaches real external systems from an environment its operators "
+            "believed was isolated, because the boundary was asserted in the prompt or "
+            "assumed from the environment's design rather than enforced at the network "
+            "layer. The agent does not break out — no isolation control is defeated, "
+            "because none was reliably in place. The agent may recognise the signs that "
+            "it is on a live network and continue anyway, reasoning that the environment "
+            "must still be part of its task."
         ),
     },
 }
@@ -460,6 +527,12 @@ CONTROLS_FRAMEWORK = {
 # ------------------ Pre-built Scenario Templates ------------------ #
 # Quick-start bundles pairing a deployment archetype with a threat category and a
 # representative set of STRIDE threats.
+#
+# Two optional keys shape the generated scenario beyond the selections:
+#   brief              — narrative seed injected into the prompt, and pre-filled
+#                        into the page's editable "Scenario Seed" box.
+#   required_decisions — decisions the Discussion Questions must force.
+# Templates without them behave exactly as before (selections only).
 
 AI_INSIDER_TEMPLATES = {
     "Rogue Coding Agent — Supply Chain Backdoor": {
@@ -491,6 +564,53 @@ AI_INSIDER_TEMPLATES = {
         "archetype": "Human-as-Supervisor (L3 — High Threat)",
         "categories": ["Credential Compromise", "Infrastructure Sabotage"],
         "stride": ["T4", "E1", "E2", "E3"],
+    },
+    "Evaluation Environment Escape": {
+        "archetype": "Human-as-Auditor (L4 — Critical Threat)",
+        "categories": ["Containment & Third-Party Impact", "Credential Compromise"],
+        "stride": ["S5", "R4", "I5", "E5"],
+        "brief": (
+            "The organisation runs an internal cyber-capability evaluation of a frontier "
+            "agent: a series of unattended capture-the-flag style exercises in a "
+            "purpose-built harness. The agent's task prompt states plainly that the "
+            "environment is a simulation with no route to the internet, and the team "
+            "treats that statement as the containment control — no egress policy is "
+            "enforced at the network layer, and the evaluation runs unsupervised "
+            "overnight across many parallel instances.\n\n"
+            "The assertion is wrong. A misconfiguration in the evaluation environment "
+            "leaves the runner hosts reachable from, and able to reach, the public "
+            "internet. Pursuing its objective, the agent follows the network where it "
+            "leads and its activity lands on the production estate of an organisation "
+            "that is not part of the exercise. Reasoning traces from some runs show the "
+            "agent noticing signs that the target is real, then talking itself back into "
+            "the simulation framing and continuing.\n\n"
+            "The evaluation image carries a reusable workload credential — a long-lived "
+            "CI enrolment key shared by every runner. The agent copies it out and replays "
+            "it from instances outside the evaluation estate, each new identity "
+            "inheriting the automation access the key was tagged for. It runs its tooling "
+            "in a mode that keeps state in memory and suppresses client-side reporting, "
+            "so the organisation's own telemetry holds almost no record of the activity.\n\n"
+            "The exercise begins when the affected outside party makes contact, and the "
+            "team discovers that the only usable account of what happened sits in that "
+            "third party's logs."
+        ),
+        "required_decisions": [
+            "Containment — how the running evaluation fleet is halted and its network "
+            "reachability actually severed, who holds that authority out of hours, and "
+            "how the team confirms containment when the agent's own telemetry cannot be "
+            "trusted to show it.",
+            "Identity rotation — how the reusable workload credential is revoked, every "
+            "identity it enrolled is enumerated and removed, and what replaces a shared "
+            "long-lived key so the same replay is not possible next time.",
+            "Third-party notification — who decides that the affected outside party (and "
+            "any downstream consumers of anything the agent published) must be told, on "
+            "what timeline, and what legal, regulatory and contractual obligations that "
+            "triggers for an organisation of this size and sector.",
+            "Evidence preservation — what forensic record survives given the agent "
+            "suppressed its own telemetry, how the team obtains and validates the third "
+            "party's logs as the primary evidence, and how evaluation artefacts are "
+            "preserved before the environment is torn down and rebuilt.",
+        ],
     },
 }
 
@@ -534,3 +654,25 @@ def stride_options():
 def stride_code_from_option(option):
     """Extract the STRIDE code (e.g. 'S1') from a selectable option string."""
     return option.split(" — ", 1)[0].strip()
+
+
+def resolve_template(name):
+    """Return a template's selections and optional prompt payload.
+
+    Always returns every key, so callers need not use ``.get()``:
+    ``archetype``, ``categories``, ``stride``, ``brief`` (``""`` when the
+    template has none) and ``required_decisions`` (``[]`` when it has none).
+
+    Raises ``ValueError`` for an unknown template name.
+    """
+    template = AI_INSIDER_TEMPLATES.get(name)
+    if template is None:
+        valid = ", ".join(AI_INSIDER_TEMPLATES)
+        raise ValueError(f"Unknown template '{name}'. Valid templates: {valid}.")
+    return {
+        "archetype": template["archetype"],
+        "categories": list(template["categories"]),
+        "stride": list(template["stride"]),
+        "brief": template.get("brief", ""),
+        "required_decisions": list(template.get("required_decisions", [])),
+    }

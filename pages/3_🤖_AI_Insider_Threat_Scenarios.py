@@ -36,6 +36,7 @@ from data.ai_insider_threats import (
     AI_INSIDER_TEMPLATES,
     DEPLOYMENT_ARCHETYPES,
     THREAT_CATEGORIES,
+    resolve_template,
     stride_code_from_option,
     stride_options,
 )
@@ -59,7 +60,14 @@ company_size = st.session_state.get("company_size")
 # only threads its own inputs into the shared builder.
 
 
-def build_messages(archetype_name, selected_categories, selected_stride, selected_capabilities):
+def build_messages(
+    archetype_name,
+    selected_categories,
+    selected_stride,
+    selected_capabilities,
+    scenario_seed=None,
+    required_decisions=None,
+):
     """Build the system + user message dicts for an AI insider threat scenario."""
     return build_ai_insider_messages(
         archetype_name=archetype_name,
@@ -68,6 +76,8 @@ def build_messages(archetype_name, selected_categories, selected_stride, selecte
         selected_capabilities=selected_capabilities,
         industry=industry,
         company_size=company_size,
+        scenario_seed=scenario_seed,
+        required_decisions=required_decisions,
     )
 
 
@@ -87,7 +97,9 @@ st.markdown("---")
 with st.expander("Use a Template (Optional)"):
     st.markdown(
         "Select a template to pre-populate the deployment archetype, threat categories and "
-        "STRIDE threats for a common AI insider threat scenario. You can adjust the selections afterwards."
+        "STRIDE threats for a common AI insider threat scenario. Some templates also fill in "
+        "a scenario seed and a set of decisions the exercise must force. You can adjust "
+        "everything afterwards."
     )
     selected_template = st.selectbox(
         "Select a template",
@@ -95,12 +107,18 @@ with st.expander("Use a Template (Optional)"):
         format_func=lambda x: "Select a template" if x == "" else x,
     )
     if selected_template:
-        template = AI_INSIDER_TEMPLATES[selected_template]
+        template = resolve_template(selected_template)
         st.session_state['ai_insider_archetype'] = template['archetype']
         st.session_state['ai_insider_categories'] = template['categories']
         st.session_state['ai_insider_stride'] = [
             opt for opt in stride_options() if stride_code_from_option(opt) in template['stride']
         ]
+        st.session_state['ai_insider_seed'] = template['brief']
+        st.session_state['ai_insider_required_decisions'] = template['required_decisions']
+    else:
+        # Clearing the template drops its forced decisions — unlike the other
+        # selections, they have no widget the user could edit them back out of.
+        st.session_state['ai_insider_required_decisions'] = []
 
 st.markdown("")
 
@@ -165,11 +183,46 @@ selected_capabilities = st.multiselect(
     default=list(AGENT_CAPABILITIES.keys()),
 )
 
+# --- Scenario seed ---
+st.markdown("### 5. Scenario Seed (Optional)")
+st.markdown(
+    "Describe the specific situation you want to rehearse — the deployment, what goes wrong, "
+    "and who is affected. The model builds the narrative around it rather than inventing its "
+    "own premise. Selecting a template above fills this in; edit it freely."
+)
+scenario_seed = st.text_area(
+    "Scenario seed:",
+    value=st.session_state.get('ai_insider_seed', ''),
+    height=200,
+    placeholder=(
+        "e.g. An overnight evaluation run the team believed was network-isolated, where the "
+        "agent's activity reaches a partner's production systems."
+    ),
+)
+st.session_state['ai_insider_seed'] = scenario_seed
+
+# Decisions the exercise must force. Supplied by a template only — there is no
+# widget for these, so they persist until another template is chosen.
+required_decisions = st.session_state.get('ai_insider_required_decisions', [])
+if required_decisions:
+    st.caption(
+        "This template also requires the exercise to force decisions on: "
+        + "; ".join(decision.split(" — ", 1)[0] for decision in required_decisions)
+        + "."
+    )
+
 # Build the prompt messages if a valid selection exists.
 messages = None
 if selected_categories or selected_stride:
     try:
-        messages = build_messages(selected_archetype, selected_categories, selected_stride, selected_capabilities)
+        messages = build_messages(
+            selected_archetype,
+            selected_categories,
+            selected_stride,
+            selected_capabilities,
+            scenario_seed=scenario_seed,
+            required_decisions=required_decisions,
+        )
     except Exception as e:
         st.error(f"An error occurred while building the prompt: {str(e)}")
 

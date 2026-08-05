@@ -15,8 +15,10 @@ import pytest
 import core.llm as llm_module
 import mcp_server as s
 from core.attack_data import KillChain
-from data.ai_insider_threats import DEPLOYMENT_ARCHETYPES
+from data.ai_insider_threats import DEPLOYMENT_ARCHETYPES, resolve_template
 from tests.test_detections import FakeMitreData
+
+EVAL_ESCAPE = "Evaluation Environment Escape"
 
 
 @pytest.fixture
@@ -76,6 +78,15 @@ class TestDataTools:
         assert set(opts) == {"archetypes", "threat_categories", "stride", "capabilities", "templates"}
         assert opts["archetypes"]
 
+    def test_list_ai_insider_options_templates_carry_payload(self):
+        """Template entries are self-describing, so a client model can choose
+        one without guessing from the name alone."""
+        templates = {t["name"]: t for t in s.list_ai_insider_options()["templates"]}
+        preset = templates[EVAL_ESCAPE]
+        assert preset["archetype"] in DEPLOYMENT_ARCHETYPES
+        assert set(preset["stride"]) == {"S5", "R4", "I5", "E5"}
+        assert preset["brief"]
+
     def test_get_kill_chain_embeds_prompt_when_org_supplied(self, canned_kill_chain):
         out = s.get_kill_chain("Enterprise", "APT29", industry="Finance", company_size="Large")
         assert out["kill_chain_string"] == "Initial Access: Phishing (T1566)"
@@ -94,6 +105,51 @@ class TestDataTools:
         msgs = out["messages"]
         assert msgs[0]["role"] == "system"
         assert archetype in msgs[1]["content"]
+
+    def test_get_ai_insider_prompt_from_template(self):
+        """End-to-end: naming the preset alone must produce a prompt that
+        demands containment, rotation, notification and evidence."""
+        out = s.get_ai_insider_prompt(
+            template=EVAL_ESCAPE, industry="Technology", company_size="Large",
+        )
+        user = out["messages"][1]["content"]
+        assert "Human-as-Auditor (L4 — Critical Threat)" in user
+        assert "**Scenario seed**" in user
+        assert resolve_template(EVAL_ESCAPE)["brief"] in user
+        for lead in ("Containment", "Identity rotation",
+                     "Third-party notification", "Evidence preservation"):
+            assert f"- {lead} — " in user
+        # The preset's STRIDE threats made it into the threat scope.
+        assert "E5 — Containment Boundary Assurance Failure" in user
+
+    def test_explicit_args_override_the_template(self):
+        archetype = "Human-as-Operator (L1 — Low Threat)"
+        out = s.get_ai_insider_prompt(
+            archetype=archetype, stride=["S1"], scenario_seed="My own framing.",
+            template=EVAL_ESCAPE, industry="Technology", company_size="Large",
+        )
+        user = out["messages"][1]["content"]
+        assert archetype in user
+        assert "**Scenario seed**\nMy own framing." in user
+        assert resolve_template(EVAL_ESCAPE)["brief"] not in user
+        assert "S1 — Credential Harvesting" in user
+        assert "E5 — Containment Boundary Assurance Failure" not in user
+        # Categories weren't overridden, so the template's still apply.
+        assert "Containment & Third-Party Impact" in user
+
+    def test_unknown_template_raises(self):
+        with pytest.raises(ValueError, match="Unknown template"):
+            s.get_ai_insider_prompt(template="Nope", industry="Tech", company_size="Large")
+
+    def test_neither_template_nor_archetype_raises(self):
+        with pytest.raises(ValueError, match="template.*archetype"):
+            s.get_ai_insider_prompt(industry="Tech", company_size="Large")
+
+    def test_missing_org_context_raises(self):
+        """`template` gives industry/company_size defaults, so the schema no
+        longer marks them required — a runtime guard keeps them mandatory."""
+        with pytest.raises(ValueError, match="industry.*company_size"):
+            s.get_ai_insider_prompt(template=EVAL_ESCAPE, industry="", company_size="Large")
 
 
 class TestGenerateTools:
@@ -156,6 +212,27 @@ class TestGenerateTools:
         assert kwargs["model"] == "anthropic/claude-sonnet-5"
         # The chosen archetype made it into the built prompt.
         assert archetype in kwargs["messages"][1]["content"]
+
+    def test_generate_ai_insider_scenario_from_template(
+        self, no_langsmith, mock_litellm_completion
+    ):
+        mock_litellm_completion.content = "# Eval Escape"
+        out = s.generate_ai_insider_scenario(
+            template=EVAL_ESCAPE, industry="Technology", company_size="Large",
+            provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+        )
+        assert out == "# Eval Escape"
+        _args, kwargs = mock_litellm_completion.calls[0]
+        user = kwargs["messages"][1]["content"]
+        assert "**Scenario seed**" in user
+        assert "**Required decision points**" in user
+
+    def test_generate_ai_insider_scenario_needs_template_or_archetype(self):
+        with pytest.raises(ValueError, match="template.*archetype"):
+            s.generate_ai_insider_scenario(
+                industry="Technology", company_size="Large",
+                provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+            )
 
     def test_empty_kill_chain_raises(self, monkeypatch):
         """The guard fires before the model is ever called (no LLM mock needed)."""
