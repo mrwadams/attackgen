@@ -97,9 +97,10 @@ st.markdown("---")
 with st.expander("Use a Template (Optional)"):
     st.markdown(
         "Select a template to pre-populate the deployment archetype, threat categories and "
-        "STRIDE threats for a common AI insider threat scenario. Some templates also fill in "
-        "a scenario seed and a set of decisions the exercise must force. You can adjust "
-        "everything afterwards."
+        "STRIDE threats for a common AI insider threat scenario, along with the decisions the "
+        "exercise must force. Most templates leave the narrative to the model, so re-running "
+        "one gives a fresh exercise; templates that rehearse a specific incident also fill in "
+        "the scenario seed. You can adjust everything afterwards."
     )
     selected_template = st.selectbox(
         "Select a template",
@@ -188,7 +189,9 @@ st.markdown("### 5. Scenario Seed (Optional)")
 st.markdown(
     "Describe the specific situation you want to rehearse — the deployment, what goes wrong, "
     "and who is affected. The model builds the narrative around it rather than inventing its "
-    "own premise. Selecting a template above fills this in; edit it freely."
+    "own premise. Leave it empty and the model invents a premise from your selections, which "
+    "is usually what you want when re-running the same threat profile for a fresh exercise. "
+    "Templates that rehearse a specific incident fill this in for you; edit it freely."
 )
 scenario_seed = st.text_area(
     "Scenario seed:",

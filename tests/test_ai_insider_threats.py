@@ -37,6 +37,23 @@ class TestReferentialIntegrity:
         for code in THREAT_CATEGORIES[name]["stride"]:
             assert code in STRIDE_THREATS
 
+    @pytest.mark.parametrize("name", list(AI_INSIDER_TEMPLATES))
+    def test_every_template_forces_decisions(self, name):
+        """Every template must bind the Discussion Questions, whether or not it
+        also supplies a brief — that is the part that makes a generated
+        scenario usable as a timed exercise."""
+        assert resolve_template(name)["required_decisions"]
+
+    @pytest.mark.parametrize("name", list(AI_INSIDER_TEMPLATES))
+    def test_decisions_use_the_lead_separator(self, name):
+        """The page caption renders `decision.split(" — ", 1)[0]` as a short
+        lead, so a decision written without the separator would show the whole
+        sentence in the caption."""
+        for decision in resolve_template(name)["required_decisions"]:
+            lead, _, detail = decision.partition(" — ")
+            assert detail, decision
+            assert len(lead) <= 40, lead
+
     def test_containment_threats_are_reachable_from_a_category(self):
         """The four containment threats must be reachable from the category
         flow, since page 3 derives STRIDE from categories when none is picked.
@@ -53,14 +70,16 @@ class TestReferentialIntegrity:
 
 
 class TestResolveTemplate:
-    def test_returns_all_keys_for_a_bare_template(self):
-        """Templates without a payload still get the keys, defaulted."""
+    def test_returns_all_keys_for_a_briefless_template(self):
+        """Archetype templates carry decisions but no brief, so the model
+        invents the premise and re-running gives a fresh exercise. `brief`
+        must still default rather than KeyError."""
         resolved = resolve_template("Autonomous Agent Data Heist")
         assert set(resolved) == {
             "archetype", "categories", "stride", "brief", "required_decisions",
         }
         assert resolved["brief"] == ""
-        assert resolved["required_decisions"] == []
+        assert resolved["required_decisions"]
 
     def test_returns_copies_not_references(self):
         """Mutating a resolved template must not corrupt the module data."""
