@@ -200,7 +200,7 @@ The agent is deployed under the **{archetype_name}** model.
 
 **Threat scope**
 {threat_context}
-
+{seed_block}
 **Available detection strategies (for the detection section)**
 {detection_lines}
 
@@ -230,8 +230,17 @@ def build_ai_insider_messages(
     selected_capabilities: list[str],
     industry: str,
     company_size: str,
+    scenario_seed: str | None = None,
+    required_decisions: list[str] | None = None,
 ) -> list[Message]:
-    """Build the [system, user] messages for an AI Insider Threat scenario."""
+    """Build the [system, user] messages for an AI Insider Threat scenario.
+
+    ``scenario_seed`` is optional free-text narrative framing (a template's
+    ``brief``, or whatever the user typed into the page's seed box).
+    ``required_decisions`` are decisions the Discussion Questions must force.
+    When both are absent the seed block renders away entirely, leaving the
+    prompt byte-identical to a build without them.
+    """
     archetype = DEPLOYMENT_ARCHETYPES[archetype_name]
     threat_context = build_threat_context(selected_categories, selected_stride)
 
@@ -248,6 +257,17 @@ def build_ai_insider_messages(
         f"- {function}: " + " ".join(items) for function, items in CONTROLS_FRAMEWORK.items()
     )
 
+    seed_parts = []
+    if scenario_seed and scenario_seed.strip():
+        seed_parts.append("**Scenario seed**\n" + scenario_seed.strip())
+    if required_decisions:
+        seed_parts.append(
+            "**Required decision points** — the Discussion Questions section must force "
+            "explicit decisions on each of the following:\n"
+            + "\n".join(f"- {decision}" for decision in required_decisions)
+        )
+    seed_block = "\n" + "\n\n".join(seed_parts) + "\n" if seed_parts else ""
+
     user_content = AI_INSIDER_HUMAN_TEMPLATE.format(
         industry=industry,
         company_size=company_size,
@@ -260,6 +280,7 @@ def build_ai_insider_messages(
         archetype_control=archetype["critical_control"],
         capability_lines=capability_lines,
         threat_context=threat_context,
+        seed_block=seed_block,
         detection_lines=detection_lines,
         controls_lines=controls_lines,
     )
