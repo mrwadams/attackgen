@@ -118,19 +118,18 @@ variant (`references/exercise-format.md`) rather than switching paths.
    to rehearse) replaces a template's `brief`. Offer the seed when the user has
    a specific incident in mind.
 
-   **Always pass `capabilities` explicitly** — templates don't supply them, and
-   omitting the argument degrades that part of the prompt to a generic line.
-   Pass the full `capabilities` list from step 2 unless the user wants a
-   narrower agent; that matches what the Streamlit app sends by default.
+   `capabilities` defaults to the full set, so leave it alone unless the user
+   describes a deliberately narrower agent. Passing `[]` leaves the agent's
+   capabilities unspecified — rarely what you want, since those lines are what
+   make the scenario credible to a sceptical participant.
 
 4. **Generate from the returned prompt yourself.** `messages[0]` is the system
    framing and `messages[1]` is the task; it already carries the deployment
    archetype and its access/detection/critical-control profile, the CERT
-   dimensions, the agent capabilities you passed, the full STRIDE threat scope
-   (IDs, names and descriptions), the available detection strategies, the NIST
-   CSF control set, and any scenario seed and required decision points. Work
-   from that payload — do not substitute your own recollection of the threat
-   model.
+   dimensions, the agent capabilities, the full STRIDE threat scope (IDs, names
+   and descriptions), the available detection strategies, the NIST CSF control
+   set, and any scenario seed and required decision points. Work from that
+   payload — do not substitute your own recollection of the threat model.
 
    (`generate_ai_insider_scenario` does the same thing server-side but needs an
    API key. Prefer `get_ai_insider_prompt`; fall back to the generate tool only

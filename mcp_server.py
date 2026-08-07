@@ -265,6 +265,13 @@ def _resolve_ai_insider_inputs(
     ``ValueError`` when neither a template nor an archetype is given, or when
     the organisation context is missing — ``template`` gives those arguments
     defaults, so they are no longer required by the tool schema.
+
+    ``capabilities`` is the one selection no template supplies, so it defaults
+    to the full set — matching page 3's multiselect, which ships all of them
+    selected. Omitting it otherwise fell through to ``[]``, which the builder
+    reads as "no capabilities highlighted" and answers with a generic line,
+    silently giving MCP callers a weaker prompt than UI users for the same
+    template. Pass ``[]`` explicitly to opt out and get that line deliberately.
     """
     preset = aip.resolve_template(template) if template else {}
     resolved_archetype = archetype or preset.get("archetype", "")
@@ -277,7 +284,9 @@ def _resolve_ai_insider_inputs(
         "archetype_name": resolved_archetype,
         "selected_categories": categories or preset.get("categories", []),
         "selected_stride": stride or preset.get("stride", []),
-        "selected_capabilities": capabilities or [],
+        "selected_capabilities": (
+            list(aip.AGENT_CAPABILITIES) if capabilities is None else capabilities
+        ),
         "industry": industry,
         "company_size": company_size,
         "scenario_seed": seed,
@@ -305,6 +314,9 @@ def get_ai_insider_prompt(
     STRIDE threats and narrative brief; any argument you also supply explicitly
     overrides the template's value. ``scenario_seed`` is free-text framing that
     replaces the template's brief. Supply either ``template`` or ``archetype``.
+
+    ``capabilities`` defaults to the full set (no template supplies it); pass
+    ``[]`` to leave the agent's capabilities unspecified.
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
@@ -432,6 +444,9 @@ def generate_ai_insider_scenario(
     STRIDE threats and narrative brief; any argument you also supply explicitly
     overrides the template's value. ``scenario_seed`` is free-text framing that
     replaces the template's brief. Supply either ``template`` or ``archetype``.
+
+    ``capabilities`` defaults to the full set (no template supplies it); pass
+    ``[]`` to leave the agent's capabilities unspecified.
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(

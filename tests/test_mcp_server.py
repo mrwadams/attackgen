@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
 import core.llm as llm_module
 import mcp_server as s
 from core.attack_data import KillChain
-from data.ai_insider_threats import DEPLOYMENT_ARCHETYPES, resolve_template
+from data.ai_insider_threats import (
+    AGENT_CAPABILITIES,
+    DEPLOYMENT_ARCHETYPES,
+    resolve_template,
+)
 from tests.test_detections import FakeMitreData
 
 EVAL_ESCAPE = "Evaluation Environment Escape"
@@ -150,6 +155,53 @@ class TestDataTools:
         longer marks them required — a runtime guard keeps them mandatory."""
         with pytest.raises(ValueError, match="industry.*company_size"):
             s.get_ai_insider_prompt(template=EVAL_ESCAPE, industry="", company_size="Large")
+
+    def test_omitted_capabilities_default_to_the_full_set(self):
+        """No template supplies capabilities, so omitting the argument used to
+        fall through to `[]` — which the builder answers with a generic line,
+        handing MCP callers a weaker prompt than page 3 gives for the same
+        template. The default now matches the page's multiselect."""
+        out = s.get_ai_insider_prompt(
+            template=EVAL_ESCAPE, industry="Technology", company_size="Large",
+        )
+        user = out["messages"][1]["content"]
+        for capability in AGENT_CAPABILITIES:
+            assert capability in user
+        assert "No specific capabilities highlighted" not in user
+
+    def test_explicit_empty_capabilities_still_opts_out(self):
+        """`[]` is a deliberate choice, not an omission: it must keep the
+        builder's unspecified-capabilities line rather than be back-filled."""
+        out = s.get_ai_insider_prompt(
+            template=EVAL_ESCAPE, capabilities=[],
+            industry="Technology", company_size="Large",
+        )
+        assert "No specific capabilities highlighted" in out["messages"][1]["content"]
+
+    def test_explicit_capabilities_win_over_the_default(self):
+        one = next(iter(AGENT_CAPABILITIES))
+        out = s.get_ai_insider_prompt(
+            template=EVAL_ESCAPE, capabilities=[one],
+            industry="Technology", company_size="Large",
+        )
+        user = out["messages"][1]["content"]
+        assert one in user
+        for other in list(AGENT_CAPABILITIES)[1:]:
+            assert other not in user
+
+    def test_mcp_default_matches_the_streamlit_page(self):
+        """Page 3 defaults its multiselect to `list(AGENT_CAPABILITIES)`. If that
+        changes, this default should change with it or the two surfaces drift
+        apart again."""
+        page = (
+            Path(__file__).resolve().parent.parent
+            / "pages" / "3_🤖_AI_Insider_Threat_Scenarios.py"
+        ).read_text(encoding="utf-8")
+        assert "default=list(AGENT_CAPABILITIES.keys())" in page
+        kwargs = s._resolve_ai_insider_inputs(
+            EVAL_ESCAPE, "", None, None, None, "Technology", "Large", None,
+        )
+        assert kwargs["selected_capabilities"] == list(AGENT_CAPABILITIES)
 
 
 class TestGenerateTools:
