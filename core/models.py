@@ -33,6 +33,7 @@ class ModelInfo:
     model_id: str
     provider_key: str
     supports_thinking: bool = False            # Claude/Gemini extended thinking
+    supports_temperature: bool = True          # False → model rejects a custom temperature
     help_text: str = ""
 
 
@@ -95,7 +96,8 @@ PROVIDERS: dict[str, ProviderInfo] = {
 MODELS: list[ModelInfo] = [
     # --- OpenAI (all current chat models use max_completion_tokens, and the
     #     gpt-5.x reasoning models reject any temperature other than the
-    #     default — both handled by provider in core/llm.py) ---
+    #     default — both handled at provider level in core/llm.py, so no
+    #     supports_temperature flag is needed on these entries) ---
     ModelInfo(
         model_id="gpt-5.6-sol",
         provider_key="OpenAI API",
@@ -121,24 +123,28 @@ MODELS: list[ModelInfo] = [
         model_id="claude-fable-5",
         provider_key="Anthropic API",
         supports_thinking=True,
+        supports_temperature=False,
         help_text="Claude Fable 5 is Anthropic's most capable model for long-running agents and hard reasoning.",
     ),
     ModelInfo(
         model_id="claude-opus-4-8",
         provider_key="Anthropic API",
         supports_thinking=True,
+        supports_temperature=False,
         help_text="Claude Opus 4.8 excels at complex agentic coding and enterprise work.",
     ),
     ModelInfo(
         model_id="claude-sonnet-5",
         provider_key="Anthropic API",
         supports_thinking=True,
+        supports_temperature=False,
         help_text="Claude Sonnet 5 offers the best balance of speed and near-Opus intelligence.",
     ),
     ModelInfo(
         model_id="claude-opus-4-7",
         provider_key="Anthropic API",
         supports_thinking=True,
+        supports_temperature=False,
         help_text="Claude Opus 4.7 is the previous-generation Opus, kept for continuity.",
     ),
     ModelInfo(

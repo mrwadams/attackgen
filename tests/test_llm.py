@@ -52,15 +52,50 @@ def test_openai_provider_omits_temperature() -> None:
     assert "temperature" not in kwargs
 
 
-def test_non_reasoning_models_still_send_temperature() -> None:
+def test_models_that_reject_temperature_omit_it() -> None:
+    """Claude 4.7 and later return `temperature is deprecated for this model`
+    as a 400, exactly like the gpt-5.x family. Gated per model rather than per
+    provider, because Haiku 4.5 on the same provider still accepts one."""
     config = LLMConfig(
         provider="Anthropic API",
         model_name="claude-sonnet-5",
         api_key="k",
         temperature=0.7,
     )
-    kwargs = _build_litellm_kwargs(config)
-    assert kwargs["temperature"] == 0.7
+    assert "temperature" not in _build_litellm_kwargs(config)
+
+
+def test_models_that_accept_temperature_still_send_it() -> None:
+    config = LLMConfig(
+        provider="Anthropic API",
+        model_name="claude-haiku-4-5-20251001",
+        api_key="k",
+        temperature=0.7,
+    )
+    assert _build_litellm_kwargs(config)["temperature"] == 0.7
+
+
+def test_unregistered_model_sends_temperature() -> None:
+    """A local endpoint's model isn't in the registry; Ollama and LM Studio
+    both expect a temperature, so the unknown case must not suppress it."""
+    config = LLMConfig(
+        provider="Custom",
+        model_name="some-local-model",
+        api_base="http://127.0.0.1:1234/v1",
+        temperature=0.7,
+    )
+    assert _build_litellm_kwargs(config)["temperature"] == 0.7
+
+
+def test_every_registered_anthropic_model_matches_reality() -> None:
+    """Pins the flags against what the API actually accepted when probed on
+    2026-08-07. If a model is added without checking, this fails loudly."""
+    from core.models import get_models_for_provider
+
+    rejects = {"claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-opus-4-7"}
+    for model in get_models_for_provider("Anthropic API"):
+        expected = model.model_id not in rejects
+        assert model.supports_temperature is expected, model.model_id
 
 
 def test_anthropic_defaults_max_tokens_to_16000_when_unset() -> None:
