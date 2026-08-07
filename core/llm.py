@@ -27,6 +27,7 @@ import streamlit as st  # noqa: E402
 
 from core.models import (
     get_litellm_prefix,
+    get_model,
     get_provider,
 )
 from core.schemas import LLMConfig
@@ -72,15 +73,37 @@ except Exception:
 # ---------------------------------------------------------------------------
 
 
+def _accepts_temperature(config: LLMConfig) -> bool:
+    """Whether this model accepts a custom sampling temperature.
+
+    A growing number of frontier models reject any value but their default and
+    return a 400 rather than ignoring it — OpenAI's whole gpt-5.x reasoning
+    family, and Anthropic's Claude 4.7 and later. So this is opt-out per model
+    via ``ModelInfo.supports_temperature``, with two provider-level rules:
+
+    - **OpenAI**: every current chat model is a reasoning model, so refuse at the
+      provider level. That also covers a newly-added OpenAI model before anyone
+      remembers to flag it.
+    - **Unknown model** (the Custom provider, or a model not in the registry):
+      send it. Local endpoints such as Ollama and LM Studio expect a
+      temperature, and we cannot know what an arbitrary endpoint supports.
+
+    When adding an Anthropic model, set ``supports_temperature=False`` unless
+    you have verified the model accepts one.
+    """
+    if config.provider == "OpenAI API":
+        return False
+    model_info = get_model(config.provider, config.model_name)
+    return model_info.supports_temperature if model_info else True
+
+
 def _build_litellm_kwargs(config: LLMConfig) -> dict:
     provider = get_provider(config.provider)
     prefix = get_litellm_prefix(config.provider)
     model = prefix + config.model_name
 
     # OpenAI's chat models use max_completion_tokens instead of the deprecated
-    # max_tokens, and the gpt-5.x reasoning family rejects any temperature other
-    # than the default (1) — sending temperature=0.7 to them is a 400 BadRequest.
-    # Both are properties of the OpenAI provider, so route on it directly.
+    # max_tokens — a property of the provider, so route on it directly.
     is_openai = config.provider == "OpenAI API"
 
     kwargs: dict = {
@@ -91,7 +114,7 @@ def _build_litellm_kwargs(config: LLMConfig) -> dict:
     }
 
     # Only send temperature to models that accept a custom value.
-    if not is_openai:
+    if _accepts_temperature(config):
         kwargs["temperature"] = config.temperature
 
     if config.api_key:
