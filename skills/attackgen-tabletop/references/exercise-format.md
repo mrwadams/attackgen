@@ -1,25 +1,33 @@
-# Tabletop / MSEL output format
+# Tabletop / MSEL output format (Path A — MITRE adversary)
 
 Render the exercise in the following structure and house style. This is the
 presentation contract for the `attackgen-tabletop` skill. All attack/detection
 facts must come from the AttackGen MCP tool outputs (see `SKILL.md`).
+
+The **house style** below applies to both paths. The **section structure** is
+Path A's — for an AI insider-threat exercise, see
+`references/ai-insider-format.md`, which replaces sections 2 and 5 and adjusts
+the rest.
 
 ## House style
 
 - **British English** throughout (organisation, prioritise, defence, analyse).
 - Realistic for the stated **industry** and **company size**. Give the target a
   plausible name and estate (identity model, key SaaS, notable third parties).
-- Match the **actor's tradecraft**: espionage actors are patient and low-and-slow
-  and lean on identity/cloud abuse; smash-and-grab actors move fast and loud.
-- Every inject and discussion question references a specific technique — by name
-  and ID — drawn from the resolved kill chain.
+- Match the **adversary's tradecraft**: espionage actors are patient and
+  low-and-slow and lean on identity/cloud abuse; smash-and-grab actors move fast
+  and loud. On Path B, pace to the agent's autonomy level — the more autonomous
+  the deployment, the faster and wider the blast radius.
+- Every inject and discussion question references a specific identifier — a
+  technique name and ATT&CK ID on Path A, a STRIDE ID on Path B.
 - Format in Markdown: headings, a kill-chain table, bold for key artefacts (e.g.
   `Add-MailboxPermission`), and inline event IDs where the detection data gives
   them (e.g. Event 4769).
 
 ## Section structure
 
-Use these numbered sections, in order:
+Use these numbered sections, in order. (Path B keeps the same six-section spine
+with a different section 2 and 5 — see `references/ai-insider-format.md`.)
 
 **Header** — a title line plus a short metadata block: Framework, Threat
 actor (with aliases), Target profile (industry + size + estate), Exercise type
@@ -68,3 +76,7 @@ regulatory clocks, and producing a defensible containment plan.
 - An **AI-enhanced adversary** variant — the same kill chain reframed as
   AI-accelerated. If the user wants a model-authored version end-to-end, point
   them at the AttackGen MCP `generate_threat_group_scenario` tool.
+- An **AI insider-threat companion** — where the estate runs its own autonomous
+  agents, offer a Path B exercise as a second session. It tests a different
+  failure mode (an agent acting from inside, under a sanctioned identity) than
+  any external-actor kill chain.

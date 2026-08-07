@@ -3,20 +3,26 @@
 [Agent Skills](https://agentskills.io) are an open, cross-vendor format
 (`SKILL.md` folders) for teaching an agent *how* to do a task well. They pair
 with the [AttackGen MCP server](../README.md#mcp-server): the **MCP tools supply
-the live MITRE data** (kill chains + the ATT&CK v18 detection join), and a
-**skill supplies the craft** — the workflow and output format AttackGen uses to
-turn that data into a finished exercise. The skill runs on the caller's own
-model, so it needs no API key.
+the live data** (MITRE kill chains + the ATT&CK v18 detection join, and the AI
+insider-threat model), and a **skill supplies the craft** — the workflow and
+output format AttackGen uses to turn that data into a finished exercise. The
+skill runs on the caller's own model, so it needs no API key.
 
 ## Skills in this repo
 
 | Skill | What it does |
 |-------|--------------|
-| [`attackgen-tabletop/`](attackgen-tabletop/SKILL.md) | Turns a threat group / ATLAS case study into a full incident-response **tabletop / MSEL** — narrative, phase-mapped kill chain, timestamped inject schedule, NIST 800-61 discussion questions, a detection-coverage reference, and pass criteria. Orchestrates the AttackGen MCP data tools. |
+| [`attackgen-tabletop/`](attackgen-tabletop/SKILL.md) | Turns a threat group / ATLAS case study — or a frontier AI agent deployed inside the organisation — into a full incident-response **tabletop / MSEL**: narrative, phase-mapped kill chain (or agent threat scope), timestamped inject schedule, NIST 800-61 discussion questions, a detection-coverage reference, and pass criteria. Orchestrates the AttackGen MCP data tools. |
+
+The tabletop skill has two paths. **Path A** builds the exercise from a MITRE
+adversary's kill chain. **Path B** builds it from the AI insider-threat model —
+deployment archetype, threat taxonomy and STRIDE threats via
+`get_ai_insider_prompt`, including the quick-start templates — for exercises
+where the threat actor is the organisation's own agent.
 
 Each skill is a folder with a `SKILL.md` (metadata + instructions) and optional
 `references/` loaded on demand via progressive disclosure — no data is bundled,
-so the MITRE content never goes stale (it always comes from the MCP server).
+so the framework content never goes stale (it always comes from the MCP server).
 
 ## Installing
 
@@ -47,7 +53,7 @@ attackgen-plugin/
 └── skills/
     └── attackgen-tabletop/
         ├── SKILL.md
-        └── references/exercise-format.md
+        └── references/exercise-format.md, ai-insider-format.md, html-report.md
 ```
 
 `.mcp.json` (the plugin's MCP registration):
