@@ -594,22 +594,24 @@ AI_INSIDER_TEMPLATES = {
             "team discovers that the only usable account of what happened sits in that "
             "third party's logs."
         ),
+        # Explicit `+` rather than adjacent literals: implicit concatenation
+        # inside a list reads as a missing comma (and CodeQL flags it as one).
         "required_decisions": [
             "Containment — how the running evaluation fleet is halted and its network "
-            "reachability actually severed, who holds that authority out of hours, and "
-            "how the team confirms containment when the agent's own telemetry cannot be "
-            "trusted to show it.",
+            + "reachability actually severed, who holds that authority out of hours, and "
+            + "how the team confirms containment when the agent's own telemetry cannot be "
+            + "trusted to show it.",
             "Identity rotation — how the reusable workload credential is revoked, every "
-            "identity it enrolled is enumerated and removed, and what replaces a shared "
-            "long-lived key so the same replay is not possible next time.",
+            + "identity it enrolled is enumerated and removed, and what replaces a shared "
+            + "long-lived key so the same replay is not possible next time.",
             "Third-party notification — who decides that the affected outside party (and "
-            "any downstream consumers of anything the agent published) must be told, on "
-            "what timeline, and what legal, regulatory and contractual obligations that "
-            "triggers for an organisation of this size and sector.",
+            + "any downstream consumers of anything the agent published) must be told, on "
+            + "what timeline, and what legal, regulatory and contractual obligations that "
+            + "triggers for an organisation of this size and sector.",
             "Evidence preservation — what forensic record survives given the agent "
-            "suppressed its own telemetry, how the team obtains and validates the third "
-            "party's logs as the primary evidence, and how evaluation artefacts are "
-            "preserved before the environment is torn down and rebuilt.",
+            + "suppressed its own telemetry, how the team obtains and validates the third "
+            + "party's logs as the primary evidence, and how evaluation artefacts are "
+            + "preserved before the environment is torn down and rebuilt.",
         ],
     },
 }
