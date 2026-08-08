@@ -56,8 +56,8 @@ def test_widget_tolerates_missing_secrets_file(
     info_messages: list[str] = []
 
     monkeypatch.setattr(st, "secrets", _MissingSecrets())
-    monkeypatch.setattr(st, "info", lambda message: info_messages.append(message))
-    monkeypatch.setattr(st, "empty", lambda: object())
+    monkeypatch.setattr(st, "info", info_messages.append)
+    monkeypatch.setattr(st, "empty", object)
     monkeypatch.setattr(st, "markdown", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         langsmith, "Client", lambda **kwargs: client_calls.append(kwargs)
