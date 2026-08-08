@@ -3,12 +3,8 @@ import streamlit as st
 from core.llm import call_llm_stream
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
-from core.state import restore_from_query_params
+from core.sidebar import render_setup_blockers, render_setup_sidebar
 from core.styles import inject_emoji_fonts
-
-# Restore sidebar selections on direct page loads (e.g. browser refresh while
-# on this page). See core/state.py for the persisted-keys list.
-restore_from_query_params()
 
 
 SCENARIO_SYSTEM_PROMPT = (
@@ -42,6 +38,7 @@ BOTH_SYSTEM_PROMPT = (
 
 st.set_page_config(page_title="AttackGen Assistant", page_icon=":speech_balloon:")
 inject_emoji_fonts()
+setup = render_setup_sidebar()
 
 st.markdown("# <span style='color: #1DB954;'>AttackGen Assistant💬</span>", unsafe_allow_html=True)
 
@@ -174,7 +171,10 @@ def generate_response(user_input, chat_history):
     st.session_state["_last_assistant_cleaned"] = cleaned
 
 
-if prompt := st.chat_input("Type your message here..."):
+if not setup.complete:
+    render_setup_blockers(setup)
+
+if prompt := st.chat_input("Type your message here...", disabled=not setup.complete):
     st.session_state[messages_key].append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
