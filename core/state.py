@@ -5,10 +5,9 @@ or when the user lands on a page directly. To keep the sidebar selections
 between refreshes (without storing API keys in the URL) we mirror a small set
 of keys into the URL via `st.query_params`.
 
-Every page calls `restore_from_query_params()` near the top so that a deep link
-to e.g. page 3 also restores the provider/model/industry the user had selected.
-The Welcome sidebar additionally calls `sync_to_query_params()` after rendering
-its widgets so the URL stays in sync as the user changes selections.
+Every page calls the shared renderer in ``core.sidebar``, which restores the
+query parameters before drawing its widgets and syncs their resulting values
+afterwards. A deep link to any page therefore restores the same setup.
 
 API keys are intentionally excluded — the URL would expose them in browser
 history, server logs, and any link the user shares.

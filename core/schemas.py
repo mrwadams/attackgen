@@ -30,7 +30,7 @@ class LLMConfig:
         trace_name: str = "AttackGen LLM call",
         trace_tags: tuple[str, ...] = (),
     ) -> "LLMConfig":
-        """Build an LLMConfig from the keys the Welcome sidebar populates."""
+        """Build an LLMConfig from the keys the shared Setup sidebar populates."""
         return cls(
             provider=st.session_state.get("chosen_model_provider", "OpenAI API"),
             model_name=st.session_state.get("llm_model_name", ""),

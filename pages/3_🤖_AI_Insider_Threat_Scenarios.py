@@ -29,7 +29,7 @@ import streamlit as st
 
 from core.prompts import build_ai_insider_messages
 from core.scenario_page import run_scenario_page
-from core.state import restore_from_query_params
+from core.sidebar import render_setup_blockers, render_setup_sidebar
 from core.styles import inject_emoji_fonts
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
@@ -41,18 +41,14 @@ from data.ai_insider_threats import (
     stride_options,
 )
 
-# Restore sidebar selections on direct page loads (e.g. browser refresh while
-# on this page). See core/state.py for the persisted-keys list.
-restore_from_query_params()
-
 # ------------------ Streamlit Configuration ------------------ #
 
 st.set_page_config(page_title="AI Insider Threat Scenarios", page_icon="🤖")
 inject_emoji_fonts()
+setup = render_setup_sidebar()
 
-model_provider = st.session_state.get("chosen_model_provider", "OpenAI API")
-industry = st.session_state.get("industry")
-company_size = st.session_state.get("company_size")
+industry = setup.industry
+company_size = setup.company_size
 
 
 # ------------------ Prompt Construction ------------------ #
@@ -243,17 +239,7 @@ st.markdown(
 
 
 def _ready() -> bool:
-    if model_provider != "Custom" and not st.session_state.get("llm_api_key"):
-        st.info("Please add your API key in the sidebar to continue.")
-        return False
-    if not st.session_state.get("llm_model_name"):
-        st.info("Please select a model in the sidebar to continue.")
-        return False
-    if not industry:
-        st.info("Please select your company's industry in the sidebar to continue.")
-        return False
-    if not company_size:
-        st.info("Please select your company's size in the sidebar to continue.")
+    if not render_setup_blockers(setup):
         return False
     if not selected_categories and not selected_stride:
         st.info("Please select at least one threat category (or specific STRIDE threat) to continue.")
