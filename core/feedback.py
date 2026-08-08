@@ -11,15 +11,25 @@ from __future__ import annotations
 from typing import Any
 
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
+
+
+def _get_secret(name: str) -> Any | None:
+    """Return a Streamlit secret, including when no secrets file exists."""
+    try:
+        return st.secrets[name]
+    except (KeyError, StreamlitSecretNotFoundError):
+        return None
 
 
 def _get_client() -> Any | None:
-    if "LANGCHAIN_API_KEY" not in st.secrets:
+    api_key = _get_secret("LANGCHAIN_API_KEY")
+    if api_key is None:
         return None
     try:
         from langsmith import Client
 
-        return Client(api_key=st.secrets["LANGCHAIN_API_KEY"])
+        return Client(api_key=api_key)
     except Exception:
         return None
 
@@ -32,7 +42,7 @@ def render_feedback_widget(*, key_prefix: str, scenario_generated: bool) -> None
     `key_prefix` namespaces the Streamlit button keys so the widget can render
     on multiple pages within one app session without collision.
     """
-    if "LANGCHAIN_API_KEY" not in st.secrets:
+    if _get_secret("LANGCHAIN_API_KEY") is None:
         st.info(
             "ℹ️ No LangChain API key has been set. "
             "This run will not be logged to LangSmith."
