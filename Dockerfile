@@ -1,5 +1,5 @@
 # Use specific version with SHA256 for reproducibility and security
-FROM python:3.12-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+FROM python:3.14-slim@sha256:a7fb1e634c4a578f9e0bd6327f11a3cde11b7a9395f48e24360c0988bcc5c2bc
 
 # Create non-root user for security
 RUN groupadd -r attackgen && \
