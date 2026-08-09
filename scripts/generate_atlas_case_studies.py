@@ -22,7 +22,9 @@ OUTPUT_FILE = Path(__file__).parent.parent / "data" / "atlas-case-studies.json"
 def fetch_atlas_yaml() -> dict:
     """Fetch ATLAS.yaml from GitHub"""
     print(f"Fetching ATLAS.yaml from {ATLAS_YAML_URL}...")
-    with urllib.request.urlopen(ATLAS_YAML_URL) as response:
+    # nosec B310 - ATLAS_YAML_URL is a hardcoded https:// constant defined above
+    # and takes no caller input, so there is no scheme or destination to control.
+    with urllib.request.urlopen(ATLAS_YAML_URL) as response:  # nosec B310
         content = response.read().decode('utf-8')
     return yaml.safe_load(content)
 
