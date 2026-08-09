@@ -120,12 +120,18 @@ jobs:
         run: docker build -t attackgen:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: attackgen:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          # `severity` alone does not apply to SARIF output; without this the
+          # Security tab also collects LOW/UNKNOWN base-image findings.
+          limit-severities-for-sarif: true
+          # Base-image CVEs with no vendor patch cannot be actioned here, and
+          # they crowd out the findings that can be.
+          ignore-unfixed: true
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -134,11 +140,12 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
       - name: Run Trivy in table format
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: attackgen:${{ github.sha }}
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
 
   dependency-review:
     name: Dependency Review
