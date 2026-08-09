@@ -87,7 +87,7 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "warning", _noop)
     monkeypatch.setattr(st, "error", _noop)
     # `render_feedback_widget` calls `st.empty()` then `st.markdown('---')`.
-    monkeypatch.setattr(st, "empty", lambda: _FakePlaceholder())
+    monkeypatch.setattr(st, "empty", _FakePlaceholder)
     # `st.secrets` membership tests — pretend no LangSmith key is configured
     # so the feedback widget short-circuits cleanly during tests.
     monkeypatch.setattr(st, "secrets", {})
