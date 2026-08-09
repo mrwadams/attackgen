@@ -7,8 +7,9 @@ mitreattack-python
 openai
 pandas
 python-dotenv
-# The base image preinstalls setuptools, so an unpinned requirement is already
-# satisfied and pip never upgrades it. Floor it above CVE-2025-47273 (78.1.1)
-# and CVE-2026-59890 (83.0.0) so the image build actually pulls a fixed version.
+# Floor kept as a guard so a future resolve cannot land on a version below the
+# CVE-2025-47273 (78.1.1) and CVE-2026-59890 (83.0.0) fixes. It is not what
+# cleared those alerts — they were never about the installed setuptools, which
+# already resolved to 84.0.0. See the skip-files note in security.yml.
 setuptools>=83.0.0
 streamlit
