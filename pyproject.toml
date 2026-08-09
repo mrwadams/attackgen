@@ -11,7 +11,7 @@ dependencies = [
     "langsmith",
     "litellm>=1.83.7",
     # mcp 2.0 removed mcp.server.fastmcp, which mcp_server.py imports — see requirements.txt.
-    "mcp>=1.2.0,<2",
+    "mcp>=1.2.0,<3",
     "mitreattack-python",
     "openai",
     "pandas",
