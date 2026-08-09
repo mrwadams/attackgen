@@ -132,6 +132,12 @@ jobs:
           # Base-image CVEs with no vendor patch cannot be actioned here, and
           # they crowd out the findings that can be.
           ignore-unfixed: true
+          # pip ships a CycloneDX SBOM of its own vendored tree. Trivy parses it
+          # and reports those pins as installed packages, which they are not:
+          # it claimed setuptools 70.3.0 while site-packages held 84.0.0. Only
+          # pip imports pip._vendor, and it does not run in the container at
+          # runtime. Real site-packages metadata is still scanned.
+          skip-files: 'usr/local/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json'
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -146,6 +152,7 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
           ignore-unfixed: true
+          skip-files: 'usr/local/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json'
 
   dependency-review:
     name: Dependency Review
