@@ -1,8 +1,8 @@
 langsmith
 litellm>=1.83.7
-# mcp 2.0 removed mcp.server.fastmcp (replaced by mcp.server.mcpserver.MCPServer),
-# which mcp_server.py imports. Hold on 1.x until that migration is done.
-mcp>=1.2.0,<2
+# Floor is 2.0, not 1.2: mcp_server.py imports mcp.server.mcpserver, which does
+# not exist on 1.x. A 1.x resolve would fail at import, not at runtime.
+mcp>=2.0.0,<3
 mitreattack-python
 openai
 pandas

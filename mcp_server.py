@@ -1,6 +1,6 @@
 """AttackGen MCP server — expose scenario generation to agentic workflows.
 
-Two tiers of tools, one FastMCP server:
+Two tiers of tools, one MCP server:
 
 * **Tier A — data tools** (no LLM call, no API key). They surface AttackGen's
   MITRE data: threat groups / ATLAS case studies, a resolved kill chain, the
@@ -29,7 +29,7 @@ import os
 from dataclasses import asdict
 from typing import Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from core import attack_data as ad
 from core.detections import build_defense_report, defense_to_markdown
@@ -45,7 +45,7 @@ from core.response import clean_model_response
 from core.schemas import LLMConfig
 from data import ai_insider_threats as aip
 
-mcp = FastMCP("attackgen")
+mcp = MCPServer("attackgen")
 
 Matrix = Literal["Enterprise", "ICS", "ATLAS"]
 

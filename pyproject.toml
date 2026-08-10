@@ -10,8 +10,8 @@ requires-python = ">=3.10"
 dependencies = [
     "langsmith",
     "litellm>=1.83.7",
-    # mcp 2.0 removed mcp.server.fastmcp, which mcp_server.py imports — see requirements.txt.
-    "mcp>=1.2.0,<2",
+    # Floor is 2.0, not 1.2: mcp_server.py imports mcp.server.mcpserver — see requirements.txt.
+    "mcp>=2.0.0,<3",
     "mitreattack-python",
     "openai",
     "pandas",
