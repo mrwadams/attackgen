@@ -77,7 +77,7 @@ When deploying AttackGen:
 1. **Dependency Management**
    - Regularly update dependencies to patch security vulnerabilities
    - Review `requirements.txt` for outdated or vulnerable packages
-   - Automated scanning with `pip-audit` and `safety` runs on every commit (see Automated Security Scanning section)
+   - Automated scanning with `pip-audit` runs on every commit and fails the build on a known vulnerability (see Automated Security Scanning section)
 
 2. **Input Validation**
    - The application validates inputs, but always review user-provided data
@@ -101,7 +101,6 @@ Our security workflow runs automatically on every push and pull request, using:
 
 2. **Dependency Scanning**
    - **pip-audit**: Scans Python dependencies against the OSV vulnerability database
-   - **Safety**: Checks dependencies using PyUp's comprehensive vulnerability database
    - **Dependabot**: Automated dependency updates and security alerts
 
 3. **Secret Detection**

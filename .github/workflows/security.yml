@@ -47,15 +47,14 @@ jobs:
 
       - name: Run pip-audit for dependency vulnerabilities
         run: |
+          # Full-fidelity report for the artifact, same split as Bandit above.
           pip-audit --desc --format json > pip-audit-report.json || true
+          # The gate. pip-audit exits non-zero on any known vulnerability.
+          # If a transitive dependency picks up a CVE with no fix available,
+          # suppress it here with `--ignore-vuln GHSA-xxxx` and a reason, so
+          # the exception lands in a reviewable diff rather than being blanket
+          # ignored by continue-on-error.
           pip-audit --desc
-        continue-on-error: true
-
-      - name: Run Safety Action to check for vulnerabilities
-        uses: pyupio/safety-action@v1
-        with:
-          api-key: ${{ secrets.SAFETY_API_KEY }}
-        continue-on-error: true
 
       - name: Upload security reports
         uses: actions/upload-artifact@v7
