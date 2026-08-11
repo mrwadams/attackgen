@@ -22,10 +22,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -38,24 +38,26 @@ jobs:
 
       - name: Run Bandit security linter
         run: |
-          bandit -r . -f json -o bandit-report.json || true
-          bandit -r . -f txt
-        continue-on-error: true
+          # Full-fidelity report for the artifact: every severity, never gates.
+          bandit -c pyproject.toml -r . -f json -o bandit-report.json || true
+          # The gate. -ll -ii fails the job on medium-or-above severity at
+          # medium-or-above confidence. Anything quieter stays in the artifact
+          # above rather than failing the build.
+          bandit -c pyproject.toml -r . -f txt -ll -ii
 
       - name: Run pip-audit for dependency vulnerabilities
         run: |
+          # Full-fidelity report for the artifact, same split as Bandit above.
           pip-audit --desc --format json > pip-audit-report.json || true
+          # The gate. pip-audit exits non-zero on any known vulnerability.
+          # If a transitive dependency picks up a CVE with no fix available,
+          # suppress it here with `--ignore-vuln GHSA-xxxx` and a reason, so
+          # the exception lands in a reviewable diff rather than being blanket
+          # ignored by continue-on-error.
           pip-audit --desc
-        continue-on-error: true
-
-      - name: Run Safety Action to check for vulnerabilities
-        uses: pyupio/safety-action@v1
-        with:
-          api-key: ${{ secrets.SAFETY_API_KEY }}
-        continue-on-error: true
 
       - name: Upload security reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: python-security-reports
@@ -70,12 +72,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
@@ -91,19 +93,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
 
@@ -114,31 +116,45 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build Docker image
         run: docker build -t attackgen:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: attackgen:${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          # `severity` alone does not apply to SARIF output; without this the
+          # Security tab also collects LOW/UNKNOWN base-image findings.
+          limit-severities-for-sarif: true
+          # Base-image CVEs with no vendor patch cannot be actioned here, and
+          # they crowd out the findings that can be.
+          ignore-unfixed: true
+          # pip ships a CycloneDX SBOM of its own vendored tree. Trivy parses it
+          # and reports those pins as installed packages, which they are not:
+          # it claimed setuptools 70.3.0 while site-packages held 84.0.0. Only
+          # pip imports pip._vendor, and it does not run in the container at
+          # runtime. Real site-packages metadata is still scanned.
+          skip-files: 'usr/local/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
 
       - name: Run Trivy in table format
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: attackgen:${{ github.sha }}
           format: 'table'
           severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+          skip-files: 'usr/local/lib/python3.14/site-packages/pip/_vendor/bom.cdx.json'
 
   dependency-review:
     name: Dependency Review
@@ -147,10 +163,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: moderate
           deny-licenses: GPL-3.0, AGPL-3.0

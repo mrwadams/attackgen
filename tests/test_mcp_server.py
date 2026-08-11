@@ -62,7 +62,8 @@ def test_all_tools_registered_with_schemas():
     names = {t.name for t in tools}
     assert EXPECTED_TOOLS <= names
     for tool in tools:
-        assert tool.inputSchema and tool.inputSchema.get("type") == "object"
+        # snake_case since mcp 2.0; this was `inputSchema` on 1.x.
+        assert tool.input_schema and tool.input_schema.get("type") == "object"
 
 
 class TestDataTools:

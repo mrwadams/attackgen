@@ -10,8 +10,8 @@ requires-python = ">=3.10"
 dependencies = [
     "langsmith",
     "litellm>=1.83.7",
-    # mcp 2.0 removed mcp.server.fastmcp, which mcp_server.py imports — see requirements.txt.
-    "mcp>=1.2.0,<2",
+    # Floor is 2.0, not 1.2: mcp_server.py imports mcp.server.mcpserver — see requirements.txt.
+    "mcp>=2.0.0,<3",
     "mitreattack-python",
     "openai",
     "pandas",
@@ -29,3 +29,13 @@ packages = ["core", "data"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.bandit]
+# Replaces the old .bandit INI file, whose entries never applied: it used
+# `exclude_dirs` (a TOML/YAML key, not an INI one) with leading-slash paths
+# that matched nothing, so every run scanned tests/ anyway.
+# The workflow already installs bandit[toml], which is what reads this.
+#
+# tests/ is excluded because pytest asserts trip B101 on every line — 425 of
+# the 428 findings came from there, which is what buried the other three.
+exclude_dirs = ["tests", ".venv", "venv", ".git"]

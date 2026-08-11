@@ -51,6 +51,9 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | Fix: MCP AI-Insider Prompts Dropped the Agent Capabilities | - Same Template, Same Prompt: The frontier-agent capability block — the benchmark-grounded lines that make an AI insider scenario credible — was omitted from every `get_ai_insider_prompt` / `generate_ai_insider_scenario` call that didn't name `capabilities` explicitly. No template supplies them, so the argument fell through to empty and the prompt substituted a generic "assume a capable frontier coding agent" line, while page 3 sent all four for the same template.<br><br>- Defaults Now Match the App: Omitting `capabilities` applies the full set, as the page's multiselect does. Passing `[]` still leaves them unspecified, so the deliberate opt-out is unchanged. |
 | Fix: Anthropic Claude 4.7+ scenario generation | - Every Claude Model Works Again: Claude 4.7 and later reject any sampling `temperature`, returning `BadRequestError: 'temperature' is deprecated for this model`. Four of the five listed Anthropic models — Fable 5, Opus 4.8, Sonnet 5 and Opus 4.7 — could not generate a scenario on any page; only Haiku 4.5 worked.<br><br>- Gated Per Model, Not Per Provider: The temperature rule was previously routed from the provider, which cannot express a provider whose models disagree. `ModelInfo.supports_temperature` now marks the models that reject one, so Haiku 4.5 keeps its configured temperature while its siblings omit it. OpenAI stays a provider-level rule (every current chat model is a reasoning model), and unregistered models — local Ollama / LM Studio endpoints — still receive a temperature. |
 
+<details>
+<summary>Earlier releases (v0.14 and older)</summary>
+
 ### v0.14
 | What's new? | Why is it useful? |
 | ----------- | ----------------- |
@@ -123,9 +126,6 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 | ----------- | ----------------- |
 | Groq API Integration | - Enhanced Performance: AttackGen now supports Groq's high-performance API, providing access to models like llama-3.3-70b-versatile and deepseek-r1-distill-llama-70b. This integration offers fast inference times while maintaining high-quality scenario generation.<br><br>- Improved Model Output Display: For models like DeepSeek that provide reasoning alongside their output, AttackGen now displays this reasoning in a collapsible expander widget. This allows users to view the model's thought process when desired while keeping the main scenario output clean and focused. |
 | Updated OpenAI Model Support | - Latest Models: AttackGen now supports OpenAI's latest o3 reasoning model and the GA (general availability) version of the o1 model, replacing the previous preview version. These updates provide access to more stable and improved models for scenario generation. |
-
-<details>
-  <summary>Click to view release notes for earlier versions.</summary>
 
 ### v0.6
 | What's new? | Why is it useful? |

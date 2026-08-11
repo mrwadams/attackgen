@@ -44,3 +44,32 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+
+  # Monitor GitHub Actions used by the workflows. Without this, pinned refs
+  # go stale silently — trivy-action is pinned to a commit SHA, which has no
+  # other update path, and the two workflows have already drifted apart on
+  # shared actions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "mrwadams"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Group minor and patch updates together to reduce PR noise, matching the
+    # pip ecosystem above. Major bumps still arrive as individual PRs.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
