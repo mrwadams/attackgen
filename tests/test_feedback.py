@@ -1,16 +1,16 @@
-"""Tests for `core.feedback._submit`.
-
-The widget itself (`render_feedback_widget`) is exercised end-to-end by the
-scenario_page tests; here we cover the LangSmith POST + session-state
-side-effects directly because they're the failure modes worth asserting on.
-"""
+"""Tests for the LangSmith feedback widget and submission helper."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
 
-from core.feedback import _submit
+import langsmith
+import pytest
+import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
+
+from core.feedback import _submit, render_feedback_widget
 
 
 class _FakePlaceholder:
@@ -29,6 +29,13 @@ class _FakePlaceholder:
         self.messages.append(("error", msg))
 
 
+class _MissingSecrets:
+    """Reproduce Streamlit's behaviour when no secrets.toml can be found."""
+
+    def __getitem__(self, _name: str) -> Any:
+        raise StreamlitSecretNotFoundError("No secrets found")
+
+
 class _FakeClient:
     def __init__(self, record_id: str = "feedback-123", raises: Exception | None = None) -> None:
         self.calls: list[tuple[Any, str, dict[str, Any]]] = []
@@ -40,6 +47,26 @@ class _FakeClient:
         if self._raises is not None:
             raise self._raises
         return SimpleNamespace(id=self._record_id)
+
+
+def test_widget_tolerates_missing_secrets_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_calls: list[dict[str, Any]] = []
+    info_messages: list[str] = []
+
+    monkeypatch.setattr(st, "secrets", _MissingSecrets())
+    monkeypatch.setattr(st, "info", info_messages.append)
+    monkeypatch.setattr(st, "empty", object)
+    monkeypatch.setattr(st, "markdown", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        langsmith, "Client", lambda **kwargs: client_calls.append(kwargs)
+    )
+
+    render_feedback_widget(key_prefix="test", scenario_generated=True)
+
+    assert len(info_messages) == 1
+    assert client_calls == []
 
 
 def test_submit_warns_when_run_id_missing(fake_session_state: dict[str, Any]) -> None:
