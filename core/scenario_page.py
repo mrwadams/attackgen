@@ -12,10 +12,14 @@ Adding a new scenario page is now: write the widgets and prompt builder, then
 
 from __future__ import annotations
 
+import copy
+import inspect
 import json
 import re
+import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 import streamlit as st
 
@@ -33,6 +37,28 @@ from core.schemas import LLMConfig
 
 Message = dict
 """A single chat message: ``{"role": "...", "content": "..."}``."""
+
+Snapshot = dict[str, Any]
+
+
+def _invoke_with_snapshot(callback: Callable, snapshot: Snapshot):
+    """Call a generation callback with its snapshot when it accepts one.
+
+    The no-argument form remains supported for callers outside the three main
+    pages, but snapshot-aware callbacks are what prevent mutable widgets from
+    changing an in-flight generation's prompt or exports.
+    """
+    try:
+        inspect.signature(callback).bind(snapshot)
+    except (TypeError, ValueError):
+        return callback()
+    return callback(snapshot)
+
+
+def _elapsed_label(phase: str, started: float) -> str:
+    elapsed = max(0, int(time.monotonic() - started))
+    minutes, seconds = divmod(elapsed, 60)
+    return f"{phase} · elapsed {minutes}:{seconds:02d}"
 
 
 def _unique_filenames(download_name: str) -> tuple[str, str, str]:
@@ -59,7 +85,7 @@ def _unique_filenames(download_name: str) -> tuple[str, str, str]:
 def run_scenario_page(
     *,
     page_id: str,
-    build_messages: Callable[[], list[Message] | None],
+    build_messages: Callable[..., list[Message] | None],
     is_ready: Callable[[], bool],
     download_name: str,
     trace_name: str,
@@ -67,9 +93,10 @@ def run_scenario_page(
     status_text: str = "Generating scenario...",
     button_label: str = "Generate Scenario",
     inline_control: Callable[[], None] | None = None,
-    build_layer: Callable[[], str | None] | None = None,
-    build_defense: Callable[[], dict | None] | None = None,
+    build_layer: Callable[..., str | None] | None = None,
+    build_defense: Callable[..., dict | None] | None = None,
     defense_narrative: bool = False,
+    capture_inputs: Callable[[], Snapshot] | None = None,
 ) -> None:
     """Render the generate-button + scenario lifecycle for one scenario page.
 
@@ -98,6 +125,11 @@ def run_scenario_page(
     weaves those detections/mitigations into a stage-by-stage defender's
     walkthrough; the flag is read at generation time from the page's toggle.
 
+    ``capture_inputs`` returns JSON-native metadata describing the inputs at
+    the instant Generate is pressed. Snapshot-aware build callbacks receive a
+    deep copy of that mapping; no-argument callbacks remain supported for
+    compatibility. The snapshot is persisted with the result.
+
     ``download_name`` is a human base label (e.g. ``"AttackGen APT29
     Enterprise.md"``); the markdown and layer downloads get a sanitised,
     timestamped variant so files are meaningful and unique across scenarios.
@@ -107,6 +139,7 @@ def run_scenario_page(
     layer_key = f"{page_id}_scenario_layer"
     filename_key = f"{page_id}_scenario_filename"
     defense_key = f"{page_id}_scenario_defense"
+    snapshot_key = f"{page_id}_scenario_input_snapshot"
 
     st.session_state.setdefault(generated_key, False)
 
@@ -121,36 +154,38 @@ def run_scenario_page(
 
     rendered = False
     if clicked and is_ready():
-        messages = build_messages()
-        if messages is not None:
-            # Fix names now, at generation time, so the markdown and layer
-            # downloads share one timestamp and stay stable across the reruns a
-            # download click triggers. The Navigator layer is likewise captured
-            # from the technique set the model is about to see and persisted, so
-            # a later resample-on-rerun can't drift from it.
-            md_name, layer_name, defense_name = _unique_filenames(download_name)
-            layer_json = build_layer() if build_layer is not None else None
-            layer_payload = (layer_json, layer_name) if layer_json else None
-            defense_report = build_defense() if build_defense is not None else None
-            _generate_and_render(
-                messages=messages,
-                page_id=page_id,
-                trace_name=trace_name,
-                trace_tags=trace_tags,
-                status_text=status_text,
-                download_name=md_name,
-                human_name=download_name,
-                generated_key=generated_key,
-                text_key=text_key,
-                layer_key=layer_key,
-                filename_key=filename_key,
-                defense_key=defense_key,
-                layer_payload=layer_payload,
-                defense_report=defense_report,
-                defense_name=defense_name,
-                defense_narrative=defense_narrative,
-            )
-            rendered = True
+        # Freeze every user-controlled value before any slow work starts. Page
+        # callbacks receive this snapshot rather than consulting live widgets.
+        snapshot = copy.deepcopy(capture_inputs() if capture_inputs else {})
+        snapshot.setdefault("scenario_type", page_id)
+        snapshot.setdefault("captured_at", datetime.now(timezone.utc).isoformat())
+        identity = snapshot.setdefault("identity", {})
+        identity.setdefault("page_id", page_id)
+        identity.setdefault("trace_name", trace_name)
+        identity.setdefault("trace_tags", list(trace_tags))
+        identity.setdefault("provider", st.session_state.get("chosen_model_provider"))
+        identity.setdefault("model", st.session_state.get("llm_model_name"))
+        identity.setdefault("download_name", download_name)
+        st.session_state[snapshot_key] = snapshot
+
+        _generate_and_render(
+            snapshot=snapshot,
+            build_messages=build_messages,
+            build_layer=build_layer,
+            build_defense=build_defense,
+            page_id=page_id,
+            trace_name=trace_name,
+            trace_tags=trace_tags,
+            status_text=status_text,
+            human_name=download_name,
+            generated_key=generated_key,
+            text_key=text_key,
+            layer_key=layer_key,
+            filename_key=filename_key,
+            defense_key=defense_key,
+            defense_narrative=defense_narrative,
+        )
+        rendered = bool(st.session_state.get(generated_key))
 
     # Re-render the persisted scenario on a plain rerun (e.g. after clicking a
     # download button, which reruns the script with the generate button
@@ -174,86 +209,155 @@ def run_scenario_page(
 
 def _generate_and_render(
     *,
-    messages: list[Message],
+    snapshot: Snapshot,
+    build_messages: Callable[..., list[Message] | None],
+    build_layer: Callable[..., str | None] | None,
+    build_defense: Callable[..., dict | None] | None,
     page_id: str,
     trace_name: str,
     trace_tags: tuple[str, ...],
     status_text: str,
-    download_name: str,
     human_name: str,
     generated_key: str,
     text_key: str,
     layer_key: str,
     filename_key: str,
     defense_key: str,
-    layer_payload: tuple[str, str] | None,
-    defense_report: dict | None,
-    defense_name: str,
     defense_narrative: bool,
 ) -> None:
-    config = LLMConfig.from_session_state(
-        trace_name=trace_name,
-        trace_tags=trace_tags,
-    )
-    scenario_text: str | None = None
+    """Coordinate and expose each phase of a scenario generation."""
+    started = time.monotonic()
     stream_placeholder = st.empty()
+    result_placeholder = st.empty()
     raw_chunks: list[str] = []
+    scenario_text: str | None = None
 
-    def _tee(chunks):
-        for chunk in chunks:
-            raw_chunks.append(chunk)
-            yield chunk
+    def set_phase(status, phase: str, *, state: str = "running") -> None:
+        status.update(label=_elapsed_label(phase, started), state=state)
 
     try:
-        with st.status(status_text, expanded=True) as status:
-            st.write("Streaming response from the model.")
+        with st.status(_elapsed_label("Preparing inputs", started), expanded=True) as status:
+            st.write(
+                "Generation often takes 30–50 seconds; reasoning and local models may "
+                "take several minutes. You can follow each phase here."
+            )
+            messages = _invoke_with_snapshot(build_messages, snapshot)
+            if messages is None:
+                status.update(label="No scenario inputs were available.", state="error")
+                return
+            config = LLMConfig.from_session_state(
+                trace_name=trace_name,
+                trace_tags=trace_tags,
+            )
+
+            set_phase(status, "Generating base scenario")
+            st.write(status_text)
+
+            def _tee(chunks):
+                for chunk in chunks:
+                    raw_chunks.append(chunk)
+                    # Streamlit renders the yielded delta immediately; refreshing
+                    # the label here keeps elapsed time visible as output arrives.
+                    set_phase(status, "Generating base scenario")
+                    yield chunk
+
             with stream_placeholder.container():
                 st.write_stream(
                     stream_filter_thinking(_tee(call_llm_stream(config, messages)))
                 )
             scenario_text = "".join(raw_chunks)
-            status.update(label="Scenario generated.", state="complete")
+            set_phase(status, "Base scenario available")
+
+            thinking, cleaned = clean_model_response(scenario_text)
+            if not cleaned:
+                status.update(label="The model returned no scenario.", state="error")
+                return
+
+            # Deterministic artifacts are built only after the base model has
+            # completed, and exclusively from the frozen input snapshot.
+            set_phase(status, "Building deterministic exports")
+            snapshot_human_name = (
+                snapshot.get("identity", {}).get("download_name") or human_name
+            )
+            md_name, layer_name, defense_name = _unique_filenames(snapshot_human_name)
+            layer_json = (
+                _invoke_with_snapshot(build_layer, snapshot) if build_layer else None
+            )
+            layer_payload = (layer_json, layer_name) if layer_json else None
+            defense_report = (
+                _invoke_with_snapshot(build_defense, snapshot) if build_defense else None
+            )
+            defense_state = _build_defense_state(
+                report=defense_report,
+                defense_name=defense_name,
+                human_name=snapshot_human_name,
+            )
+
+            # This is the key phase boundary: persist the base result, exports,
+            # and Assistant handoff before starting optional model enrichment.
+            stream_placeholder.empty()
+            st.markdown("---")
+            if thinking:
+                with st.expander("View Model's Reasoning"):
+                    st.markdown(thinking)
+            with result_placeholder.container():
+                _persist_and_render(
+                    cleaned=cleaned,
+                    page_id=page_id,
+                    download_name=md_name,
+                    generated_key=generated_key,
+                    text_key=text_key,
+                    layer_key=layer_key,
+                    filename_key=filename_key,
+                    defense_key=defense_key,
+                    layer_payload=layer_payload,
+                    defense_state=defense_state,
+                )
+
+            run_narrative = snapshot.get("modifiers", {}).get(
+                "purple_team_narrative", defense_narrative
+            )
+            if defense_report and run_narrative:
+                set_phase(status, "Generating purple-team narrative")
+                narrative_md = _stream_defense_narrative(
+                    report=defense_report,
+                    scenario_text=cleaned,
+                    trace_name=trace_name,
+                    on_chunk=lambda: set_phase(
+                        status, "Generating purple-team narrative"
+                    ),
+                )
+                if narrative_md:
+                    defense_state = _add_narrative_to_defense_state(
+                        defense_state=defense_state,
+                        narrative_md=narrative_md,
+                        human_name=snapshot_human_name,
+                    )
+                    st.session_state[defense_key] = defense_state
+                    st.session_state["last_defense_narrative"] = narrative_md
+                    # Replace, rather than duplicate, the already available base
+                    # render now that its optional companion is complete.
+                    result_placeholder.empty()
+                    with result_placeholder.container():
+                        _render_result(
+                            page_id=page_id,
+                            cleaned=cleaned,
+                            file_name=md_name,
+                            layer_payload=layer_payload,
+                            defense_state=defense_state,
+                            variant="current_enriched",
+                        )
+
+            set_phase(status, "Complete", state="complete")
     except Exception as e:
         st.error(f"An error occurred while generating the scenario: {e}")
 
-    st.markdown("---")
-    if scenario_text:
-        thinking, cleaned = clean_model_response(scenario_text)
-        if thinking:
-            with st.expander("View Model's Reasoning"):
-                st.markdown(thinking)
-        # Build the defense companion first — this may stream a second (purple-
-        # team narrative) model call that takes 20-40s. The scenario's live
-        # stream is deliberately left on screen throughout, so it doesn't vanish
-        # while the narrative generates; only once both are done do we swap the
-        # live streams for the canonical, tabbed result below.
-        defense_state = _build_defense_state(
-            report=defense_report,
-            run_narrative=defense_narrative,
-            scenario_text=cleaned,
-            defense_name=defense_name,
-            human_name=human_name,
-            trace_name=trace_name,
-        )
-        stream_placeholder.empty()
-        _persist_and_render(
-            cleaned=cleaned,
-            page_id=page_id,
-            download_name=download_name,
-            generated_key=generated_key,
-            text_key=text_key,
-            layer_key=layer_key,
-            filename_key=filename_key,
-            defense_key=defense_key,
-            layer_payload=layer_payload,
-            defense_state=defense_state,
-        )
-    elif st.session_state.get(generated_key) and st.session_state.get(text_key):
+    if not scenario_text and st.session_state.get(generated_key) and st.session_state.get(text_key):
         _render_previous(
             page_id=page_id,
             text_key=text_key,
             filename_key=filename_key,
-            download_name=download_name,
+            download_name=human_name,
             layer_key=layer_key,
             defense_key=defense_key,
         )
@@ -262,38 +366,43 @@ def _generate_and_render(
 def _build_defense_state(
     *,
     report: dict | None,
-    run_narrative: bool,
-    scenario_text: str,
     defense_name: str,
     human_name: str,
-    trace_name: str,
 ) -> dict | None:
-    """Turn a defense report into the persisted render/download state.
-
-    Renders the deterministic section from the STIX join and, when the
-    purple-team toggle is on, streams a second model call that narrates the
-    defence stage by stage. Returns ``None`` when there is no defensive data.
-    """
+    """Build the deterministic companion state without making an LLM call."""
     if not report:
         return None
     deterministic_md = defense_to_markdown(report)
-    narrative_md = None
-    if run_narrative:
-        narrative_md = _stream_defense_narrative(
-            report=report, scenario_text=scenario_text, trace_name=trace_name
-        )
     title = human_name[:-3] if human_name.endswith(".md") else human_name
-    download_md = assemble_defense_document(deterministic_md, narrative_md, title=title)
+    download_md = assemble_defense_document(deterministic_md, None, title=title)
     return {
         "deterministic_md": deterministic_md,
-        "narrative_md": narrative_md,
+        "narrative_md": None,
         "download_md": download_md,
         "filename": defense_name,
     }
 
 
+def _add_narrative_to_defense_state(
+    *, defense_state: dict | None, narrative_md: str, human_name: str
+) -> dict:
+    """Return a companion state enriched with the completed narrative."""
+    state = dict(defense_state or {})
+    deterministic_md = state.get("deterministic_md", "")
+    title = human_name[:-3] if human_name.endswith(".md") else human_name
+    state["narrative_md"] = narrative_md
+    state["download_md"] = assemble_defense_document(
+        deterministic_md, narrative_md, title=title
+    )
+    return state
+
+
 def _stream_defense_narrative(
-    *, report: dict, scenario_text: str, trace_name: str
+    *,
+    report: dict,
+    scenario_text: str,
+    trace_name: str,
+    on_chunk: Callable[[], None] | None = None,
 ) -> str | None:
     """Stream the optional purple-team narrative pass; return its cleaned text."""
     config = LLMConfig.from_session_state(
@@ -307,16 +416,16 @@ def _stream_defense_narrative(
     def _tee(gen):
         for chunk in gen:
             chunks.append(chunk)
+            if on_chunk:
+                on_chunk()
             yield chunk
 
     try:
-        with st.status("Generating purple-team narrative...", expanded=True) as status:
-            st.write("Walking the scenario from the defender's side.")
-            with placeholder.container():
-                st.write_stream(
-                    stream_filter_thinking(_tee(call_llm_stream(config, messages)))
-                )
-            status.update(label="Purple-team narrative generated.", state="complete")
+        st.write("Walking the scenario from the defender's side.")
+        with placeholder.container():
+            st.write_stream(
+                stream_filter_thinking(_tee(call_llm_stream(config, messages)))
+            )
     except Exception as e:
         st.error(f"An error occurred while generating the purple-team narrative: {e}")
         return None

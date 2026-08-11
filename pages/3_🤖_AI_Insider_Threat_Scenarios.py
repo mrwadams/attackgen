@@ -56,24 +56,17 @@ company_size = setup.company_size
 # only threads its own inputs into the shared builder.
 
 
-def build_messages(
-    archetype_name,
-    selected_categories,
-    selected_stride,
-    selected_capabilities,
-    scenario_seed=None,
-    required_decisions=None,
-):
-    """Build the system + user message dicts for an AI insider threat scenario."""
+def build_messages(snapshot):
+    """Build messages exclusively from the Generate-time input snapshot."""
     return build_ai_insider_messages(
-        archetype_name=archetype_name,
-        selected_categories=selected_categories,
-        selected_stride=selected_stride,
-        selected_capabilities=selected_capabilities,
-        industry=industry,
-        company_size=company_size,
-        scenario_seed=scenario_seed,
-        required_decisions=required_decisions,
+        archetype_name=snapshot["selected_entity"]["name"],
+        selected_categories=snapshot["selected_categories"],
+        selected_stride=snapshot["selected_stride"],
+        selected_capabilities=snapshot["selected_capabilities"],
+        industry=snapshot["organisation"]["industry"],
+        company_size=snapshot["organisation"]["company_size"],
+        scenario_seed=snapshot["scenario_seed"],
+        required_decisions=snapshot["required_decisions"],
     )
 
 
@@ -210,21 +203,6 @@ if required_decisions:
         + "."
     )
 
-# Build the prompt messages if a valid selection exists.
-messages = None
-if selected_categories or selected_stride:
-    try:
-        messages = build_messages(
-            selected_archetype,
-            selected_categories,
-            selected_stride,
-            selected_capabilities,
-            scenario_seed=scenario_seed,
-            required_decisions=required_decisions,
-        )
-    except Exception as e:
-        st.error(f"An error occurred while building the prompt: {str(e)}")
-
 st.markdown("")
 st.markdown("---")
 st.markdown(
@@ -233,7 +211,7 @@ st.markdown(
 
     Click the button below to generate an AI insider threat scenario based on your selections.
 
-    It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+    Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
     """
 )
 
@@ -244,18 +222,37 @@ def _ready() -> bool:
     if not selected_categories and not selected_stride:
         st.info("Please select at least one threat category (or specific STRIDE threat) to continue.")
         return False
-    if messages is None:
-        return False
     return True
+
+
+def _capture_inputs():
+    return {
+        "scenario_type": "ai_insider",
+        "matrix": None,
+        "organisation": {"industry": industry, "company_size": company_size},
+        "selected_entity": {
+            "type": "deployment_archetype",
+            "name": selected_archetype,
+        },
+        "selected_techniques": [],
+        "sampled_techniques": [],
+        "selected_categories": list(selected_categories),
+        "selected_stride": list(selected_stride),
+        "selected_capabilities": list(selected_capabilities),
+        "scenario_seed": scenario_seed,
+        "required_decisions": list(required_decisions),
+        "modifiers": {"template": selected_template or None},
+    }
 
 
 run_scenario_page(
     page_id="ai_insider",
-    build_messages=lambda: messages,
+    build_messages=build_messages,
     is_ready=_ready,
     download_name="AttackGen AI Insider Threat.md",
     trace_name="AI Insider Threat Scenario",
     trace_tags=("ai_insider_scenario",),
+    capture_inputs=_capture_inputs,
 )
 
 

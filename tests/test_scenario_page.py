@@ -49,15 +49,26 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     Returns a dict the test can mutate to control widget return values:
       - `button_returns`: bool returned by `st.button`
     """
-    controls: dict[str, Any] = {"button_returns": False}
+    controls: dict[str, Any] = {
+        "button_returns": False,
+        "status_labels": [],
+        "stream_chunks": [],
+        "on_stream_chunk": None,
+    }
 
     def _button(*_args, **_kwargs):
         return controls["button_returns"]
 
     @contextmanager
-    def _status(*_args, **_kwargs):
-        # Yield a real object: production code calls `status.update(...)`.
-        yield SimpleNamespace(update=lambda *_a, **_k: None)
+    def _status(*args, **_kwargs):
+        if args:
+            controls["status_labels"].append(args[0])
+
+        def _update(*_args, **kwargs):
+            if "label" in kwargs:
+                controls["status_labels"].append(kwargs["label"])
+
+        yield SimpleNamespace(update=_update)
 
     @contextmanager
     def _expander(*_args, **_kwargs):
@@ -70,9 +81,11 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         return None
 
     def _write_stream(stream):
-        # Drain the generator so the production code's `_tee` captures chunks.
-        for _ in stream:
-            pass
+        # Drain the generator while recording what became visible incrementally.
+        for chunk in stream:
+            controls["stream_chunks"].append(chunk)
+            if controls["on_stream_chunk"]:
+                controls["on_stream_chunk"](chunk, list(controls["stream_chunks"]))
 
     monkeypatch.setattr(st, "button", _button)
     monkeypatch.setattr(st, "status", _status)
@@ -698,3 +711,172 @@ def test_persisted_defense_survives_rerun(
     ]
     assert len(detection_downloads) == 1
     assert detection_downloads[0]["file_name"] == "scn_20260714-153045_detection.md"
+
+
+# --- Phased generation coordinator ------------------------------------------
+
+
+def test_phase_sequence_and_base_is_persisted_before_optional_enrichment(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+    downloads = _capture_downloads(monkeypatch)
+    calls = 0
+
+    def controlled_stream(_config, _messages):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            yield "# Base "
+            yield "scenario"
+            return
+
+        # The base and every deterministic export must be usable before the
+        # optional second model call starts yielding.
+        assert fake_session_state["threat_group_scenario_generated"] is True
+        assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+        assert fake_session_state["last_scenario_text"] == "# Base scenario"
+        assert fake_session_state["last_defense_narrative"] is None
+        assert fake_session_state["threat_group_scenario_layer"][0] == (
+            '{"domain": "enterprise-attack"}'
+        )
+        assert any(d.get("label") == "Download Scenario" for d in downloads)
+        assert any(d.get("mime") == "application/json" for d in downloads)
+        yield "## Defender walkthrough"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_layer=lambda _snapshot: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _snapshot: _DEFENSE_REPORT,
+        defense_narrative=True,
+        capture_inputs=lambda: {"matrix": "Enterprise"},
+    )
+
+    assert calls == 2
+    phase_names = [
+        "Preparing inputs",
+        "Generating base scenario",
+        "Base scenario available",
+        "Building deterministic exports",
+        "Generating purple-team narrative",
+        "Complete",
+    ]
+    cursor = 0
+    for phase in phase_names:
+        cursor = next(
+            i + 1
+            for i, label in enumerate(stub_streamlit["status_labels"][cursor:], cursor)
+            if label.startswith(phase) and "elapsed" in label
+        )
+    assert fake_session_state["last_defense_narrative"] == "## Defender walkthrough"
+
+
+def test_generate_captures_input_and_identity_metadata(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "Anthropic API"
+    fake_session_state["llm_model_name"] = "claude-sonnet-4-6"
+    source = {
+        "scenario_type": "custom",
+        "matrix": "Enterprise",
+        "organisation": {"industry": "Finance", "company_size": "Large"},
+        "selected_techniques": ["PowerShell (T1059.001)"],
+        "sampled_techniques": ["PowerShell (T1059.001)"],
+        "modifiers": {"ai_uplift": True},
+    }
+    callback_snapshots = []
+
+    def build_messages(snapshot):
+        callback_snapshots.append(snapshot)
+        # Mutating the original widget-backed mapping after capture must not
+        # affect prompt/export callbacks or persisted metadata.
+        source["matrix"] = "ICS"
+        source["selected_techniques"].append("Changed later")
+        return [{"role": "user", "content": snapshot["matrix"]}]
+
+    def stream(_config, messages):
+        assert messages[0]["content"] == "Enterprise"
+        yield "# Scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", stream)
+
+    run_scenario_page(
+        page_id="custom",
+        build_messages=build_messages,
+        is_ready=lambda: True,
+        download_name="AttackGen Custom Enterprise.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario", "ai_enhanced"),
+        build_layer=lambda snapshot: (
+            '{"domain": "enterprise-attack"}'
+            if snapshot["matrix"] == "Enterprise"
+            else None
+        ),
+        capture_inputs=lambda: source,
+    )
+
+    captured = fake_session_state["custom_scenario_input_snapshot"]
+    assert captured["matrix"] == "Enterprise"
+    assert captured["selected_techniques"] == ["PowerShell (T1059.001)"]
+    assert captured["identity"] == {
+        "page_id": "custom",
+        "trace_name": "Custom Scenario",
+        "trace_tags": ["custom_scenario", "ai_enhanced"],
+        "provider": "Anthropic API",
+        "model": "claude-sonnet-4-6",
+        "download_name": "AttackGen Custom Enterprise.md",
+    }
+    assert captured["captured_at"]
+    assert callback_snapshots[0]["matrix"] == "Enterprise"
+    assert fake_session_state["custom_scenario_layer"] is not None
+
+
+def test_streamed_base_text_is_visible_chunk_by_chunk(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    visible_steps: list[str] = []
+    stub_streamlit["on_stream_chunk"] = (
+        lambda _chunk, chunks: visible_steps.append("".join(chunks))
+    )
+
+    def controlled_stream(_config, _messages):
+        yield "# Partial"
+        yield " scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
+
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="custom.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+    )
+
+    visible = stub_streamlit["stream_chunks"]
+    assert len(visible) > 1
+    assert "".join(visible) == "# Partial scenario"
+    assert visible_steps[0] != visible_steps[-1]
+    assert visible_steps[-1] == "# Partial scenario"
+    assert fake_session_state["custom_scenario_text"] == "# Partial scenario"
