@@ -3,6 +3,7 @@ import streamlit as st
 
 from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
 from core.attack_data import (
+    list_usable_scenario_options,
     load_attack_data,
     resolve_case_study_kill_chain,
     resolve_threat_group_kill_chain,
@@ -38,11 +39,10 @@ attack_data = load_attack_data()
 
 @st.cache_resource
 def load_groups(matrix):
-    if matrix == "Enterprise":
-        return pd.read_json("./data/groups.json")
-    if matrix == "ICS":
-        return pd.read_json("./data/groups_ics.json")
-    return pd.read_json("./data/atlas-case-studies.json")
+    return pd.DataFrame(
+        list_usable_scenario_options(matrix),
+        columns=["group", "url", "aliases", "label"],
+    )
 
 
 # ------------------ Prompt Construction ------------------ #
@@ -147,14 +147,15 @@ else:
     entity_label = "threat actor group"
     select_placeholder = "Select Group"
 
-group_names = sorted(groups['group'].unique())
-default_index = 0 if group_names else None
+group_names = sorted(groups["group"].unique())
+group_labels = dict(zip(groups["group"], groups["label"]))
 
 selected_group_alias = st.selectbox(
     f"Select a {entity_label} for the scenario",
     group_names,
-    index=default_index,
+    index=None,
     placeholder=select_placeholder,
+    format_func=group_labels.__getitem__,
     label_visibility="hidden",
 )
 
@@ -163,7 +164,7 @@ techniques_df = pd.DataFrame()
 selected_techniques_df = pd.DataFrame()
 
 try:
-    if selected_group_alias != select_placeholder:
+    if selected_group_alias is not None:
         group_url = groups[groups['group'] == selected_group_alias]['url'].values[0]
         if matrix == "ATLAS":
             st.markdown(f"[View case study on atlas.mitre.org]({group_url})")
