@@ -421,7 +421,14 @@ def _stream_defense_narrative(
             yield chunk
 
     try:
-        st.write("Walking the scenario from the defender's side.")
+        # Reasoning models can spend minutes on this second call before emitting
+        # any text; the elapsed label only advances as chunks arrive, so it looks
+        # stalled during that wait. Say so, so a still spinner reads as "working".
+        st.write(
+            "Walking the scenario from the defender's side. Reasoning models can "
+            "take several minutes here and may show no progress until the first "
+            "text arrives."
+        )
         with placeholder.container():
             st.write_stream(
                 stream_filter_thinking(_tee(call_llm_stream(config, messages)))
