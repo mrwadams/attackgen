@@ -9,7 +9,9 @@ kill-chain string format, seed determinism, and JSON-native output.
 
 from __future__ import annotations
 
+import ast
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -150,6 +152,88 @@ class TestListings:
     def test_unknown_matrix_raises(self):
         with pytest.raises(ValueError):
             ad.list_threat_groups("Mobile")
+
+
+@pytest.mark.parametrize("matrix", ["Enterprise", "ICS"])
+def test_every_shipped_threat_group_option_resolves(matrix):
+    options = ad.list_usable_scenario_options(matrix)
+    assert options, f"expected selectable {matrix} groups"
+
+    enabled_names = {option["group"] for option in options}
+    assert any(option["aliases"] for option in options)
+    for option in options:
+        assert set(option) == {"group", "url", "aliases", "label"}
+        assert option["group"] in option["label"]
+        assert all(alias in option["label"] for alias in option["aliases"])
+        assert ad.resolve_threat_group_kill_chain(
+            matrix, option["group"], seed=0
+        ).techniques
+
+    # The shipped mappings currently contain groups whose relationships belong
+    # to another ATT&CK matrix. They must be filtered rather than selectable.
+    for candidate in ad.list_threat_groups(matrix):
+        if candidate["group"] not in enabled_names:
+            assert not ad.resolve_threat_group_kill_chain(
+                matrix, candidate["group"], seed=0
+            ).techniques
+
+
+def test_natural_sort_key_orders_apt_numbers_numerically():
+    # A plain string sort interleaves APT3 between APT29 and APT30; the natural
+    # key must read the digit run as a number so APT3 precedes both.
+    names = ["APT30", "APT3", "APT29", "APT1", "Lazarus Group", "apt28"]
+    assert sorted(names, key=ad._natural_sort_key) == [
+        "APT1",
+        "APT3",
+        "apt28",
+        "APT29",
+        "APT30",
+        "Lazarus Group",
+    ]
+
+
+@pytest.mark.parametrize("matrix", ["Enterprise", "ICS"])
+def test_scenario_options_are_natural_sorted(matrix):
+    options = ad.list_usable_scenario_options(matrix)
+    names = [option["group"] for option in options]
+    assert names == sorted(names, key=ad._natural_sort_key)
+
+
+def test_every_shipped_atlas_option_has_a_usable_procedure():
+    options = ad.list_usable_scenario_options("ATLAS")
+    assert options, "expected selectable ATLAS case studies"
+
+    data_path = Path(__file__).parents[1] / "data" / "atlas-case-studies.json"
+    studies = {study["group"]: study for study in json.loads(data_path.read_text())}
+    enabled_names = {option["group"] for option in options}
+    for option in options:
+        assert option["aliases"] == ()
+        assert studies[option["group"]]["procedure"]
+        assert ad.resolve_case_study_kill_chain(option["group"]).techniques
+
+    for name in studies.keys() - enabled_names:
+        procedure = studies[name].get("procedure")
+        assert not procedure or not ad.resolve_case_study_kill_chain(name).techniques
+
+
+def test_threat_group_selector_has_no_implicit_selection_and_keeps_search_labels():
+    page_path = (
+        Path(__file__).parents[1] / "pages" / "1_🛡️_Threat_Group_Scenarios.py"
+    )
+    tree = ast.parse(page_path.read_text())
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "selectbox"
+    ]
+    assert len(calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+    assert isinstance(keywords["index"], ast.Constant)
+    assert keywords["index"].value is None
+    # The formatted labels contain aliases and are what Streamlit searches.
+    assert "format_func" in keywords
 
 
 class TestMitreDataForMatrix:

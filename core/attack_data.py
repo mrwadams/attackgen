@@ -24,6 +24,7 @@ Parity with the old page-1 logic is deliberate and load-bearing:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -128,6 +129,80 @@ def list_case_studies() -> tuple[dict, ...]:
             "case_study_type": str(r.get("case_study_type", "")) if r.get("case_study_type") is not None else "",
         })
     return tuple(out)
+
+
+def _natural_sort_key(name: str) -> list:
+    """Sort key that reads digit runs as numbers, not text.
+
+    A plain string sort orders ``APT29`` before ``APT3`` before ``APT30`` (it
+    compares digit by digit). Splitting on digit runs and comparing those runs
+    numerically gives the ordering a reader expects: ``APT3, APT28, APT29,
+    APT30``. Non-numeric names (``Lazarus Group``, ATLAS case studies) fall back
+    to a case-insensitive text compare.
+    """
+    return [
+        int(token) if token.isdigit() else token.casefold()
+        for token in re.split(r"(\d+)", name)
+    ]
+
+
+@lru_cache(maxsize=3)
+def list_usable_scenario_options(matrix: str) -> tuple[dict, ...]:
+    """Return only groups/case studies that can produce a scenario.
+
+    Each option contains ``group``, ``url``, ``aliases`` and a searchable
+    ``label``. ATT&CK aliases are included in that label without changing the
+    canonical group value returned after selection. ATLAS case studies have no
+    aliases.
+
+    A candidate is omitted if kill-chain resolution fails or produces no
+    techniques. For ATLAS, resolution also verifies that the case study has a
+    procedure and that its technique IDs exist in the shipped ATLAS bundle.
+    """
+    if matrix == "ATLAS":
+        candidates = list_case_studies()
+        mitre = None
+    elif matrix in _GROUPS_FILE:
+        candidates = list_threat_groups(matrix)
+        mitre = mitre_data_for_matrix(matrix)
+    else:
+        raise ValueError(f"Unknown matrix '{matrix}'.")
+
+    options = []
+    for candidate in candidates:
+        name = candidate["group"]
+        try:
+            kill_chain = (
+                resolve_case_study_kill_chain(name)
+                if matrix == "ATLAS"
+                else resolve_threat_group_kill_chain(matrix, name, seed=0)
+            )
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            continue
+        if not kill_chain.techniques:
+            continue
+
+        aliases: tuple[str, ...] = ()
+        if mitre is not None:
+            matches = mitre.get_groups_by_alias(name)
+            if matches:
+                aliases = tuple(
+                    dict.fromkeys(
+                        str(alias)
+                        for alias in (getattr(matches[0], "aliases", None) or [])
+                        if str(alias).casefold() != name.casefold()
+                    )
+                )
+
+        label = f"{name} (aliases: {', '.join(aliases)})" if aliases else name
+        options.append({
+            "group": name,
+            "url": candidate["url"],
+            "aliases": aliases,
+            "label": label,
+        })
+    options.sort(key=lambda option: _natural_sort_key(option["group"]))
+    return tuple(options)
 
 
 def list_technique_options(matrix: str) -> list[dict]:
