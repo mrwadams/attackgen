@@ -147,7 +147,10 @@ else:
     entity_label = "threat actor group"
     select_placeholder = "Select Group"
 
-group_names = sorted(groups["group"].unique())
+# Options arrive already in natural-sorted order from list_usable_scenario_options
+# (APT3, APT28, APT29, APT30…), so preserve that rather than re-sorting the labels
+# as plain strings.
+group_names = list(groups["group"].unique())
 group_labels = dict(zip(groups["group"], groups["label"]))
 
 selected_group_alias = st.selectbox(

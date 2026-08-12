@@ -24,6 +24,7 @@ Parity with the old page-1 logic is deliberate and load-bearing:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -130,6 +131,21 @@ def list_case_studies() -> tuple[dict, ...]:
     return tuple(out)
 
 
+def _natural_sort_key(name: str) -> list:
+    """Sort key that reads digit runs as numbers, not text.
+
+    A plain string sort orders ``APT29`` before ``APT3`` before ``APT30`` (it
+    compares digit by digit). Splitting on digit runs and comparing those runs
+    numerically gives the ordering a reader expects: ``APT3, APT28, APT29,
+    APT30``. Non-numeric names (``Lazarus Group``, ATLAS case studies) fall back
+    to a case-insensitive text compare.
+    """
+    return [
+        int(token) if token.isdigit() else token.casefold()
+        for token in re.split(r"(\d+)", name)
+    ]
+
+
 @lru_cache(maxsize=3)
 def list_usable_scenario_options(matrix: str) -> tuple[dict, ...]:
     """Return only groups/case studies that can produce a scenario.
@@ -185,6 +201,7 @@ def list_usable_scenario_options(matrix: str) -> tuple[dict, ...]:
             "aliases": aliases,
             "label": label,
         })
+    options.sort(key=lambda option: _natural_sort_key(option["group"]))
     return tuple(options)
 
 

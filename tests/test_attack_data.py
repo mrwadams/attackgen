@@ -178,6 +178,27 @@ def test_every_shipped_threat_group_option_resolves(matrix):
             ).techniques
 
 
+def test_natural_sort_key_orders_apt_numbers_numerically():
+    # A plain string sort interleaves APT3 between APT29 and APT30; the natural
+    # key must read the digit run as a number so APT3 precedes both.
+    names = ["APT30", "APT3", "APT29", "APT1", "Lazarus Group", "apt28"]
+    assert sorted(names, key=ad._natural_sort_key) == [
+        "APT1",
+        "APT3",
+        "apt28",
+        "APT29",
+        "APT30",
+        "Lazarus Group",
+    ]
+
+
+@pytest.mark.parametrize("matrix", ["Enterprise", "ICS"])
+def test_scenario_options_are_natural_sorted(matrix):
+    options = ad.list_usable_scenario_options(matrix)
+    names = [option["group"] for option in options]
+    assert names == sorted(names, key=ad._natural_sort_key)
+
+
 def test_every_shipped_atlas_option_has_a_usable_procedure():
     options = ad.list_usable_scenario_options("ATLAS")
     assert options, "expected selectable ATLAS case studies"
