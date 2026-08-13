@@ -78,18 +78,18 @@ techniques_df = load_techniques()
 # only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
-def build_messages(selected_techniques_string, template_info):
+def build_messages(snapshot):
     return build_custom_messages(
-        matrix=matrix,
-        selected_techniques_string=selected_techniques_string,
-        template_info=template_info,
-        industry=industry,
-        company_size=company_size,
-        ai_uplift=is_ai_uplift_on("custom"),
+        matrix=snapshot["matrix"],
+        selected_techniques_string="\n".join(snapshot["selected_techniques"]),
+        template_info=snapshot["template_info"],
+        industry=snapshot["organisation"]["industry"],
+        company_size=snapshot["organisation"]["company_size"],
+        ai_uplift=snapshot["modifiers"]["ai_uplift"],
     )
 
 
-def build_layer_payload():
+def build_layer_payload(snapshot):
     """Serialise the chosen techniques as an ATT&CK Navigator layer.
 
     The multiselect carries no phase information, so techniques are emitted
@@ -97,12 +97,13 @@ def build_layer_payload():
     JSON, or ``None`` when the matrix has no Navigator.
     """
     techniques = []
-    for display in selected_techniques:
+    for display in snapshot["selected_techniques"]:
         technique_id = parse_technique_id(display)
         if technique_id:
             techniques.append((technique_id, None))
     if not techniques:
         return None
+    matrix = snapshot["matrix"]
     layer = build_layer(
         name=f"AttackGen: Custom Scenario ({matrix})",
         matrix=matrix,
@@ -114,15 +115,20 @@ def build_layer_payload():
     return dumps(layer)
 
 
-def build_defense_payload():
+def build_defense_payload(snapshot):
     """Join the selected techniques to their detection strategies + mitigations.
 
     Parses the same multiselect the prompt and layer were built from. Returns
     ``None`` when nothing is selected or there's no defensive data.
     """
-    technique_ids = [tid for tid in (parse_technique_id(d) for d in selected_techniques) if tid]
+    technique_ids = [
+        tid
+        for tid in (parse_technique_id(d) for d in snapshot["selected_techniques"])
+        if tid
+    ]
     if not technique_ids:
         return None
+    matrix = snapshot["matrix"]
     if matrix == "ATLAS":
         return build_defense_report(
             matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
@@ -221,15 +227,6 @@ if not techniques_df.empty:
         st.info("📝 Techniques are searchable by either their name or technique ID.")
 
 
-messages = None
-try:
-    if selected_techniques:
-        selected_techniques_string = '\n'.join(selected_techniques)
-        template_info = f"This is a '{selected_template}' scenario." if selected_template else ""
-        messages = build_messages(selected_techniques_string, template_info)
-except Exception as e:
-    st.error(f"An error occurred: {str(e)}")
-
 st.markdown("")
 st.markdown(
     """
@@ -237,7 +234,7 @@ st.markdown(
 
     Click the button below to generate a scenario based on the selected technique(s).
 
-    It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+    Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
     """
 )
 
@@ -248,14 +245,34 @@ def _ready() -> bool:
     if not selected_techniques:
         st.info("Please select at least one technique.")
         return False
-    if messages is None:
-        return False
     return True
+
+
+def _capture_inputs():
+    return {
+        "scenario_type": "custom",
+        "matrix": matrix,
+        "organisation": {"industry": industry, "company_size": company_size},
+        "selected_entity": (
+            {"type": "template", "name": selected_template}
+            if selected_template
+            else None
+        ),
+        "selected_techniques": list(selected_techniques),
+        "sampled_techniques": list(selected_techniques),
+        "template_info": (
+            f"This is a '{selected_template}' scenario." if selected_template else ""
+        ),
+        "modifiers": {
+            "ai_uplift": is_ai_uplift_on("custom"),
+            "purple_team_narrative": is_defense_narrative_on("custom"),
+        },
+    }
 
 
 run_scenario_page(
     page_id="custom",
-    build_messages=lambda: messages,
+    build_messages=build_messages,
     is_ready=_ready,
     download_name=f"AttackGen Custom {selected_template} {matrix}.md",
     trace_name="Custom Scenario",
@@ -264,6 +281,7 @@ run_scenario_page(
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,
     defense_narrative=is_defense_narrative_on("custom"),
+    capture_inputs=_capture_inputs,
 )
 
 

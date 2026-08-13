@@ -50,18 +50,18 @@ def load_groups(matrix):
 # only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
-def build_messages(matrix, selected_group_alias, kill_chain_string):
+def build_messages(snapshot):
     return build_threat_group_messages(
-        matrix=matrix,
-        selected_group_alias=selected_group_alias,
-        kill_chain_string=kill_chain_string,
-        industry=industry,
-        company_size=company_size,
-        ai_uplift=is_ai_uplift_on("threat_group"),
+        matrix=snapshot["matrix"],
+        selected_group_alias=snapshot["selected_entity"]["name"],
+        kill_chain_string=snapshot["kill_chain_string"],
+        industry=snapshot["organisation"]["industry"],
+        company_size=snapshot["organisation"]["company_size"],
+        ai_uplift=snapshot["modifiers"]["ai_uplift"],
     )
 
 
-def build_layer_payload():
+def build_layer_payload(snapshot):
     """Serialise the scenario's kill chain as an ATT&CK Navigator layer.
 
     Reads the same ``selected_techniques_df`` the prompt was built from, so the
@@ -69,12 +69,15 @@ def build_layer_payload():
     one technique per phase, so the set differs run to run). Returns the layer
     JSON, or ``None`` when the matrix has no Navigator.
     """
-    if selected_techniques_df.empty:
+    sampled_techniques = snapshot["sampled_techniques"]
+    if not sampled_techniques:
         return None
     techniques = [
         (row["ATT&CK ID"], tactic_shortname(str(row["Phase Name"])))
-        for _, row in selected_techniques_df.iterrows()
+        for row in sampled_techniques
     ]
+    matrix = snapshot["matrix"]
+    selected_group_alias = snapshot["selected_entity"]["name"]
     layer = build_layer(
         name=f"AttackGen: {selected_group_alias} ({matrix})",
         matrix=matrix,
@@ -89,16 +92,18 @@ def build_layer_payload():
     return dumps(layer)
 
 
-def build_defense_payload():
+def build_defense_payload(snapshot):
     """Join the scenario's techniques to their detection strategies + mitigations.
 
     Uses the same ``selected_techniques_df`` the prompt and layer were built
     from, so the Detection & Response companion matches the scenario's kill
     chain. Returns ``None`` when there's no defensive data.
     """
-    if selected_techniques_df.empty:
+    sampled_techniques = snapshot["sampled_techniques"]
+    if not sampled_techniques:
         return None
-    technique_ids = [str(row["ATT&CK ID"]) for _, row in selected_techniques_df.iterrows()]
+    technique_ids = [str(row["ATT&CK ID"]) for row in sampled_techniques]
+    matrix = snapshot["matrix"]
     if matrix == "ATLAS":
         return build_defense_report(
             matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
@@ -162,7 +167,7 @@ selected_group_alias = st.selectbox(
     label_visibility="hidden",
 )
 
-messages = None
+kill_chain_string = ""
 techniques_df = pd.DataFrame()
 selected_techniques_df = pd.DataFrame()
 
@@ -198,7 +203,6 @@ try:
             st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
         kill_chain_string = kill_chain.kill_chain_string
-        messages = build_messages(matrix, selected_group_alias, kill_chain_string)
 except Exception as e:
     st.error("An error occurred: " + str(e))
 
@@ -212,7 +216,7 @@ if matrix == "ATLAS":
 
         Click the button below to generate a scenario based on the selected case study. The documented attack procedure from the case study will be used to generate the scenario.
 
-        It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+        Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
         """
     )
 else:
@@ -222,7 +226,7 @@ else:
 
         Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be chosen at random and used to generate the scenario.
 
-        It normally takes between 30-50 seconds to generate a scenario, although for local models this is highly dependent on your hardware and the selected model. ⏱️
+        Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
         """
     )
 
@@ -233,14 +237,28 @@ def _ready() -> bool:
     if techniques_df.empty:
         st.info(f"Please select a {entity_label} with associated techniques.")
         return False
-    if messages is None:
-        return False
-    return True
+    return bool(kill_chain_string)
+
+
+def _capture_inputs():
+    return {
+        "scenario_type": "case_study" if matrix == "ATLAS" else "threat_group",
+        "matrix": matrix,
+        "organisation": {"industry": industry, "company_size": company_size},
+        "selected_entity": {"type": entity_label, "name": selected_group_alias},
+        "selected_techniques": techniques_df.to_dict(orient="records"),
+        "sampled_techniques": selected_techniques_df.to_dict(orient="records"),
+        "kill_chain_string": kill_chain_string,
+        "modifiers": {
+            "ai_uplift": is_ai_uplift_on("threat_group"),
+            "purple_team_narrative": is_defense_narrative_on("threat_group"),
+        },
+    }
 
 
 run_scenario_page(
     page_id="threat_group",
-    build_messages=lambda: messages,
+    build_messages=build_messages,
     is_ready=_ready,
     download_name=f"AttackGen {selected_group_alias} {matrix}.md",
     trace_name="Threat Group Scenario",
@@ -249,6 +267,7 @@ run_scenario_page(
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,
     defense_narrative=is_defense_narrative_on("threat_group"),
+    capture_inputs=_capture_inputs,
 )
 
 
