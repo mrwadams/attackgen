@@ -15,9 +15,11 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import queue
 import re
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -59,6 +61,57 @@ def _elapsed_label(phase: str, started: float) -> str:
     elapsed = max(0, int(time.monotonic() - started))
     minutes, seconds = divmod(elapsed, 60)
     return f"{phase} · elapsed {minutes}:{seconds:02d}"
+
+
+_STREAM_POLL_INTERVAL = 0.2
+"""Seconds between elapsed-label refreshes while waiting for the next chunk."""
+
+
+def _stream_on_worker(
+    chunks: Iterable[str], *, on_progress: Callable[[], None] | None = None
+) -> Iterator[str]:
+    """Relay a blocking chunk iterator from a worker thread, ticking while idle.
+
+    Streamlit runs the script on a single thread that blocks inside
+    ``st.write_stream``, so a call that stays silent before its first token
+    (reasoning models, a large prompt) freezes any progress label driven only
+    by chunk arrival. Running ``chunks`` on a worker thread lets the main
+    thread poll a queue with a short timeout, calling ``on_progress`` on every
+    poll — including the empty ones — so the elapsed label keeps advancing
+    during that wait as well as while chunks stream in. An exception raised
+    while producing ``chunks`` is relayed and re-raised on the main thread,
+    from the same call site a synchronous iteration would have raised it.
+    """
+    items: queue.Queue[tuple[str, object]] = queue.Queue()
+
+    def _worker() -> None:
+        try:
+            for chunk in chunks:
+                items.put(("chunk", chunk))
+        except Exception as exc:  # noqa: BLE001 - relayed to the main thread
+            items.put(("error", exc))
+        finally:
+            items.put(("done", None))
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+    while True:
+        try:
+            kind, payload = items.get(timeout=_STREAM_POLL_INTERVAL)
+        except queue.Empty:
+            if on_progress:
+                on_progress()
+            continue
+
+        if kind == "chunk":
+            if on_progress:
+                on_progress()
+            yield payload
+        elif kind == "error":
+            raise payload
+        else:  # "done"
+            return
 
 
 def _unique_filenames(download_name: str) -> tuple[str, str, str]:
@@ -256,14 +309,20 @@ def _generate_and_render(
             def _tee(chunks):
                 for chunk in chunks:
                     raw_chunks.append(chunk)
-                    # Streamlit renders the yielded delta immediately; refreshing
-                    # the label here keeps elapsed time visible as output arrives.
-                    set_phase(status, "Generating base scenario")
                     yield chunk
 
             with stream_placeholder.container():
                 st.write_stream(
-                    stream_filter_thinking(_tee(call_llm_stream(config, messages)))
+                    stream_filter_thinking(
+                        _tee(
+                            _stream_on_worker(
+                                call_llm_stream(config, messages),
+                                on_progress=lambda: set_phase(
+                                    status, "Generating base scenario"
+                                ),
+                            )
+                        )
+                    )
                 )
             scenario_text = "".join(raw_chunks)
             set_phase(status, "Base scenario available")
@@ -323,7 +382,7 @@ def _generate_and_render(
                     report=defense_report,
                     scenario_text=cleaned,
                     trace_name=trace_name,
-                    on_chunk=lambda: set_phase(
+                    on_progress=lambda: set_phase(
                         status, "Generating purple-team narrative"
                     ),
                 )
@@ -402,7 +461,7 @@ def _stream_defense_narrative(
     report: dict,
     scenario_text: str,
     trace_name: str,
-    on_chunk: Callable[[], None] | None = None,
+    on_progress: Callable[[], None] | None = None,
 ) -> str | None:
     """Stream the optional purple-team narrative pass; return its cleaned text."""
     config = LLMConfig.from_session_state(
@@ -416,14 +475,12 @@ def _stream_defense_narrative(
     def _tee(gen):
         for chunk in gen:
             chunks.append(chunk)
-            if on_chunk:
-                on_chunk()
             yield chunk
 
     try:
         # Reasoning models can spend minutes on this second call before emitting
-        # any text; the elapsed label only advances as chunks arrive, so it looks
-        # stalled during that wait. Say so, so a still spinner reads as "working".
+        # any text; running it on a worker thread (see _stream_on_worker) lets
+        # the elapsed label keep advancing during that silent wait.
         st.write(
             "Walking the scenario from the defender's side. Reasoning models can "
             "take several minutes here and may show no progress until the first "
@@ -431,7 +488,14 @@ def _stream_defense_narrative(
         )
         with placeholder.container():
             st.write_stream(
-                stream_filter_thinking(_tee(call_llm_stream(config, messages)))
+                stream_filter_thinking(
+                    _tee(
+                        _stream_on_worker(
+                            call_llm_stream(config, messages),
+                            on_progress=on_progress,
+                        )
+                    )
+                )
             )
     except Exception as e:
         st.error(f"An error occurred while generating the purple-team narrative: {e}")
