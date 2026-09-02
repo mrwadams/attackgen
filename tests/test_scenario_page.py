@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import re
+import threading
 import time
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -912,7 +913,7 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
     fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
-    monkeypatch.setattr(scenario_page_module.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
     monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
 
     def silent_then_stream(_config, _messages):
@@ -950,7 +951,7 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
     fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
-    monkeypatch.setattr(scenario_page_module.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
     monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
 
     calls = 0
@@ -1000,8 +1001,26 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
         lambda _chunk, chunks: visible_steps.append("".join(chunks))
     )
 
+    # The source BLOCKS after the first chunk until the consumer has actually
+    # seen it. If the relay buffered the response and only handed it over at
+    # the end, `seen_first` would never be set and this deadlocks -- the wait
+    # times out and the test fails. An assertion over the accumulated prefixes
+    # cannot do that job: the stub builds those prefixes itself, so they differ
+    # from the full text by construction whether or not anything was buffered.
+    seen_first = threading.Event()
+    stub_streamlit["on_stream_chunk"] = lambda _chunk, chunks: (
+        visible_steps.append("".join(chunks)),
+        seen_first.set(),
+    )
+
+    # Recorded, not asserted in-generator: the page wraps generation in a broad
+    # `except Exception`, so an assert raised here would be swallowed and the
+    # test would fail somewhere unrelated with a message about the wrong thing.
+    rendered_before_second: list[bool] = []
+
     def controlled_stream(_config, _messages):
         yield "# Part one "
+        rendered_before_second.append(seen_first.wait(timeout=5))
         yield "part two "
         yield "part three"
 
@@ -1016,13 +1035,14 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
         trace_tags=("custom_scenario",),
     )
 
+    assert rendered_before_second == [True], (
+        "the first chunk was not rendered before the second was produced — the "
+        "relay buffered the response instead of streaming it"
+    )
     visible = stub_streamlit["stream_chunks"]
     full_text = "# Part one part two part three"
     assert len(visible) > 1
     assert "".join(visible) == full_text
-    # At least one intermediate step was visible before the full text -- i.e.
-    # chunks rendered as they arrived rather than only once, after the call.
-    assert any(step != full_text for step in visible_steps[:-1])
     assert visible_steps[-1] == full_text
     assert fake_session_state["custom_scenario_text"] == full_text
 
@@ -1062,3 +1082,66 @@ def test_threaded_stream_error_surfaces_same_message_and_no_completion(
     assert not any(
         label.startswith("Complete") for label in stub_streamlit["status_labels"]
     )
+
+
+def test_worker_thread_is_given_the_script_run_context_before_it_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The relay must attach the Streamlit script run context to the worker
+    BEFORE starting it.
+
+    `call_llm_stream` returns a @traceable generator whose body runs on the
+    first `next()` — which now happens on the worker. That body stashes the
+    LangSmith run id into `st.session_state`, and without a script run context
+    the write goes nowhere and the feedback widget reports "No run ID found".
+
+    This asserts the wiring, not the Streamlit behaviour, and deliberately so:
+    `fake_session_state` replaces session state with a plain dict, which every
+    thread can see, so the suite CANNOT reproduce the production failure. That
+    is how the original change passed 257 tests with this bug in it.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_attach(thread: threading.Thread) -> None:
+        seen["thread"] = thread
+        seen["alive_at_attach"] = thread.is_alive()
+
+    monkeypatch.setattr(scenario_page_module, "_attach_script_run_ctx", fake_attach)
+
+    assert list(scenario_page_module._stream_on_worker(iter(["a", "b"]))) == ["a", "b"]
+    assert isinstance(seen.get("thread"), threading.Thread)
+    # Attaching after start() is a race the context may lose, so ordering is
+    # the whole point of the assertion.
+    assert seen["alive_at_attach"] is False
+
+
+def test_closing_the_stream_stops_the_worker_pulling_from_the_model() -> None:
+    """A cancelled generation must stop draining the model, not run to
+    completion into a queue nobody is reading.
+
+    Streamlit raises RerunException from `status.update()` when the user
+    touches a widget mid-generation, which closes this generator without
+    exhausting it. Before the stop event existed, the worker kept pulling and
+    held the HTTP response open.
+    """
+    produced: list[int] = []
+    closed = threading.Event()
+
+    def source():
+        try:
+            for i in range(100_000):
+                produced.append(i)
+                yield f"chunk-{i} "
+        finally:
+            closed.set()
+
+    gen = scenario_page_module._stream_on_worker(source())
+    assert next(gen).startswith("chunk-0")
+    gen.close()
+
+    assert closed.wait(timeout=5), "the source generator was never closed"
+    settled = len(produced)
+    time.sleep(0.3)
+    assert len(produced) == settled, "the worker kept pulling after cancellation"
+    # Bounded by the queue, so it stops early rather than draining the response.
+    assert settled < 1_000
