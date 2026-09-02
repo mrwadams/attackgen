@@ -8,7 +8,10 @@ anything — we only care about the control flow at the seam.
 
 from __future__ import annotations
 
+import itertools
 import re
+import threading
+import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
@@ -17,6 +20,7 @@ import pytest
 import streamlit as st
 
 import core.llm as llm_module
+import core.scenario_page as scenario_page_module
 from core.scenario_page import _unique_filenames, run_scenario_page
 
 
@@ -880,3 +884,264 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
     assert visible_steps[0] != visible_steps[-1]
     assert visible_steps[-1] == "# Partial scenario"
     assert fake_session_state["custom_scenario_text"] == "# Partial scenario"
+
+
+# --- Ticking elapsed timer during pre-first-token waits (issue #89) --------
+#
+# `call_llm_stream` now runs on a worker thread (`_stream_on_worker`) so the
+# main thread can poll a queue with a short timeout and refresh the elapsed
+# label even before any chunk has arrived. These tests use a real (short)
+# `time.sleep` inside a fixture stream to force that idle-polling window,
+# with `_STREAM_POLL_INTERVAL` shrunk so it resolves quickly, and replace
+# `time.monotonic` with a strictly-increasing counter so every poll produces
+# a distinct, deterministic elapsed label regardless of real-time jitter.
+
+
+def _phase_labels(labels: list[str], phase: str) -> list[str]:
+    return [label for label in labels if label.startswith(f"{phase} ·")]
+
+
+def test_elapsed_label_advances_while_base_scenario_call_is_silent(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before the base call's first token, the elapsed label must keep
+    ticking rather than freezing -- the core behaviour issue #89 asks for."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+
+    clock = itertools.count()
+    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
+    monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
+
+    def silent_then_stream(_config, _messages):
+        # Real sleep on the worker thread: gives the main thread's polling
+        # loop room to tick several times before the first token arrives.
+        time.sleep(0.1)
+        yield "# Scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", silent_then_stream)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="threat_group_scenario.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    ticks = _phase_labels(stub_streamlit["status_labels"], "Generating base scenario")
+    # The fake clock advances by one on every tick, so distinct labels prove
+    # the wait produced repeated, advancing refreshes -- not a frozen one.
+    assert len(set(ticks)) >= 3
+
+
+def test_elapsed_label_advances_while_narrative_call_is_silent(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same ticking behaviour applies to the second (purple-team narrative)
+    streamed call, the case the issue calls out as most visible."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+
+    clock = itertools.count()
+    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
+    monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
+
+    calls = 0
+
+    def controlled_stream(_config, _messages):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            yield "# Base scenario"
+            return
+        time.sleep(0.1)
+        yield "## Defender walkthrough"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_defense=lambda _snapshot: _DEFENSE_REPORT,
+        defense_narrative=True,
+        capture_inputs=lambda: {},
+    )
+
+    assert calls == 2
+    ticks = _phase_labels(
+        stub_streamlit["status_labels"], "Generating purple-team narrative"
+    )
+    assert len(set(ticks)) >= 3
+
+
+def test_streamed_output_still_renders_incrementally_via_worker_thread(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No regression: chunks relayed through the worker thread still arrive
+    at `st.write_stream` incrementally, not batched after the call ends."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    visible_steps: list[str] = []
+    stub_streamlit["on_stream_chunk"] = (
+        lambda _chunk, chunks: visible_steps.append("".join(chunks))
+    )
+
+    # The source BLOCKS after the first chunk until the consumer has actually
+    # seen it. If the relay buffered the response and only handed it over at
+    # the end, `seen_first` would never be set and this deadlocks -- the wait
+    # times out and the test fails. An assertion over the accumulated prefixes
+    # cannot do that job: the stub builds those prefixes itself, so they differ
+    # from the full text by construction whether or not anything was buffered.
+    seen_first = threading.Event()
+    stub_streamlit["on_stream_chunk"] = lambda _chunk, chunks: (
+        visible_steps.append("".join(chunks)),
+        seen_first.set(),
+    )
+
+    # Recorded, not asserted in-generator: the page wraps generation in a broad
+    # `except Exception`, so an assert raised here would be swallowed and the
+    # test would fail somewhere unrelated with a message about the wrong thing.
+    rendered_before_second: list[bool] = []
+
+    def controlled_stream(_config, _messages):
+        yield "# Part one "
+        rendered_before_second.append(seen_first.wait(timeout=5))
+        yield "part two "
+        yield "part three"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
+
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="custom.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+    )
+
+    assert rendered_before_second == [True], (
+        "the first chunk was not rendered before the second was produced — the "
+        "relay buffered the response instead of streaming it"
+    )
+    visible = stub_streamlit["stream_chunks"]
+    full_text = "# Part one part two part three"
+    assert len(visible) > 1
+    assert "".join(visible) == full_text
+    assert visible_steps[-1] == full_text
+    assert fake_session_state["custom_scenario_text"] == full_text
+
+
+def test_threaded_stream_error_surfaces_same_message_and_no_completion(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model error raised mid-stream on the worker thread must reach the
+    user the same way a synchronous error would, and the status must never
+    reach "Complete" -- i.e. no spinner is left running as if still working."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+
+    errors: list[str] = []
+    monkeypatch.setattr(st, "error", lambda msg, *a, **k: errors.append(msg))
+
+    def failing_stream(_config, _messages):
+        yield "partial output"
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", failing_stream)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda: [{"role": "user", "content": "x"}],
+        is_ready=lambda: True,
+        download_name="threat_group_scenario.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert errors == ["An error occurred while generating the scenario: boom"]
+    assert fake_session_state["threat_group_scenario_generated"] is False
+    assert not any(
+        label.startswith("Complete") for label in stub_streamlit["status_labels"]
+    )
+
+
+def test_worker_thread_is_given_the_script_run_context_before_it_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The relay must attach the Streamlit script run context to the worker
+    BEFORE starting it.
+
+    `call_llm_stream` returns a @traceable generator whose body runs on the
+    first `next()` — which now happens on the worker. That body stashes the
+    LangSmith run id into `st.session_state`, and without a script run context
+    the write goes nowhere and the feedback widget reports "No run ID found".
+
+    This asserts the wiring, not the Streamlit behaviour, and deliberately so:
+    `fake_session_state` replaces session state with a plain dict, which every
+    thread can see, so the suite CANNOT reproduce the production failure. That
+    is how the original change passed 257 tests with this bug in it.
+    """
+    seen: dict[str, object] = {}
+
+    def fake_attach(thread: threading.Thread) -> None:
+        seen["thread"] = thread
+        seen["alive_at_attach"] = thread.is_alive()
+
+    monkeypatch.setattr(scenario_page_module, "_attach_script_run_ctx", fake_attach)
+
+    assert list(scenario_page_module._stream_on_worker(iter(["a", "b"]))) == ["a", "b"]
+    assert isinstance(seen.get("thread"), threading.Thread)
+    # Attaching after start() is a race the context may lose, so ordering is
+    # the whole point of the assertion.
+    assert seen["alive_at_attach"] is False
+
+
+def test_closing_the_stream_stops_the_worker_pulling_from_the_model() -> None:
+    """A cancelled generation must stop draining the model, not run to
+    completion into a queue nobody is reading.
+
+    Streamlit raises RerunException from `status.update()` when the user
+    touches a widget mid-generation, which closes this generator without
+    exhausting it. Before the stop event existed, the worker kept pulling and
+    held the HTTP response open.
+    """
+    produced: list[int] = []
+    closed = threading.Event()
+
+    def source():
+        try:
+            for i in range(100_000):
+                produced.append(i)
+                yield f"chunk-{i} "
+        finally:
+            closed.set()
+
+    gen = scenario_page_module._stream_on_worker(source())
+    assert next(gen).startswith("chunk-0")
+    gen.close()
+
+    assert closed.wait(timeout=5), "the source generator was never closed"
+    settled = len(produced)
+    time.sleep(0.3)
+    assert len(produced) == settled, "the worker kept pulling after cancellation"
+    # Bounded by the queue, so it stops early rather than draining the response.
+    assert settled < 1_000
