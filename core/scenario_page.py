@@ -12,6 +12,7 @@ Adding a new scenario page is now: write the widgets and prompt builder, then
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import json
@@ -57,14 +58,40 @@ def _invoke_with_snapshot(callback: Callable, snapshot: Snapshot):
     return callback(snapshot)
 
 
+# Bound once, module-locally, so a test can patch *this* name instead of
+# reaching into the stdlib `time` module object — which patches it for every
+# thread in the process, including the stream worker running concurrently.
+_monotonic = time.monotonic
+
+
 def _elapsed_label(phase: str, started: float) -> str:
-    elapsed = max(0, int(time.monotonic() - started))
+    elapsed = max(0, int(_monotonic() - started))
     minutes, seconds = divmod(elapsed, 60)
     return f"{phase} · elapsed {minutes}:{seconds:02d}"
 
 
 _STREAM_POLL_INTERVAL = 0.2
 """Seconds between elapsed-label refreshes while waiting for the next chunk."""
+
+_STREAM_QUEUE_MAX = 64
+"""Chunks the worker may run ahead of the consumer before it blocks."""
+
+
+def _attach_script_run_ctx(thread: threading.Thread) -> None:
+    """Give a worker thread the calling script's Streamlit context, if any.
+
+    Guarded: this reaches into `streamlit.runtime.scriptrunner`, which is not a
+    stability-guaranteed API, and there is no context at all off the UI (the
+    MCP server, tests). Failing here must not stop the stream — the cost of
+    losing it is a missing run id, not a broken generation."""
+    try:
+        from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+    except Exception:  # noqa: BLE001 - older/newer Streamlit, or no runtime
+        return
+    with contextlib.suppress(Exception):
+        ctx = get_script_run_ctx()
+        if ctx is not None:
+            add_script_run_ctx(thread, ctx)
 
 
 def _stream_on_worker(
@@ -82,36 +109,77 @@ def _stream_on_worker(
     while producing ``chunks`` is relayed and re-raised on the main thread,
     from the same call site a synchronous iteration would have raised it.
     """
-    items: queue.Queue[tuple[str, object]] = queue.Queue()
+    # Bounded: if the consumer stops reading, the worker must block rather than
+    # accumulate the rest of the response in memory.
+    items: queue.Queue[tuple[str, object]] = queue.Queue(maxsize=_STREAM_QUEUE_MAX)
+    stop = threading.Event()
 
     def _worker() -> None:
         try:
             for chunk in chunks:
-                items.put(("chunk", chunk))
+                # Re-checked every iteration AND around the blocking put, so a
+                # cancelled stream stops pulling from the model promptly instead
+                # of draining the whole response into a queue nobody reads.
+                if stop.is_set():
+                    break
+                while not stop.is_set():
+                    try:
+                        items.put(("chunk", chunk), timeout=_STREAM_POLL_INTERVAL)
+                        break
+                    except queue.Full:
+                        continue
+                # Checked again here, not just at the top: if the stop landed
+                # while we were blocked on the put, going round the `for` would
+                # pull another chunk from the model first — a network read that
+                # can block for seconds on exactly the slow models this exists
+                # for.
+                if stop.is_set():
+                    break
         except Exception as exc:  # noqa: BLE001 - relayed to the main thread
-            items.put(("error", exc))
+            if not stop.is_set():
+                with contextlib.suppress(queue.Full):
+                    items.put(("error", exc), timeout=_STREAM_POLL_INTERVAL)
         finally:
-            items.put(("done", None))
+            # Close the source so the underlying HTTP response is released
+            # rather than left open until the daemon thread is collected.
+            with contextlib.suppress(Exception):
+                close = getattr(chunks, "close", None)
+                if close is not None:
+                    close()
+            with contextlib.suppress(queue.Full):
+                items.put(("done", None), timeout=_STREAM_POLL_INTERVAL)
 
     thread = threading.Thread(target=_worker, daemon=True)
+    # Carry the Streamlit script run context onto the worker. Without it the
+    # thread has no session: `call_llm_stream`'s @traceable body runs here on
+    # the first `next()`, and its `_stash_run_id` write to `st.session_state`
+    # lands nowhere, so the LangSmith feedback widget never sees a run id. It
+    # also silences the per-call "missing ScriptRunContext!" warning.
+    _attach_script_run_ctx(thread)
     thread.start()
 
-    while True:
-        try:
-            kind, payload = items.get(timeout=_STREAM_POLL_INTERVAL)
-        except queue.Empty:
-            if on_progress:
-                on_progress()
-            continue
+    try:
+        while True:
+            try:
+                kind, payload = items.get(timeout=_STREAM_POLL_INTERVAL)
+            except queue.Empty:
+                if on_progress:
+                    on_progress()
+                continue
 
-        if kind == "chunk":
-            if on_progress:
-                on_progress()
-            yield payload
-        elif kind == "error":
-            raise payload
-        else:  # "done"
-            return
+            if kind == "chunk":
+                if on_progress:
+                    on_progress()
+                yield payload
+            elif kind == "error":
+                raise payload
+            else:  # "done"
+                return
+    finally:
+        # Reached on GeneratorExit too — Streamlit raises RerunException from
+        # status.update() when the user touches a widget mid-generation, which
+        # closes this generator without exhausting it.
+        stop.set()
 
 
 def _unique_filenames(download_name: str) -> tuple[str, str, str]:
@@ -279,7 +347,7 @@ def _generate_and_render(
     defense_narrative: bool,
 ) -> None:
     """Coordinate and expose each phase of a scenario generation."""
-    started = time.monotonic()
+    started = _monotonic()
     stream_placeholder = st.empty()
     result_placeholder = st.empty()
     raw_chunks: list[str] = []
@@ -483,8 +551,8 @@ def _stream_defense_narrative(
         # the elapsed label keep advancing during that silent wait.
         st.write(
             "Walking the scenario from the defender's side. Reasoning models can "
-            "take several minutes here and may show no progress until the first "
-            "text arrives."
+            "take several minutes here; the elapsed timer keeps ticking while "
+            "the model thinks."
         )
         with placeholder.container():
             st.write_stream(
