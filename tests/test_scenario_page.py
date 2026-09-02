@@ -17,7 +17,7 @@ import pytest
 import streamlit as st
 
 import core.llm as llm_module
-from core.scenario_page import _unique_filenames, run_scenario_page
+from core.scenario_page import _SCRIPT_CONTROL, _unique_filenames, run_scenario_page
 
 
 class TestUniqueFilenames:
@@ -48,15 +48,25 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     Returns a dict the test can mutate to control widget return values:
       - `button_returns`: bool returned by `st.button`
+
+    and read to see what was rendered: `buttons` (every `st.button` call's
+    kwargs, so a test can press one via its `on_click`), `warnings`, `errors`
+    and `status_labels`.
     """
     controls: dict[str, Any] = {
         "button_returns": False,
         "status_labels": [],
         "stream_chunks": [],
         "on_stream_chunk": None,
+        "buttons": [],
+        "warnings": [],
+        "errors": [],
     }
 
-    def _button(*_args, **_kwargs):
+    def _button(*args, **kwargs):
+        controls["buttons"].append(
+            {"label": args[0] if args else kwargs.get("label"), **kwargs}
+        )
         return controls["button_returns"]
 
     @contextmanager
@@ -97,8 +107,8 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "write_stream", _write_stream)
     monkeypatch.setattr(st, "download_button", _noop)
     monkeypatch.setattr(st, "info", _noop)
-    monkeypatch.setattr(st, "warning", _noop)
-    monkeypatch.setattr(st, "error", _noop)
+    monkeypatch.setattr(st, "warning", lambda msg, *a, **k: controls["warnings"].append(msg))
+    monkeypatch.setattr(st, "error", lambda msg, *a, **k: controls["errors"].append(msg))
     # `render_feedback_widget` calls `st.empty()` then `st.markdown('---')`.
     monkeypatch.setattr(st, "empty", _FakePlaceholder)
     # Pretend no LangSmith key is configured so the feedback widget
@@ -880,3 +890,411 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
     assert visible_steps[0] != visible_steps[-1]
     assert visible_steps[-1] == "# Partial scenario"
     assert fake_session_state["custom_scenario_text"] == "# Partial scenario"
+
+
+# --- Degraded success and retry for optional enrichment ----------------------
+
+
+@pytest.fixture
+def controllable_stream(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """A scripted stand-in for `call_llm_stream`, one script per model call.
+
+    Set `.scripts` to a list of step-lists — the first is played by the base
+    scenario call, the second by the purple-team narrative call, and so on
+    (calls past the end yield a single default chunk). Each step is either:
+
+      - a string, yielded as a stream chunk;
+      - a callable, invoked *between* chunks (to land a click mid-stream);
+      - an exception instance, raised from inside the stream.
+
+    Every call's config and messages are recorded in `.calls`, so a test can
+    prove which phase ran — and, for a retry, which phase *didn't*.
+    """
+    scripted = SimpleNamespace(scripts=[], calls=[])
+
+    def _stream(config, messages):
+        scripted.calls.append(SimpleNamespace(config=config, messages=messages))
+        index = len(scripted.calls) - 1
+        steps = scripted.scripts[index] if index < len(scripted.scripts) else ["# Scenario"]
+        for step in steps:
+            if isinstance(step, BaseException):
+                raise step
+            if callable(step):
+                step()
+                continue
+            yield step
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    return scripted
+
+
+def _is_narrative_call(call) -> bool:
+    """The purple-team pass is the one tagged for it in LangSmith."""
+    return call.config.trace_tags == ("purple_team_narrative",)
+
+
+def _click(stub_streamlit: dict[str, Any], key: str) -> None:
+    """Fire the `on_click` callback Streamlit runs when that button is pressed.
+
+    Streamlit runs the callback before the next script run, which is exactly
+    how the page picks the request up — so a test presses a button by calling
+    its callback and then running the page again.
+    """
+    for record in stub_streamlit["buttons"]:
+        if record.get("key") == key:
+            record["on_click"](*record.get("args", ()))
+            return
+    raise AssertionError(f"no button was rendered with key {key!r}")
+
+
+def _run_page(**overrides) -> None:
+    """Run the threat-group page with a defence report and narrative enabled."""
+    kwargs: dict[str, Any] = {
+        "page_id": "threat_group",
+        "build_messages": lambda _snapshot: [{"role": "user", "content": "x"}],
+        "is_ready": lambda: True,
+        "download_name": "AttackGen APT29 Enterprise.md",
+        "trace_name": "Threat Group Scenario",
+        "trace_tags": ("threat_group_scenario",),
+        "build_layer": lambda _snapshot: '{"domain": "enterprise-attack"}',
+        "build_defense": lambda _snapshot: _DEFENSE_REPORT,
+        "defense_narrative": True,
+        "capture_inputs": lambda: {"matrix": "Enterprise"},
+    }
+    kwargs.update(overrides)
+    run_scenario_page(**kwargs)
+
+
+def _generate_with_narrative(
+    stub_streamlit, fake_session_state, controllable_stream, narrative_script
+) -> None:
+    """Generate a scenario, playing `narrative_script` for the optional phase."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+    controllable_stream.scripts = [["# Base scenario"], narrative_script]
+    _run_page()
+
+
+def test_failed_narrative_leaves_base_scenario_and_exports_usable(
+    stub_streamlit,
+    fake_session_state,
+    controllable_stream,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloads = _capture_downloads(monkeypatch)
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+
+    # The base phase's output survives the optional phase's failure, whole.
+    assert fake_session_state["threat_group_scenario_generated"] is True
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert fake_session_state["last_scenario_text"] == "# Base scenario"
+    assert fake_session_state["threat_group_scenario_layer"][0] == (
+        '{"domain": "enterprise-attack"}'
+    )
+    defense = fake_session_state["threat_group_scenario_defense"]
+    assert "Command and Scripting Interpreter (T1059)" in defense["deterministic_md"]
+    assert defense["narrative_md"] is None
+    assert fake_session_state["last_defense_narrative"] is None
+
+    # All three downloads are offered: scenario, Navigator layer, defence.
+    assert any(d.get("label") == "Download Scenario" for d in downloads)
+    assert any(d.get("mime") == "application/json" for d in downloads)
+    assert any(d.get("file_name", "").endswith("_detection.md") for d in downloads)
+
+    # The run still closes as a (degraded) success, not an error.
+    assert any(
+        label.startswith("Complete without purple-team narrative")
+        for label in stub_streamlit["status_labels"]
+    )
+
+
+def test_degraded_message_explains_failure_and_offers_narrative_retry(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+
+    status = fake_session_state["threat_group_generation_status"]
+    assert status["phase"] == "narrative"
+    assert status["reason"] == "error"
+
+    # A warning (degraded success), not an error — and it says what failed.
+    notice = "\n".join(stub_streamlit["warnings"])
+    assert "purple-team narrative failed" in notice
+    assert "upstream 503" in notice
+    assert "complete and usable" in notice
+
+    retry = [
+        b for b in stub_streamlit["buttons"] if b.get("key") == "threat_group_retry_narrative"
+    ]
+    assert len(retry) == 1
+    assert retry[0]["label"] == "Retry purple-team narrative"
+
+
+def test_narrative_retry_reruns_only_the_narrative_and_merges_it(
+    stub_streamlit,
+    fake_session_state,
+    controllable_stream,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+    md_name = fake_session_state["threat_group_scenario_filename"]
+
+    _click(stub_streamlit, "threat_group_retry_narrative")
+
+    # The rerun the click triggers: Generate is not pressed, and the page's
+    # readiness has since lapsed — the retry must not depend on either.
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["warnings"].clear()
+    controllable_stream.scripts = [[], [], ["## Defender walkthrough"]]
+    downloads = _capture_downloads(monkeypatch)
+    _run_page(is_ready=lambda: False)
+
+    # Three model calls in total, and the retry's is the narrative — the base
+    # scenario is never generated a second time.
+    assert len(controllable_stream.calls) == 3
+    assert _is_narrative_call(controllable_stream.calls[2])
+    assert sum(1 for c in controllable_stream.calls if not _is_narrative_call(c)) == 1
+
+    # The narrative is merged into the Detection & Response view and download.
+    defense = fake_session_state["threat_group_scenario_defense"]
+    assert defense["narrative_md"] == "## Defender walkthrough"
+    assert "Defender walkthrough" in defense["download_md"]
+    assert "Detection & Response Reference" in defense["download_md"]
+    assert fake_session_state["last_defense_narrative"] == "## Defender walkthrough"
+    detection_downloads = [
+        d for d in downloads if d.get("file_name", "").endswith("_detection.md")
+    ]
+    assert detection_downloads[-1]["data"] == defense["download_md"]
+
+    # The base result is untouched — same text, same download names.
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert fake_session_state["threat_group_scenario_filename"] == md_name
+
+    # No degraded state left behind, so no notice on the next rerun.
+    assert "threat_group_generation_status" not in fake_session_state
+    assert stub_streamlit["warnings"] == []
+
+
+def test_skip_requested_mid_stream_abandons_narrative_and_keeps_base(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    def request_skip():
+        st.session_state["threat_group_narrative_stop_requested"] = True
+
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        ["## Half a walk", request_skip, "through"],
+    )
+
+    # The partial narrative is discarded; the base result stands on its own.
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert fake_session_state["threat_group_scenario_defense"]["narrative_md"] is None
+    assert fake_session_state["last_defense_narrative"] is None
+    status = fake_session_state["threat_group_generation_status"]
+    assert status == {"phase": "narrative", "reason": "stopped", "detail": ""}
+    assert "You skipped the purple-team narrative" in "\n".join(stub_streamlit["warnings"])
+    assert any(
+        b.get("key") == "threat_group_retry_narrative" for b in stub_streamlit["buttons"]
+    )
+
+
+def test_skip_button_requests_the_stop(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    """The Skip control is what sets the flag the narrative phase watches."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    controllable_stream.scripts = [["# Base scenario"], ["## Walkthrough"]]
+    _run_page()
+
+    skip = [
+        b for b in stub_streamlit["buttons"] if b.get("key") == "threat_group_skip_narrative"
+    ]
+    assert len(skip) == 1
+    _click(stub_streamlit, "threat_group_skip_narrative")
+    assert fake_session_state["threat_group_narrative_stop_requested"] is True
+
+
+def test_narrative_left_in_flight_by_a_torn_down_run_is_reported_next_run(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    """Pressing Skip reruns the script, which kills the in-flight stream.
+
+    The next run finds the in-progress marker with no narrative and must report
+    the optional phase as skipped — with the base result still on the page —
+    rather than pretend it completed.
+    """
+    stub_streamlit["button_returns"] = False
+    fake_session_state.update(
+        {
+            "threat_group_scenario_generated": True,
+            "threat_group_scenario_text": "# Base scenario",
+            "threat_group_scenario_filename": "scn_20260714-153045.md",
+            "threat_group_scenario_layer": None,
+            "threat_group_scenario_defense": {
+                "deterministic_md": "## 🛡️ Detection & Response",
+                "narrative_md": None,
+                "download_md": "# Detection & Response — scn",
+                "filename": "scn_20260714-153045_detection.md",
+            },
+            # Left behind by the run the rerun tore down.
+            "threat_group_narrative_running": True,
+            "threat_group_narrative_stop_requested": True,
+        }
+    )
+
+    _run_page(is_ready=lambda: False)
+
+    assert controllable_stream.calls == []  # nothing is regenerated
+    assert fake_session_state["threat_group_generation_status"] == {
+        "phase": "narrative",
+        "reason": "stopped",
+        "detail": "",
+    }
+    # The markers are consumed, so the next rerun doesn't re-report it.
+    assert "threat_group_narrative_running" not in fake_session_state
+    assert "threat_group_narrative_stop_requested" not in fake_session_state
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert any(
+        b.get("key") == "threat_group_retry_narrative" for b in stub_streamlit["buttons"]
+    )
+
+
+def test_degraded_state_renders_base_and_notice_on_a_plain_rerun(
+    stub_streamlit,
+    fake_session_state,
+    controllable_stream,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A degraded run stays degraded-but-complete across reruns: every base
+    download is re-offered, and the notice keeps offering the retry."""
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["buttons"].clear()
+    stub_streamlit["warnings"].clear()
+    downloads = _capture_downloads(monkeypatch)
+    _run_page(is_ready=lambda: False)
+
+    assert len(controllable_stream.calls) == 2  # no phase re-ran on this rerun
+    assert any(d.get("label") == "Download Scenario" for d in downloads)
+    assert any(d.get("mime") == "application/json" for d in downloads)
+    assert any(d.get("file_name", "").endswith("_detection.md") for d in downloads)
+    assert "purple-team narrative failed" in "\n".join(stub_streamlit["warnings"])
+    assert any(
+        b.get("key") == "threat_group_retry_narrative" for b in stub_streamlit["buttons"]
+    )
+
+
+def test_base_failure_is_attributed_to_the_base_phase(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    controllable_stream.scripts = [[RuntimeError("rate limited")]]
+
+    _run_page()
+
+    status = fake_session_state["threat_group_generation_status"]
+    assert status["phase"] == "base"
+    assert status["detail"] == "rate limited"
+    # Nothing usable was produced, so this reads as an error, not degraded.
+    assert stub_streamlit["warnings"] == []
+    assert fake_session_state["threat_group_scenario_generated"] is False
+    notice = "\n".join(stub_streamlit["errors"])
+    assert "base scenario failed to generate" in notice.lower()
+    assert "rate limited" in notice
+    retry = [
+        b for b in stub_streamlit["buttons"] if b.get("key") == "threat_group_retry_base"
+    ]
+    assert len(retry) == 1
+    assert retry[0]["label"] == "Retry base scenario"
+
+
+def test_base_retry_replays_the_captured_inputs(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    controllable_stream.scripts = [[RuntimeError("rate limited")]]
+    source = {"matrix": "Enterprise"}
+
+    _run_page(
+        defense_narrative=False,
+        build_messages=lambda snapshot: [
+            {"role": "user", "content": snapshot["matrix"]}
+        ],
+        capture_inputs=lambda: source,
+    )
+
+    # The widgets move on after the failure; the retry must not follow them.
+    source["matrix"] = "ICS"
+    _click(stub_streamlit, "threat_group_retry_base")
+    stub_streamlit["button_returns"] = False
+    controllable_stream.scripts = [[], ["# Base scenario"]]
+
+    _run_page(
+        is_ready=lambda: False,
+        defense_narrative=False,
+        build_messages=lambda snapshot: [
+            {"role": "user", "content": snapshot["matrix"]}
+        ],
+        capture_inputs=lambda: source,
+    )
+
+    assert len(controllable_stream.calls) == 2
+    assert controllable_stream.calls[1].messages == [
+        {"role": "user", "content": "Enterprise"}
+    ]
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert fake_session_state["threat_group_scenario_generated"] is True
+    assert "threat_group_generation_status" not in fake_session_state
+
+
+@pytest.mark.skipif(
+    not _SCRIPT_CONTROL, reason="Streamlit exposes no script-control exceptions"
+)
+def test_rerun_signal_during_the_narrative_is_not_swallowed(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    """Pressing Skip queues a rerun, which Streamlit raises inside the running
+    script. Swallowing it would drop the rerun and report a control signal as a
+    generation failure, so it propagates — with the in-flight marker left set,
+    which is how the next run knows the optional phase never finished."""
+    rerun = _SCRIPT_CONTROL[0](None)
+
+    with pytest.raises(type(rerun)):
+        _generate_with_narrative(
+            stub_streamlit, fake_session_state, controllable_stream, [rerun]
+        )
+
+    assert fake_session_state["threat_group_scenario_text"] == "# Base scenario"
+    assert fake_session_state["threat_group_narrative_running"] is True
+    assert "threat_group_generation_status" not in fake_session_state
