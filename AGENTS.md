@@ -39,6 +39,8 @@ pytest
 
 In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.10–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
 
+`tests/test_console_smoke.py` and `tests/test_accessibility_smoke.py` are real-browser checks (Playwright + a headless `streamlit run`) for console hygiene and keyboard/focus/label accessibility on the Welcome and Threat Group Scenarios pages — both `@pytest.mark.browser`. They skip themselves (not fail) when Chromium isn't installed, which is the default in this repo's CI, so `pytest` alone stays green there. To actually run them: `pip install -r requirements-dev.txt && playwright install chromium && pytest -m browser`.
+
 ## Architecture
 
 ### Core Components

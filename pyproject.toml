@@ -29,6 +29,9 @@ packages = ["core", "data"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "browser: launches a real Streamlit server and Chromium via Playwright; skips itself when unavailable (see tests/conftest.py)",
+]
 
 [tool.bandit]
 # Replaces the old .bandit INI file, whose entries never applied: it used

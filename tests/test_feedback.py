@@ -13,6 +13,16 @@ from streamlit.errors import StreamlitSecretNotFoundError
 from core.feedback import _submit, render_feedback_widget
 
 
+class _FakeColumn:
+    """Minimal stand-in for a Streamlit ``DeltaGenerator`` column context manager."""
+
+    def __enter__(self) -> "_FakeColumn":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+
 class _FakePlaceholder:
     """Captures the success/warning/error message a placeholder is told to render."""
 
@@ -104,6 +114,33 @@ def test_submit_records_negative_with_score_zero(
 
     assert client.calls == [("run-abc", "negative", {"score": 0, "comment": ""})]
     assert fake_session_state["feedback"] == {"feedback_id": "fb-2", "score": 0}
+
+
+def test_thumbs_buttons_have_meaningful_accessible_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The thumbs buttons are icon-only visually; their label is also their
+    accessible name (Streamlit buttons have no separate aria-label), so it
+    must carry meaning beyond the bare emoji rather than rely on a screen
+    reader's emoji pronunciation.
+    """
+    button_labels: list[str] = []
+
+    monkeypatch.setattr(st, "secrets", {"LANGCHAIN_API_KEY": "key"})
+    monkeypatch.setattr(st, "markdown", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(st, "empty", lambda: _FakePlaceholder())
+    monkeypatch.setattr(st, "columns", lambda spec: [_FakeColumn() for _ in spec])
+    monkeypatch.setattr(
+        st, "button", lambda label, **kwargs: button_labels.append(label) or False
+    )
+    monkeypatch.setattr(langsmith, "Client", lambda **kwargs: _FakeClient())
+
+    render_feedback_widget(key_prefix="test", scenario_generated=True)
+
+    assert len(button_labels) == 2
+    for label in button_labels:
+        visible_text = label.split(maxsplit=1)
+        assert len(visible_text) > 1, f"button label {label!r} has no accessible text"
 
 
 def test_submit_surfaces_client_errors(
