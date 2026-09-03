@@ -61,10 +61,13 @@ def render_feedback_widget(*, key_prefix: str, scenario_generated: bool) -> None
     st.markdown("Rate the scenario to help improve this tool.")
     col1, col2, _ = st.columns([0.5, 0.5, 5])
     with col1:
-        if st.button("👍", key=f"thumbs_up_{key_prefix}"):
+        # Streamlit's accessible name for a button is its label text, not its
+        # `help` tooltip. An emoji-only label leaves screen readers to guess
+        # (or stay silent), so the label itself carries the meaning.
+        if st.button("👍 Helpful", key=f"thumbs_up_{key_prefix}"):
             _submit(client, placeholder, kind="positive", score=1)
     with col2:
-        if st.button("👎", key=f"thumbs_down_{key_prefix}"):
+        if st.button("👎 Not helpful", key=f"thumbs_down_{key_prefix}"):
             _submit(client, placeholder, kind="negative", score=0)
 
 

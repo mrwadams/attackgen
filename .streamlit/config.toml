@@ -4,3 +4,14 @@ backgroundColor = "#2B2B2B"
 secondaryBackgroundColor = "#444654"
 textColor = "#C0C0C0"
 font = "monospace"
+
+# Without an explicit [theme.sidebar] table, Streamlit falls back to deriving
+# sidebar colours at runtime and logs a repeated "invalid empty string" console
+# warning for the ones it can't resolve from [theme] alone. Setting the sidebar
+# background explicitly (matching secondaryBackgroundColor, which is what the
+# sidebar already rendered as under the fallback) silences the warning without
+# changing the app's appearance. If a Streamlit upgrade removes the need for
+# this table, or introduces new keys the fallback still warns about, update
+# this comment rather than deleting the section silently.
+[theme.sidebar]
+backgroundColor = "#444654"

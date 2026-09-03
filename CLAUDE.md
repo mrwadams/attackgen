@@ -39,6 +39,8 @@ pytest
 
 In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.10–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
 
+`tests/test_console_smoke.py` and `tests/test_accessibility_smoke.py` are real-browser checks (Playwright + a headless `streamlit run`) for console hygiene and keyboard/focus/label accessibility on the Welcome and Threat Group Scenarios pages — both `@pytest.mark.browser`. They skip themselves (not fail) when Chromium isn't installed, which is the default in this repo's CI, so `pytest` alone stays green there. To actually run them: `pip install -r requirements-dev.txt && playwright install chromium && pytest -m browser`.
+
 ### Cutting a Release
 Releases are automated by `.github/workflows/release.yml`, which fires on **3-component semver tags** (`v*.*.*`, e.g. `v0.14.0`). Pushing such a tag runs the whole pipeline: **verify** the tag matches the packaged version → **test** (pytest on Python 3.10–3.14) → **build & push** a multi-arch (`linux/amd64,linux/arm64`) image to Docker Hub as `mrwadams/attackgen` (tagged `{version}`, `{major}.{minor}`, and `latest`) → **cut a GitHub Release** with generated notes. The image builds from the existing `Dockerfile` (its pinned base is a multi-arch OCI index, so arm64 works unchanged).
 
