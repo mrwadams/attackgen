@@ -1000,9 +1000,6 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
     fake_session_state["chosen_model_provider"] = "OpenAI API"
     fake_session_state["llm_model_name"] = "gpt-5.5"
     visible_steps: list[str] = []
-    stub_streamlit["on_stream_chunk"] = (
-        lambda _chunk, chunks: visible_steps.append("".join(chunks))
-    )
 
     # The source BLOCKS after the first chunk until the consumer has actually
     # seen it. If the relay buffered the response and only handed it over at
