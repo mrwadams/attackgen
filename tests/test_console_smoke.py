@@ -2,8 +2,11 @@
 
 Loads the Welcome page and one scenario page in a real Chromium tab and fails
 if the app logs an unexpected console warning or error — most notably the
-repeated "empty sidebar theme colour" warning that ``.streamlit/config.toml``
-now works around with an explicit ``[theme.sidebar]`` table.
+repeated ``Invalid color passed for <key> in theme.sidebar: ""`` warning that
+Streamlit's frontend logged on every rerun for any app with a ``[theme]``
+section. No ``config.toml`` key can set the three deprecated fields behind it;
+Streamlit 1.55 removed them, which is why ``requirements.txt`` floors the
+version there. This test fails against anything older.
 
 Requires Playwright with its Chromium browser installed
 (``pip install -r requirements-dev.txt && playwright install chromium``); it

@@ -120,13 +120,22 @@ def streamlit_server():
             proc.kill()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def browser():
-    """A shared Chromium instance for browser-marked tests.
+    """A Chromium instance for one browser-marked test.
 
     Skips when Playwright isn't installed, or when it's installed but its
     Chromium binary hasn't been downloaded (``playwright install chromium``)
     — both are expected in CI, which doesn't run that install step.
+
+    Deliberately *not* session-scoped, even though launching Chromium per test
+    costs a fraction of a second. Playwright's sync API drives an asyncio loop
+    that stays running in the main thread for as long as ``sync_playwright()``
+    is open, and a session-scoped fixture keeps it open for the rest of the
+    run — which makes every later ``asyncio.run(...)`` test in the suite fail
+    with "asyncio.run() cannot be called from a running event loop"
+    (``tests/test_mcp_server.py`` and ``tests/test_skills.py`` both do this).
+    Entering and leaving the context per test keeps that loop contained.
     """
     playwright_sync = pytest.importorskip("playwright.sync_api")
     with playwright_sync.sync_playwright() as p:
