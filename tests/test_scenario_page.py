@@ -69,12 +69,16 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "buttons": [],
         "warnings": [],
         "errors": [],
+        # Every placeholder `st.empty()` handed out, so a test can ask whether
+        # the one holding a transient control was cleared before the run ended.
+        "placeholders": [],
     }
 
     def _button(*args, **kwargs):
-        controls["buttons"].append(
-            {"label": args[0] if args else kwargs.get("label"), **kwargs}
-        )
+        label = args[0] if args else kwargs.get("label")
+        controls["buttons"].append({"label": label, **kwargs})
+        if _OPEN_PLACEHOLDERS:
+            _OPEN_PLACEHOLDERS[-1].rendered.append(label)
         return controls["button_returns"]
 
     @contextmanager
@@ -117,8 +121,13 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(st, "info", _noop)
     monkeypatch.setattr(st, "warning", lambda msg, *a, **k: controls["warnings"].append(msg))
     monkeypatch.setattr(st, "error", lambda msg, *a, **k: controls["errors"].append(msg))
+    def _empty():
+        slot = _FakePlaceholder()
+        controls["placeholders"].append(slot)
+        return slot
+
     # `render_feedback_widget` calls `st.empty()` then `st.markdown('---')`.
-    monkeypatch.setattr(st, "empty", _FakePlaceholder)
+    monkeypatch.setattr(st, "empty", _empty)
     # Pretend no LangSmith key is configured so the feedback widget
     # short-circuits cleanly during these general scenario-page tests.
     monkeypatch.setattr(st, "secrets", {})
@@ -135,14 +144,35 @@ class _FakeTab:
 
 
 class _FakePlaceholder:
+    """A stand-in for `st.empty()` that remembers what was put in it.
+
+    `rendered` collects the buttons written through `container()`, and
+    `cleared` records whether `empty()` was called — together they let a test
+    say "this control was rendered into a slot, and that slot was cleared".
+    """
+
+    def __init__(self):
+        self.rendered: list[str] = []
+        self.cleared = False
+
     def success(self, *_a, **_k): pass
     def warning(self, *_a, **_k): pass
     def error(self, *_a, **_k): pass
-    def empty(self, *_a, **_k): pass
+
+    def empty(self, *_a, **_k):
+        self.cleared = True
 
     @contextmanager
     def container(self, *_a, **_k):
-        yield None
+        _OPEN_PLACEHOLDERS.append(self)
+        try:
+            yield None
+        finally:
+            _OPEN_PLACEHOLDERS.pop()
+
+
+_OPEN_PLACEHOLDERS: list[_FakePlaceholder] = []
+"""The `st.empty()` containers currently open, innermost last."""
 
 
 @pytest.fixture
@@ -1217,6 +1247,116 @@ def test_degraded_state_renders_base_and_notice_on_a_plain_rerun(
     assert any(
         b.get("key") == "threat_group_retry_narrative" for b in stub_streamlit["buttons"]
     )
+
+
+_BASE_KEPT_PREFIX = "The scenario, its downloads,"
+"""Opening of the reassurance clause the degraded notice appends."""
+
+
+def _skip_slot(stub_streamlit: dict[str, Any]):
+    """The placeholder the Skip control was rendered into, if any."""
+    for slot in stub_streamlit["placeholders"]:
+        if "Skip purple-team narrative" in slot.rendered:
+            return slot
+    return None
+
+
+def test_skip_control_is_cleared_once_the_narrative_settles(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    """A Skip button outliving its phase offers to interrupt nothing.
+
+    The control belongs to the window where the narrative is actually in
+    flight, so once the phase settles — here, by failing — the slot holding it
+    must be cleared rather than left on screen beside the retry.
+    """
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+
+    slot = _skip_slot(stub_streamlit)
+    assert slot is not None, "the Skip control was never rendered"
+    assert slot.cleared, "the Skip control outlived the phase it interrupts"
+
+
+@pytest.mark.skipif(
+    not _SCRIPT_CONTROL, reason="Streamlit exposes no script-control exceptions"
+)
+def test_skip_control_survives_a_run_torn_down_mid_stream(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    """Clearing it is conditional on the phase settling, not on leaving the call.
+
+    A rerun tears the script down mid-stream; the phase has not settled, so the
+    control must still be standing for the next run to replace — the same terms
+    on which the in-flight marker survives.
+    """
+    rerun = _SCRIPT_CONTROL[0](None)
+
+    def _tear_down_on_narrative_chunk(chunk: str, _seen: list[str]) -> None:
+        if chunk.startswith("##"):
+            raise rerun
+
+    stub_streamlit["on_stream_chunk"] = _tear_down_on_narrative_chunk
+
+    with pytest.raises(type(rerun)):
+        _generate_with_narrative(
+            stub_streamlit,
+            fake_session_state,
+            controllable_stream,
+            ["## Defender walkthrough"],
+        )
+
+    slot = _skip_slot(stub_streamlit)
+    assert slot is not None, "the Skip control was never rendered"
+    assert not slot.cleared
+    assert fake_session_state["threat_group_narrative_running"] is True
+
+
+_PUNCTUATED_DETAILS = ["Connection error.", "Connection error", "rate limited!"]
+"""Client error strings as they actually arrive: punctuated, bare, emphatic."""
+
+
+@pytest.mark.parametrize("detail", _PUNCTUATED_DETAILS)
+def test_degraded_notice_ends_in_a_single_full_stop(
+    stub_streamlit, fake_session_state, controllable_stream, detail: str
+) -> None:
+    """Client errors are quoted verbatim and often arrive already punctuated.
+
+    litellm's connection errors end in "."; appending the template's own stop
+    gave users "Connection error..". Whatever punctuation the detail brought,
+    the sentence around it must close exactly once.
+    """
+    _generate_with_narrative(
+        stub_streamlit, fake_session_state, controllable_stream, [RuntimeError(detail)]
+    )
+
+    notice = "\n".join(stub_streamlit["warnings"])
+    assert notice.startswith("The purple-team narrative failed: ")
+    assert f"{detail.rstrip('.!')}. {_BASE_KEPT_PREFIX}" in notice
+    assert ".." not in notice
+    assert "!." not in notice
+
+
+@pytest.mark.parametrize("detail", _PUNCTUATED_DETAILS)
+def test_base_failure_notice_ends_in_a_single_full_stop(
+    stub_streamlit, fake_session_state, controllable_stream, detail: str
+) -> None:
+    """The base-phase notice quotes the same details and must read the same."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    controllable_stream.scripts = [[RuntimeError(detail)]]
+
+    _run_page()
+
+    notice = "\n".join(stub_streamlit["errors"])
+    assert f"{detail.rstrip('.!')}. Nothing downstream ran." in notice
+    assert ".." not in notice
+    assert "!." not in notice
 
 
 def test_base_failure_is_attributed_to_the_base_phase(

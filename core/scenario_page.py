@@ -176,17 +176,29 @@ def _failure(phase: str, reason: str, detail: str = "") -> Status:
     return {"phase": phase, "reason": reason, "detail": detail}
 
 
+def _detail_phrase(detail: str) -> str:
+    """Trim a failure detail so the sentence around it ends in one full stop.
+
+    Client errors are quoted verbatim into these notices, and they routinely
+    arrive already punctuated — litellm's connection errors end in ".", giving
+    "Connection error.." once the template adds its own. Strip whatever
+    sentence-ending punctuation the detail brought and let the template supply it.
+    """
+    return detail.rstrip().rstrip(".!?") or detail
+
+
 def _degraded_message(status: Status) -> str:
     """Explain a missing optional phase without implying the run failed."""
     template = _NARRATIVE_REASONS.get(
         status.get("reason", ""), _NARRATIVE_REASONS["interrupted"]
     )
-    reason = template.format(detail=status.get("detail") or "no output was returned")
+    detail = _detail_phrase(status.get("detail", "")) or "no output was returned"
+    reason = template.format(detail=detail)
     return f"{reason} {_BASE_KEPT}"
 
 
 def _base_failure_message(status: Status) -> str:
-    detail = status.get("detail") or "the model returned nothing"
+    detail = _detail_phrase(status.get("detail", "")) or "the model returned nothing"
     return (
         f"The base scenario failed to generate: {detail}. Nothing downstream "
         "ran. The inputs captured when you pressed Generate are preserved — "
@@ -727,24 +739,31 @@ def _settle_interrupted_narrative(keys: _Keys) -> None:
     )
 
 
-def _render_skip_control(keys: _Keys) -> None:
+def _render_skip_control(keys: _Keys):
     """Offer a way out of a slow or stalled optional phase.
 
     Clicking this queues a rerun, which tears down the in-flight narrative
     stream; ``_settle_interrupted_narrative`` then reports it as skipped on the
     next run. The base scenario is already persisted, so the rerun re-renders
     it with its downloads intact.
+
+    Returns the placeholder holding the button so the caller can clear it once
+    the phase is over — a Skip control left on screen after the narrative has
+    settled offers to interrupt something that is no longer running.
     """
-    st.button(
-        "Skip purple-team narrative",
-        key=f"{keys.page_id}_skip_narrative",
-        on_click=_request_narrative_stop,
-        args=(keys.narrative_stop,),
-        help=(
-            "Stop waiting for the optional narrative. The scenario and its "
-            "downloads are already saved, and you can retry the narrative later."
-        ),
-    )
+    slot = st.empty()
+    with slot.container():
+        st.button(
+            "Skip purple-team narrative",
+            key=f"{keys.page_id}_skip_narrative",
+            on_click=_request_narrative_stop,
+            args=(keys.narrative_stop,),
+            help=(
+                "Stop waiting for the optional narrative. The scenario and its "
+                "downloads are already saved, and you can retry the narrative later."
+            ),
+        )
+    return slot
 
 
 def _run_narrative_phase(
@@ -768,9 +787,11 @@ def _run_narrative_phase(
     # Flag the phase in flight *before* the call, so a run torn down mid-stream
     # is recognisable on the next one.
     st.session_state[keys.narrative_running] = True
-    _render_skip_control(keys)
+    skip_slot = _render_skip_control(keys)
     # Deliberately not in a `finally`: if the run is torn down here the marker
-    # must survive, so the next run knows this phase never finished.
+    # must survive, so the next run knows this phase never finished. The Skip
+    # control is cleared on the same terms — only once the phase has settled,
+    # so a run torn down mid-stream leaves it on screen for the rerun to replace.
     narrative_md, failure = _stream_defense_narrative(
         report=report,
         scenario_text=scenario_text,
@@ -779,6 +800,7 @@ def _run_narrative_phase(
         on_progress=on_progress,
     )
     st.session_state.pop(keys.narrative_running, None)
+    skip_slot.empty()
 
     if failure:
         st.session_state[keys.status] = failure
