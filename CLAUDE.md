@@ -37,10 +37,10 @@ pytest
 ```
 `pyproject.toml` sets `testpaths = ["tests"]` and `pythonpath = ["."]`, so `pytest` from the repo root discovers everything under `tests/` with no extra flags. It also declares `[project]`/`[build-system]` metadata and the `attackgen-mcp = "mcp_server:main"` console script, so `pip install -e .` makes the package importable and installs the MCP entry point.
 
-In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.10–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
+In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.11–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
 
 ### Cutting a Release
-Releases are automated by `.github/workflows/release.yml`, which fires on **3-component semver tags** (`v*.*.*`, e.g. `v0.14.0`). Pushing such a tag runs the whole pipeline: **verify** the tag matches the packaged version → **test** (pytest on Python 3.10–3.14) → **build & push** a multi-arch (`linux/amd64,linux/arm64`) image to Docker Hub as `mrwadams/attackgen` (tagged `{version}`, `{major}.{minor}`, and `latest`) → **cut a GitHub Release** with generated notes. The image builds from the existing `Dockerfile` (its pinned base is a multi-arch OCI index, so arm64 works unchanged).
+Releases are automated by `.github/workflows/release.yml`, which fires on **3-component semver tags** (`v*.*.*`, e.g. `v0.14.0`). Pushing such a tag runs the whole pipeline: **verify** the tag matches the packaged version → **test** (pytest on Python 3.11–3.14) → **build & push** a multi-arch (`linux/amd64,linux/arm64`) image to Docker Hub as `mrwadams/attackgen` (tagged `{version}`, `{major}.{minor}`, and `latest`) → **cut a GitHub Release** with generated notes. The image builds from the existing `Dockerfile` (its pinned base is a multi-arch OCI index, so arm64 works unchanged).
 
 To cut a release:
 ```bash
