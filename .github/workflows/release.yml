@@ -42,7 +42,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        # 3.10 was dropped in favour of a 3.11 floor: litellm 1.98.0+ imports
+        # `NotRequired`/`Required` from stdlib `typing` (3.11+) on the `import
+        # litellm` path, so `import core` — and therefore every test — fails to
+        # collect on 3.10. litellm still declares `requires-python >=3.10`, but
+        # has broken it repeatedly (BerriAI/litellm#38076, #38892); 1.100.0 is
+        # still broken even after the #39448 fix. 3.10 reaches EOL in Oct 2026
+        # and the shipped Docker image runs 3.14, so capping litellm to keep it
+        # alive would freeze the model registry for no real benefit.
+        python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
