@@ -20,8 +20,11 @@ import pytest
 import streamlit as st
 
 import core.llm as llm_module
-import core.scenario_page as scenario_page_module
-from core.scenario_page import _unique_filenames, run_scenario_page
+from core.scenario_page import (
+    _stream_on_worker,
+    _unique_filenames,
+    run_scenario_page,
+)
 
 
 class TestUniqueFilenames:
@@ -913,8 +916,8 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
     fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
-    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
-    monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
+    monkeypatch.setattr("core.scenario_page._monotonic", lambda: next(clock))
+    monkeypatch.setattr("core.scenario_page._STREAM_POLL_INTERVAL", 0.005)
 
     def silent_then_stream(_config, _messages):
         # Real sleep on the worker thread: gives the main thread's polling
@@ -951,8 +954,8 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
     fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
-    monkeypatch.setattr(scenario_page_module, "_monotonic", lambda: next(clock))
-    monkeypatch.setattr(scenario_page_module, "_STREAM_POLL_INTERVAL", 0.005)
+    monkeypatch.setattr("core.scenario_page._monotonic", lambda: next(clock))
+    monkeypatch.setattr("core.scenario_page._STREAM_POLL_INTERVAL", 0.005)
 
     calls = 0
 
@@ -1106,9 +1109,9 @@ def test_worker_thread_is_given_the_script_run_context_before_it_starts(
         seen["thread"] = thread
         seen["alive_at_attach"] = thread.is_alive()
 
-    monkeypatch.setattr(scenario_page_module, "_attach_script_run_ctx", fake_attach)
+    monkeypatch.setattr("core.scenario_page._attach_script_run_ctx", fake_attach)
 
-    assert list(scenario_page_module._stream_on_worker(iter(["a", "b"]))) == ["a", "b"]
+    assert list(_stream_on_worker(iter(["a", "b"]))) == ["a", "b"]
     assert isinstance(seen.get("thread"), threading.Thread)
     # Attaching after start() is a race the context may lose, so ordering is
     # the whole point of the assertion.
@@ -1135,7 +1138,7 @@ def test_closing_the_stream_stops_the_worker_pulling_from_the_model() -> None:
         finally:
             closed.set()
 
-    gen = scenario_page_module._stream_on_worker(source())
+    gen = _stream_on_worker(source())
     assert next(gen).startswith("chunk-0")
     gen.close()
 
