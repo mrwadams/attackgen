@@ -133,12 +133,17 @@ def browser():
         try:
             instance = p.chromium.launch()
         except Exception as exc:  # Executable-not-found error type varies by platform.
+            # `else:` rather than falling through: pytest.skip() raises, so the
+            # yield below is already unreachable on this path, but CodeQL does
+            # not model skip() as NoReturn and flags `instance` as possibly
+            # unbound (py/uninitialized-local-variable, error severity).
             pytest.skip(
                 "Chromium is not installed for Playwright "
                 f"(run `playwright install chromium`): {exc}"
             )
-        yield instance
-        instance.close()
+        else:
+            yield instance
+            instance.close()
 
 
 @pytest.fixture

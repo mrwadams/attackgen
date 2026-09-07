@@ -128,7 +128,7 @@ def test_thumbs_buttons_have_meaningful_accessible_names(
 
     monkeypatch.setattr(st, "secrets", {"LANGCHAIN_API_KEY": "key"})
     monkeypatch.setattr(st, "markdown", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(st, "empty", lambda: _FakePlaceholder())
+    monkeypatch.setattr(st, "empty", _FakePlaceholder)
     monkeypatch.setattr(st, "columns", lambda spec: [_FakeColumn() for _ in spec])
     monkeypatch.setattr(
         st, "button", lambda label, **kwargs: button_labels.append(label) or False
