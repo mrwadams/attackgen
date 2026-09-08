@@ -157,13 +157,10 @@ def render_setup_sidebar() -> SetupState:
             else 0
         )
         provider = st.selectbox(
-            "Select your preferred model provider:",
+            "Model provider",
             provider_options,
             index=provider_idx,
-            help=(
-                "Select the model provider you would like to use. This will determine "
-                "the models available for selection."
-            ),
+            help="Determines which models are available below.",
         )
         st.session_state["chosen_model_provider"] = provider
         provider_info = PROVIDERS[provider]
@@ -193,9 +190,9 @@ def render_setup_sidebar() -> SetupState:
                 )
             st.session_state["llm_api_key"] = st.text_input(
                 (
-                    f"Enter your {provider_info.name} API key:"
+                    f"{provider_info.name} API key"
                     if provider_info.needs_api_key
-                    else "API key (optional):"
+                    else "API key (optional)"
                 ),
                 type="password",
                 value=existing_key,
@@ -210,7 +207,7 @@ def render_setup_sidebar() -> SetupState:
                 or ""
             )
             st.session_state["llm_api_base"] = st.text_input(
-                "Base URL:",
+                "Base URL",
                 value=initial_base,
                 help=(
                     "Base URL of your OpenAI-compatible endpoint. Example: "
@@ -228,7 +225,7 @@ def render_setup_sidebar() -> SetupState:
             help_map = {model.model_id: model.help_text for model in models}
             model_idx = labels.index(persisted_model) if persisted_model in labels else 0
             st.session_state["llm_model_name"] = st.selectbox(
-                "Select the model you would like to use:",
+                "Model",
                 labels,
                 index=model_idx,
                 help="\n".join(
@@ -239,7 +236,7 @@ def render_setup_sidebar() -> SetupState:
         else:
             initial_model = persisted_model or os.getenv("CUSTOM_MODEL_NAME") or ""
             st.session_state["llm_model_name"] = st.text_input(
-                "Model name:",
+                "Model name",
                 value=initial_model,
                 help=(
                     "Model identifier as expected by your endpoint "
@@ -256,7 +253,7 @@ def render_setup_sidebar() -> SetupState:
             else 0
         )
         st.session_state["matrix"] = st.radio(
-            "Select MITRE Framework:",
+            "MITRE framework",
             MATRIX_OPTIONS,
             index=matrix_idx,
             help=(
@@ -267,7 +264,7 @@ def render_setup_sidebar() -> SetupState:
 
         persisted_industry = st.session_state.get("industry")
         st.session_state["industry"] = st.selectbox(
-            "Select your company's industry:",
+            "Industry",
             INDUSTRIES,
             index=(
                 INDUSTRIES.index(persisted_industry)
@@ -279,7 +276,7 @@ def render_setup_sidebar() -> SetupState:
 
         persisted_size = st.session_state.get("company_size")
         st.session_state["company_size"] = st.selectbox(
-            "Select your company's size:",
+            "Company size",
             COMPANY_SIZES,
             index=(
                 COMPANY_SIZES.index(persisted_size)
