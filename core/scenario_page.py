@@ -215,6 +215,15 @@ _NARRATIVE_REASONS = {
 }
 
 
+class _PhaseAborted(Exception):
+    """A phase gave up after recording why, with nothing left to render.
+
+    Raised instead of returning so the caller's tail still runs: a run that
+    produces no scenario of its own must put the page's persisted result back
+    on screen, not leave the page blank while the session still holds one.
+    """
+
+
 def _is_script_control(exc: BaseException) -> bool:
     """Is this Streamlit tearing the run down rather than a phase failing?
 
@@ -531,6 +540,16 @@ def run_scenario_page(
         ),
     )
 
+    # Regenerate is deliberately never disabled: it lives with the result,
+    # which outlives the widget state that produced it -- navigating away and
+    # back resets a multiselect but keeps the scenario. Say why the click did
+    # nothing rather than swallowing it.
+    if regenerate and not ready:
+        st.warning(
+            "Regenerate needs the requirements above to be met. Nothing was "
+            "regenerated, and the result below is unchanged."
+        )
+
     # Reserve the notice's position now; it's written at the end of the run,
     # once we know whether this run's phases produced everything they should.
     notice_slot = st.empty()
@@ -650,7 +669,7 @@ def _generate_and_render(
                 st.session_state[keys.status] = _failure(
                     BASE_PHASE, "error", "no scenario inputs were available"
                 )
-                return
+                raise _PhaseAborted
             config = LLMConfig.from_session_state(
                 trace_name=trace_name,
                 trace_tags=trace_tags,
@@ -686,7 +705,7 @@ def _generate_and_render(
                 st.session_state[keys.status] = _failure(
                     BASE_PHASE, "error", "the model returned no scenario"
                 )
-                return
+                raise _PhaseAborted
 
             # Deterministic artifacts are built only after the base model has
             # completed, and exclusively from the frozen input snapshot.
@@ -764,6 +783,10 @@ def _generate_and_render(
                 )
             else:
                 set_phase(status, "Complete", state="complete")
+    except _PhaseAborted:
+        # The status is already recorded; the tail below restores the previous
+        # result, if the page has one.
+        pass
     except Exception as e:
         if _is_script_control(e):
             raise
@@ -775,8 +798,11 @@ def _generate_and_render(
             NARRATIVE_PHASE if base_persisted else BASE_PHASE, "error", str(e)
         )
 
+    # Whether this run rendered anything is what matters, not whether the model
+    # returned text: a stream that produced only reasoning tags, or failed after
+    # partial output, leaves `scenario_text` set with nothing on the page.
     if (
-        not scenario_text
+        not base_persisted
         and st.session_state.get(keys.generated)
         and st.session_state.get(keys.text)
     ):
@@ -920,7 +946,13 @@ def _run_narrative_phase(
         human_name=human_name,
     )
     st.session_state[keys.defense] = enriched
-    st.session_state["last_defense_narrative"] = narrative_md
+    # Only refresh the Assistant's narrative while the handoff still points at
+    # this page -- the same ownership rule _persist_and_render and _clear_result
+    # use. A narrative retry can land after another page has generated, and must
+    # not pair its narrative with that page's scenario.
+    meta = st.session_state.get(SCENARIO_META_KEY) or {}
+    if meta.get("page_id") == keys.page_id:
+        st.session_state[DEFENSE_NARRATIVE_KEY] = narrative_md
     st.session_state.pop(keys.status, None)
     return enriched
 

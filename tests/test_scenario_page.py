@@ -22,6 +22,7 @@ import streamlit as st
 
 import core.llm as llm_module
 from core.scenario_page import (
+    BASE_PHASE,
     _SCRIPT_CONTROL,
     _stream_on_worker,
     _unique_filenames,
@@ -2184,3 +2185,121 @@ def test_deep_link_without_a_result_explains_that_scenarios_are_session_only(
 
     note = "\n".join(stub_streamlit["captions"])
     assert "current browser session only" in note
+
+
+def test_regenerate_says_why_nothing_happened_when_the_form_is_not_ready(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regenerate sits with the result, which outlives the widgets that made it.
+
+    Navigating away and back resets the page's selector but keeps the scenario,
+    so the button is reachable while the form is incomplete. It must say why it
+    did nothing rather than consuming the click in silence.
+    """
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+
+    _click(stub_streamlit, "threat_group_regenerate_current")
+
+    # The rerun the click triggers, on a page whose selector has reset.
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["warnings"].clear()
+
+    def _unexpected(_config, _messages):
+        raise AssertionError("no model call may run while the form is incomplete")
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _unexpected)
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=["Select a threat actor group for the scenario."],
+        setup=_setup_state(),
+        download_name="AttackGen None Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert any("Regenerate needs" in w for w in stub_streamlit["warnings"])
+    # ...and the result the user already has is left alone.
+    assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
+
+
+def test_a_run_that_produces_no_scenario_still_shows_the_persisted_result(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed generation must not blank a page that still holds a result.
+
+    The model answering with reasoning and nothing else ends the base phase
+    early. That records the failure, but the page has an earlier scenario in
+    session state, so it is put back on screen with its downloads intact.
+    """
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    md_name = fake_session_state["threat_group_scenario_filename"]
+
+    stub_streamlit["button_returns"] = True
+    stub_streamlit["markdown"].clear()
+
+    def _thinking_only(_config, _messages):
+        yield "<think>weighing the options</think>"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _thinking_only)
+    downloads = _capture_downloads(monkeypatch)
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        capture_inputs=lambda: copy.deepcopy(_THREAT_GROUP_INPUTS),
+    )
+
+    # The failure is recorded against the base phase...
+    status = fake_session_state["threat_group_generation_status"]
+    assert status["phase"] == BASE_PHASE
+    # ...and the scenario the page already had is still rendered and downloadable.
+    assert any("previously generated" in body for body in stub_streamlit["markdown"])
+    assert [d["file_name"] for d in downloads][0] == md_name
+    assert downloads[0]["data"].startswith("# APT29 Scenario")
+
+
+def test_narrative_retry_leaves_another_pages_assistant_handoff_alone(
+    stub_streamlit,
+    fake_session_state,
+    controllable_stream,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The narrative handoff follows the same ownership rule as the scenario.
+
+    A retry can land after a different page has generated and taken over the
+    Assistant. Its narrative belongs to this page's scenario, so it must not be
+    paired with the scenario the Assistant is now showing.
+    """
+    _generate_with_narrative(
+        stub_streamlit,
+        fake_session_state,
+        controllable_stream,
+        [RuntimeError("upstream 503")],
+    )
+
+    _click(stub_streamlit, "threat_group_retry_narrative")
+
+    # Another page generates before the retry runs, taking the handoff with it.
+    stub_streamlit["button_returns"] = False
+    fake_session_state["last_scenario_meta"] = {"page_id": "custom"}
+    fake_session_state["last_scenario_text"] = "# Custom scenario"
+    fake_session_state.pop("last_defense_narrative", None)
+
+    controllable_stream.scripts = [[], [], ["## Defender walkthrough"]]
+    _run_page(is_ready=lambda: False)
+
+    # The retry enriched its own page's result...
+    defense = fake_session_state["threat_group_scenario_defense"]
+    assert defense["narrative_md"] == "## Defender walkthrough"
+    # ...without attaching that narrative to the custom page's scenario.
+    assert "last_defense_narrative" not in fake_session_state
+    assert fake_session_state["last_scenario_text"] == "# Custom scenario"
