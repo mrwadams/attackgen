@@ -35,6 +35,14 @@ PERSISTED: dict[str, str] = {
 _QP_KEYS = set(PERSISTED.values())
 _VALID_MATRICES = {"Enterprise", "ICS", "ATLAS"}
 
+RESTORED_KEY = "_setup_restored_from_link"
+"""Set once when a deep link actually supplied setup values.
+
+Generated scenarios are session-only by design (see the Out of Scope section of
+issue #45), so a page that restored its setup from a URL but has no result can
+say *why* rather than leaving the user to wonder where their scenario went.
+"""
+
 
 def restore_from_query_params() -> None:
     """Seed `st.session_state` from the URL on first script run.
@@ -56,6 +64,12 @@ def restore_from_query_params() -> None:
         if ss_key == "matrix" and value not in _VALID_MATRICES:
             continue
         st.session_state[ss_key] = value
+        st.session_state[RESTORED_KEY] = True
+
+
+def setup_was_restored_from_link() -> bool:
+    """Did this session start by restoring setup from a deep link?"""
+    return bool(st.session_state.get(RESTORED_KEY))
 
 
 def sync_to_query_params() -> None:

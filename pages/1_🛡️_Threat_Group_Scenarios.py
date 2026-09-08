@@ -16,7 +16,7 @@ from core.detections import (
 )
 from core.navigator import build_layer, dumps, tactic_shortname
 from core.scenario_page import run_scenario_page
-from core.sidebar import render_setup_blockers, render_setup_sidebar
+from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
 
 
@@ -115,7 +115,7 @@ def build_defense_payload(snapshot):
     )
 
 
-def _inline_controls():
+def _modifiers():
     render_ai_uplift_toggle("threat_group")
     render_defense_narrative_toggle("threat_group")
 
@@ -188,21 +188,24 @@ try:
 
         if not kill_chain.all_techniques:
             entity = "case study" if matrix == "ATLAS" else "threat group"
+            # Deliberately not `st.stop()`: halting the script here would also
+            # tear down the readiness summary and any result this page is
+            # already holding. The empty technique set becomes a readiness
+            # blocker instead (see `_requirements`).
             st.warning(
                 f"There are no {matrix} techniques associated with the {entity}: {selected_group_alias}"
             )
-            st.stop()
+        else:
+            # Rebuild the DataFrames the rest of the page (expander, layer,
+            # defense) expects, from the resolver's JSON-native records.
+            techniques_df = pd.DataFrame(kill_chain.all_techniques)
+            selected_techniques_df = pd.DataFrame(kill_chain.techniques)
 
-        # Rebuild the DataFrames the rest of the page (expander, layer, defense)
-        # expects, from the resolver's JSON-native records.
-        techniques_df = pd.DataFrame(kill_chain.all_techniques)
-        selected_techniques_df = pd.DataFrame(kill_chain.techniques)
+            expander_title = "Associated ATLAS Techniques" if matrix == "ATLAS" else "Associated ATT&CK Techniques"
+            with st.expander(expander_title):
+                st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
-        expander_title = "Associated ATLAS Techniques" if matrix == "ATLAS" else "Associated ATT&CK Techniques"
-        with st.expander(expander_title):
-            st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
-
-        kill_chain_string = kill_chain.kill_chain_string
+            kill_chain_string = kill_chain.kill_chain_string
 except Exception as e:
     st.error("An error occurred: " + str(e))
 
@@ -216,7 +219,7 @@ if matrix == "ATLAS":
 
         Click the button below to generate a scenario based on the selected case study. The documented attack procedure from the case study will be used to generate the scenario.
 
-        Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
+        Generation runs in phases and reports the elapsed time for each one. ⏱️
         """
     )
 else:
@@ -226,18 +229,21 @@ else:
 
         Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be chosen at random and used to generate the scenario.
 
-        Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
+        Generation runs in phases and reports the elapsed time for each one. ⏱️
         """
     )
 
 
-def _ready() -> bool:
-    if not render_setup_blockers(setup):
-        return False
-    if techniques_df.empty:
-        st.info(f"Please select a {entity_label} with associated techniques.")
-        return False
-    return bool(kill_chain_string)
+def _requirements() -> list[str]:
+    """This page's own readiness blockers, in the order the form presents them."""
+    if selected_group_alias is None:
+        return [f"Select a {entity_label} for the scenario."]
+    if techniques_df.empty or not kill_chain_string:
+        return [
+            f"Select a {entity_label} with associated {matrix} techniques — "
+            f"'{selected_group_alias}' has none."
+        ]
+    return []
 
 
 def _capture_inputs():
@@ -259,11 +265,12 @@ def _capture_inputs():
 run_scenario_page(
     page_id="threat_group",
     build_messages=build_messages,
-    is_ready=_ready,
+    requirements=_requirements,
+    setup=setup,
     download_name=f"AttackGen {selected_group_alias} {matrix}.md",
     trace_name="Threat Group Scenario",
     trace_tags=uplift_trace_tags(("threat_group_scenario",), page_id="threat_group"),
-    inline_control=_inline_controls,
+    render_modifiers=_modifiers,
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,
     defense_narrative=is_defense_narrative_on("threat_group"),

@@ -116,6 +116,24 @@ def test_submit_records_negative_with_score_zero(
     assert fake_session_state["feedback"] == {"feedback_id": "fb-2", "score": 0}
 
 
+def test_submit_rates_the_result_it_was_rendered_with(
+    fake_session_state: dict[str, Any],
+) -> None:
+    """Feedback follows the scenario on screen, not the session's newest run.
+
+    Pages persist the run id alongside each result, so rating a scenario after
+    navigating away and back — or after another page has generated its own —
+    can't post feedback against a different run.
+    """
+    fake_session_state["run_id"] = "run-from-another-page"
+    client = _FakeClient(record_id="fb-3")
+    placeholder = _FakePlaceholder()
+
+    _submit(client, placeholder, kind="positive", score=1, run_id="run-on-screen")
+
+    assert client.calls == [("run-on-screen", "positive", {"score": 1, "comment": ""})]
+
+
 def test_thumbs_buttons_have_meaningful_accessible_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

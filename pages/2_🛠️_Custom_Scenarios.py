@@ -11,7 +11,7 @@ from core.detections import (
 )
 from core.navigator import build_layer, dumps, parse_technique_id
 from core.scenario_page import run_scenario_page
-from core.sidebar import render_setup_blockers, render_setup_sidebar
+from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
 
 
@@ -140,7 +140,7 @@ def build_defense_payload(snapshot):
     )
 
 
-def _inline_controls():
+def _modifiers():
     render_ai_uplift_toggle("custom")
     render_defense_narrative_toggle("custom")
 
@@ -234,18 +234,17 @@ st.markdown(
 
     Click the button below to generate a scenario based on the selected technique(s).
 
-    Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
+    Generation runs in phases and reports the elapsed time for each one. ⏱️
     """
 )
 
 
-def _ready() -> bool:
-    if not render_setup_blockers(setup):
-        return False
+def _requirements() -> list[str]:
+    """This page's own readiness blocker: at least one technique."""
     if not selected_techniques:
-        st.info("Please select at least one technique.")
-        return False
-    return True
+        label = "ATLAS" if matrix == "ATLAS" else "ATT&CK"
+        return [f"Select at least one {label} technique for the scenario."]
+    return []
 
 
 def _capture_inputs():
@@ -273,11 +272,12 @@ def _capture_inputs():
 run_scenario_page(
     page_id="custom",
     build_messages=build_messages,
-    is_ready=_ready,
+    requirements=_requirements,
+    setup=setup,
     download_name=f"AttackGen Custom {selected_template} {matrix}.md",
     trace_name="Custom Scenario",
     trace_tags=uplift_trace_tags(("custom_scenario",), page_id="custom"),
-    inline_control=_inline_controls,
+    render_modifiers=_modifiers,
     build_layer=build_layer_payload,
     build_defense=build_defense_payload,
     defense_narrative=is_defense_narrative_on("custom"),

@@ -8,6 +8,7 @@ anything — we only care about the control flow at the seam.
 
 from __future__ import annotations
 
+import copy
 import itertools
 import re
 import threading
@@ -58,8 +59,8 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
       - `button_returns`: bool returned by `st.button`
 
     and read to see what was rendered: `buttons` (every `st.button` call's
-    kwargs, so a test can press one via its `on_click`), `warnings`, `errors`
-    and `status_labels`.
+    kwargs, so a test can press one via its `on_click`), `page_links`,
+    `markdown`, `captions`, `infos`, `warnings`, `errors` and `status_labels`.
     """
     controls: dict[str, Any] = {
         "button_returns": False,
@@ -67,6 +68,10 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "stream_chunks": [],
         "on_stream_chunk": None,
         "buttons": [],
+        "page_links": [],
+        "markdown": [],
+        "captions": [],
+        "infos": [],
         "warnings": [],
         "errors": [],
         # Every placeholder `st.empty()` handed out, so a test can ask whether
@@ -109,16 +114,29 @@ def stub_streamlit(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             if controls["on_stream_chunk"]:
                 controls["on_stream_chunk"](chunk, list(controls["stream_chunks"]))
 
+    def _page_link(path, *_args, **kwargs):
+        controls["page_links"].append({"path": path, **kwargs})
+
+    def _columns(spec, *_args, **_kwargs):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_FakeTab() for _ in range(count)]
+
     monkeypatch.setattr(st, "button", _button)
+    monkeypatch.setattr(st, "page_link", _page_link)
+    monkeypatch.setattr(st, "columns", _columns)
     monkeypatch.setattr(st, "status", _status)
     monkeypatch.setattr(st, "expander", _expander)
     monkeypatch.setattr(st, "tabs", _tabs)
-    monkeypatch.setattr(st, "markdown", _noop)
-    monkeypatch.setattr(st, "caption", _noop)
+    monkeypatch.setattr(
+        st, "markdown", lambda body="", *a, **k: controls["markdown"].append(str(body))
+    )
+    monkeypatch.setattr(
+        st, "caption", lambda body="", *a, **k: controls["captions"].append(str(body))
+    )
     monkeypatch.setattr(st, "write", _noop)
     monkeypatch.setattr(st, "write_stream", _write_stream)
     monkeypatch.setattr(st, "download_button", _noop)
-    monkeypatch.setattr(st, "info", _noop)
+    monkeypatch.setattr(st, "info", lambda msg, *a, **k: controls["infos"].append(msg))
     monkeypatch.setattr(st, "warning", lambda msg, *a, **k: controls["warnings"].append(msg))
     monkeypatch.setattr(st, "error", lambda msg, *a, **k: controls["errors"].append(msg))
     def _empty():
@@ -1720,3 +1738,449 @@ def test_closing_the_stream_stops_the_worker_pulling_from_the_model() -> None:
     assert len(produced) == settled, "the worker kept pulling after cancellation"
     # Bounded by the queue, so it stops early rather than draining the response.
     assert settled < 1_000
+
+
+# --- Readiness, result actions and cross-page navigation (issue #45) ---------
+
+
+def _setup_state(**overrides):
+    """A `SetupState` for the shared Setup fields, complete unless overridden."""
+    from core.sidebar import get_setup_state
+
+    state = {
+        "chosen_model_provider": "OpenAI API",
+        "llm_model_name": "gpt-5.5",
+        "matrix": "Enterprise",
+        "industry": "Finance / Banking",
+        "company_size": "Medium (51-200 employees)",
+    }
+    state.update(overrides)
+    return get_setup_state(state, {"OPENAI_API_KEY": "k"})
+
+
+PAGE_CASES = [
+    ("threat_group", "Select a threat actor group for the scenario."),
+    ("custom", "Select at least one ATT&CK technique for the scenario."),
+    ("ai_insider", "Select at least one threat category for the scenario."),
+]
+
+
+@pytest.mark.parametrize("page_id, page_blocker", PAGE_CASES)
+def test_generate_is_disabled_and_every_blocker_is_listed(
+    stub_streamlit,
+    fake_session_state,
+    mock_litellm_completion,
+    page_id: str,
+    page_blocker: str,
+) -> None:
+    """The global requirements behave the same on every page; the page-specific
+    one is listed first, and Generate can't be spent finding out."""
+    stub_streamlit["button_returns"] = True  # a click on a disabled button
+    build_calls: list[None] = []
+
+    run_scenario_page(
+        page_id=page_id,
+        build_messages=lambda: build_calls.append(None),
+        requirements=[page_blocker],
+        setup=_setup_state(industry=None, company_size=None),
+        download_name="scenario.md",
+        trace_name="Scenario",
+        trace_tags=("scenario",),
+    )
+
+    assert mock_litellm_completion.calls == []
+    assert build_calls == []
+    generate = next(b for b in stub_streamlit["buttons"] if b.get("key") == f"{page_id}_generate")
+    assert generate["disabled"] is True
+
+    summary = "\n".join(stub_streamlit["infos"])
+    assert summary.index(page_blocker) < summary.index("industry")
+    assert "Select your company's industry in the Setup sidebar." in summary
+    assert "Select your company's size in the Setup sidebar." in summary
+
+
+@pytest.mark.parametrize("page_id, page_blocker", PAGE_CASES)
+def test_generate_is_enabled_and_confirms_the_inputs_when_ready(
+    stub_streamlit,
+    fake_session_state,
+    page_id: str,
+    page_blocker: str,
+) -> None:
+    stub_streamlit["button_returns"] = False
+
+    run_scenario_page(
+        page_id=page_id,
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="scenario.md",
+        trace_name="Scenario",
+        trace_tags=("scenario",),
+        capture_inputs=lambda: {
+            "matrix": "Enterprise",
+            "organisation": {
+                "industry": "Finance / Banking",
+                "company_size": "Medium (51-200 employees)",
+            },
+            "selected_entity": {"type": "threat actor group", "name": "APT29"},
+            "modifiers": {"purple_team_narrative": True},
+        },
+    )
+
+    generate = next(b for b in stub_streamlit["buttons"] if b.get("key") == f"{page_id}_generate")
+    assert generate["disabled"] is False
+    # No readiness blockers — the only notice is the feedback widget's own.
+    assert not any("Complete these before generating" in info for info in stub_streamlit["infos"])
+
+    # Story 16: what is about to be generated is confirmed before any usage.
+    confirmation = "\n".join(stub_streamlit["captions"])
+    assert "Ready to generate" in confirmation
+    assert "Enterprise ATT&CK" in confirmation
+    assert "APT29" in confirmation
+    assert "Purple-team narrative" in confirmation
+
+
+def test_modifiers_are_rendered_before_the_generate_button(
+    stub_streamlit, fake_session_state, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A modifier that adds a model call must be a decision made before the
+    request starts, not one noticed beside or after the button."""
+    order: list[str] = []
+
+    def _modifiers():
+        order.append("modifiers")
+
+    def _button(*_args, **kwargs):
+        if kwargs.get("key") == "threat_group_generate":
+            order.append("generate")
+        return False
+
+    monkeypatch.setattr(st, "button", _button)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=[],
+        setup=_setup_state(),
+        download_name="scenario.md",
+        trace_name="Scenario",
+        trace_tags=("scenario",),
+        render_modifiers=_modifiers,
+    )
+
+    assert order == ["modifiers", "generate"]
+
+
+def _generate_threat_group_result(
+    stub_streamlit, fake_session_state, monkeypatch, *, inputs=None
+) -> None:
+    """Generate one complete threat-group result (scenario + layer + defence)."""
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["llm_api_key"] = "k"
+
+    def _stream(_config, _messages):
+        fake_session_state["run_id"] = "run-abc"
+        yield "# APT29 Scenario\n\nA phased intrusion.\n\n## Injects\n\nInject 1."
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_layer=lambda _s: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _s: _DEFENSE_REPORT,
+        capture_inputs=lambda: copy.deepcopy(inputs or _THREAT_GROUP_INPUTS),
+    )
+
+
+_THREAT_GROUP_INPUTS = {
+    "scenario_type": "threat_group",
+    "matrix": "Enterprise",
+    "organisation": {
+        "industry": "Finance / Banking",
+        "company_size": "Medium (51-200 employees)",
+    },
+    "selected_entity": {"type": "threat actor group", "name": "APT29"},
+    "selected_techniques": ["T1566"],
+    "sampled_techniques": ["T1566"],
+    "modifiers": {"ai_uplift": False, "purple_team_narrative": False},
+}
+
+
+def test_result_survives_visiting_the_assistant_and_returning(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The acceptance case from issue #45's manual testing: generate, open the
+    Assistant, come back to a page whose selector has reset — and still find the
+    scenario, its captured inputs, its stable filenames and its actions."""
+    from core.assistant import scenario_handoff
+    from core.routes import ASSISTANT_PAGE, THREAT_GROUP_PAGE
+
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    md_name = fake_session_state["threat_group_scenario_filename"]
+    layer_name = fake_session_state["threat_group_scenario_layer"][1]
+    detection_name = fake_session_state["threat_group_scenario_defense"]["filename"]
+
+    # ...the Assistant knows which scenario it is discussing, and how to get back.
+    scenario = scenario_handoff()
+    assert scenario is not None
+    assert scenario.text.startswith("# APT29 Scenario")
+    assert scenario.origin == THREAT_GROUP_PAGE
+    assert "APT29" in scenario.title
+
+    # ...and returning re-runs the page from scratch: Generate unpressed, and
+    # the group selector back at its neutral default.
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["buttons"].clear()
+    stub_streamlit["page_links"].clear()
+    stub_streamlit["captions"].clear()
+    downloads = _capture_downloads(monkeypatch)
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=["Select a threat actor group for the scenario."],
+        setup=_setup_state(),
+        download_name="AttackGen None Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_layer=lambda _s: None,
+        build_defense=lambda _s: None,
+    )
+
+    # Every artefact from that one generation is still offered, under the names
+    # it was generated with.
+    assert [d["file_name"] for d in downloads] == [md_name, layer_name, detection_name]
+    assert downloads[0]["data"].startswith("# APT29 Scenario")
+
+    # The result's own inputs are shown with it, not the page's current form.
+    assert any("APT29" in caption for caption in stub_streamlit["captions"])
+
+    # The action area is intact.
+    assert any(link["path"] == ASSISTANT_PAGE.path for link in stub_streamlit["page_links"])
+    keys = {b.get("key") for b in stub_streamlit["buttons"]}
+    assert "threat_group_regenerate_previous" in keys
+    assert "threat_group_clear_previous" in keys
+
+
+def test_each_page_keeps_its_own_latest_result(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+
+    def _stream(_config, _messages):
+        yield "# Custom scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen Custom Enterprise.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+        capture_inputs=lambda: {"matrix": "Enterprise", "modifiers": {}},
+    )
+
+    assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
+    assert fake_session_state["custom_scenario_text"] == "# Custom scenario"
+    # The Assistant follows the most recent generation.
+    assert fake_session_state["last_scenario_meta"]["page_id"] == "custom"
+
+
+def test_editing_the_form_keeps_the_result_and_says_it_is_out_of_date(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["infos"].clear()
+    downloads = _capture_downloads(monkeypatch)
+
+    edited = copy.deepcopy(_THREAT_GROUP_INPUTS)
+    edited["selected_entity"]["name"] = "APT28"
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT28 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        capture_inputs=lambda: edited,
+    )
+
+    # The old result is not destroyed by editing the form...
+    assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
+    assert downloads
+    # ...but it is not passed off as matching the new selection either.
+    assert any("differ from the inputs" in info for info in stub_streamlit["infos"])
+
+
+def test_regenerate_action_runs_again_with_the_current_inputs(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    first_text = fake_session_state["threat_group_scenario_text"]
+
+    _click(stub_streamlit, "threat_group_regenerate_current")
+
+    # The rerun the click triggers: Generate itself is not pressed.
+    stub_streamlit["button_returns"] = False
+    edited = copy.deepcopy(_THREAT_GROUP_INPUTS)
+    edited["selected_entity"]["name"] = "APT28"
+
+    def _stream(_config, _messages):
+        yield "# APT28 Scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT28 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        capture_inputs=lambda: edited,
+    )
+
+    assert first_text.startswith("# APT29")
+    assert fake_session_state["threat_group_scenario_text"] == "# APT28 Scenario"
+    assert fake_session_state["threat_group_scenario_input_snapshot"]["selected_entity"][
+        "name"
+    ] == "APT28"
+
+
+def test_clear_result_removes_only_the_result(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+
+    _click(stub_streamlit, "threat_group_clear_current")
+
+    stub_streamlit["button_returns"] = False
+    downloads = _capture_downloads(monkeypatch)
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert fake_session_state["threat_group_scenario_generated"] is False
+    assert "threat_group_scenario_text" not in fake_session_state
+    assert downloads == []
+    # The Assistant's handoff went with it...
+    assert "last_scenario_text" not in fake_session_state
+    # ...but Setup did not.
+    assert fake_session_state["chosen_model_provider"] == "OpenAI API"
+    assert fake_session_state["llm_model_name"] == "gpt-5.5"
+    assert fake_session_state["llm_api_key"] == "k"
+
+
+def test_clearing_one_page_leaves_another_pages_result_alone(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    fake_session_state["custom_scenario_generated"] = True
+    fake_session_state["custom_scenario_text"] = "# Custom scenario"
+
+    _click(stub_streamlit, "threat_group_clear_current")
+    stub_streamlit["button_returns"] = False
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    assert fake_session_state["custom_scenario_text"] == "# Custom scenario"
+
+
+def test_long_result_gets_a_summary_and_section_navigation(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+
+    rendered = "\n".join(stub_streamlit["markdown"])
+    # The complete Markdown is still rendered, unmodified...
+    assert "# APT29 Scenario\n\nA phased intrusion.\n\n## Injects\n\nInject 1." in rendered
+    # ...with a compact summary and jump links above it.
+    assert "**Summary:** A phased intrusion." in rendered
+    assert "[Injects](#injects)" in rendered
+
+
+def test_feedback_is_pinned_to_the_run_that_produced_the_result(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+
+    # A later generation elsewhere moves the session's "current" run id on.
+    def _stream(_config, _messages):
+        fake_session_state["run_id"] = "run-xyz"
+        yield "# Custom scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    run_scenario_page(
+        page_id="custom",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen Custom Enterprise.md",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario",),
+    )
+
+    assert fake_session_state["threat_group_scenario_run_id"] == "run-abc"
+    assert fake_session_state["custom_scenario_run_id"] == "run-xyz"
+
+
+def test_deep_link_without_a_result_explains_that_scenarios_are_session_only(
+    stub_streamlit, fake_session_state
+) -> None:
+    from core.state import RESTORED_KEY
+
+    fake_session_state[RESTORED_KEY] = True
+
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: None,
+        requirements=["Select a threat actor group for the scenario."],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+    )
+
+    note = "\n".join(stub_streamlit["captions"])
+    assert "current browser session only" in note

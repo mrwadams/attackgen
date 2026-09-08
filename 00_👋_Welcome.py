@@ -17,7 +17,8 @@ to view it, please see https://www.gnu.org/licenses/
 
 import streamlit as st
 
-from core.sidebar import render_setup_sidebar
+from core.routes import SCENARIO_PAGES
+from core.sidebar import render_setup_blockers, render_setup_sidebar
 from core.styles import inject_emoji_fonts
 
 # ------------------ Streamlit UI Configuration ------------------ #
@@ -27,7 +28,7 @@ st.set_page_config(
     page_icon="👾",
 )
 inject_emoji_fonts()
-render_setup_sidebar()
+setup = render_setup_sidebar()
 
 
 # ------------------ Main App UI ------------------ #
@@ -56,6 +57,15 @@ st.markdown("""
 
             **Running a local model?** Pick the **Custom** provider and point the base URL at your OpenAI-compatible endpoint (e.g. `http://localhost:11434/v1` for Ollama, `http://localhost:1234/v1` for LM Studio), then type the model name your runtime expects.
             """)
+
+# The same readiness contract the scenario pages use, so a new user can see
+# what Setup still needs before they pick a page — and, once it's complete,
+# start from here.
+st.markdown("### Setup Status")
+if render_setup_blockers(setup):
+    st.success("Setup is complete. Pick a scenario type to get started:")
+    for page in SCENARIO_PAGES:
+        st.page_link(page.path, label=page.label, icon=page.icon)
 
 st.markdown("""
             💡 Looking to test your response to **AI agents acting as insider threats**? Head to the `AI Insider Threat Scenarios` page to generate exercises based on an agent's deployment autonomy, threat category, and STRIDE threats — no MITRE matrix selection required.

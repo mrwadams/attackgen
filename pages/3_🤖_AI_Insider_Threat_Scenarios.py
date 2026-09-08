@@ -29,7 +29,7 @@ import streamlit as st
 
 from core.prompts import build_ai_insider_messages
 from core.scenario_page import run_scenario_page
-from core.sidebar import render_setup_blockers, render_setup_sidebar
+from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
@@ -135,8 +135,12 @@ st.info(
 )
 
 # --- Threat categories ---
-st.markdown("### 2. Threat Categories")
-st.markdown("Select one or more insider threat categories the scenario should focus on.")
+st.markdown("### 2. Threat Categories (required)")
+st.markdown(
+    "Select one or more insider threat categories the scenario should focus on. This is the "
+    "form's one required selection — the STRIDE threats and agent capabilities below are "
+    "optional refinements of it."
+)
 selected_categories = st.multiselect(
     "Select threat categories:",
     options=list(THREAT_CATEGORIES.keys()),
@@ -211,18 +215,19 @@ st.markdown(
 
     Click the button below to generate an AI insider threat scenario based on your selections.
 
-    Generation often takes 30–50 seconds. Reasoning models and local models can take several minutes, depending on the selected model and hardware. Progress and elapsed time are shown below. ⏱️
+    Generation runs in phases and reports the elapsed time for each one. ⏱️
     """
 )
 
 
-def _ready() -> bool:
-    if not render_setup_blockers(setup):
-        return False
+def _requirements() -> list[str]:
+    """This page's own readiness blocker: a threat category (or a STRIDE threat)."""
     if not selected_categories and not selected_stride:
-        st.info("Please select at least one threat category (or specific STRIDE threat) to continue.")
-        return False
-    return True
+        return [
+            "Select at least one threat category (or a specific STRIDE threat) "
+            "for the scenario."
+        ]
+    return []
 
 
 def _capture_inputs():
@@ -248,7 +253,8 @@ def _capture_inputs():
 run_scenario_page(
     page_id="ai_insider",
     build_messages=build_messages,
-    is_ready=_ready,
+    requirements=_requirements,
+    setup=setup,
     download_name="AttackGen AI Insider Threat.md",
     trace_name="AI Insider Threat Scenario",
     trace_tags=("ai_insider_scenario",),
