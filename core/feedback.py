@@ -34,13 +34,21 @@ def _get_client() -> Any | None:
         return None
 
 
-def render_feedback_widget(*, key_prefix: str, scenario_generated: bool) -> None:
-    """Render the thumbs-up/down feedback widget for the last scenario run.
+def render_feedback_widget(
+    *, key_prefix: str, scenario_generated: bool, run_id: str | None = None
+) -> None:
+    """Render the thumbs-up/down feedback widget for one scenario result.
 
     The notice + horizontal rule render unconditionally so the page layout
     matches the pre-refactor look even before any scenario has been generated.
     `key_prefix` namespaces the Streamlit button keys so the widget can render
     on multiple pages within one app session without collision.
+
+    `run_id` pins the feedback to the run that produced the scenario on screen.
+    Pages persist it alongside the result, so rating a result after navigating
+    away and back — or after another page has generated its own scenario —
+    cannot submit feedback against a different run. It falls back to the
+    session's most recent run when a caller has none.
     """
     if _get_secret("LANGCHAIN_API_KEY") is None:
         st.info(
@@ -65,14 +73,16 @@ def render_feedback_widget(*, key_prefix: str, scenario_generated: bool) -> None
         # `help` tooltip. An emoji-only label leaves screen readers to guess
         # (or stay silent), so the label itself carries the meaning.
         if st.button("👍 Helpful", key=f"thumbs_up_{key_prefix}"):
-            _submit(client, placeholder, kind="positive", score=1)
+            _submit(client, placeholder, kind="positive", score=1, run_id=run_id)
     with col2:
         if st.button("👎 Not helpful", key=f"thumbs_down_{key_prefix}"):
-            _submit(client, placeholder, kind="negative", score=0)
+            _submit(client, placeholder, kind="negative", score=0, run_id=run_id)
 
 
-def _submit(client: Any, placeholder: Any, *, kind: str, score: int) -> None:
-    run_id = st.session_state.get("run_id")
+def _submit(
+    client: Any, placeholder: Any, *, kind: str, score: int, run_id: str | None = None
+) -> None:
+    run_id = run_id or st.session_state.get("run_id")
     if not run_id:
         placeholder.warning("No run ID found. Please generate a scenario first.")
         return

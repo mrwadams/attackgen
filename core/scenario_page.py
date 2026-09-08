@@ -1,13 +1,28 @@
 """Deepened entry-point for the three scenario-generating pages.
 
-Each scenario page owns its own widgets, prompt assembly and readiness check.
-The shared control flow — generate button, LLM call, response cleaning,
-download, render, feedback widget — lives here. Page-specific behaviour comes
-in via the ``build_messages`` and ``is_ready`` callbacks; identity (session
-state keys, widget keys) comes in via ``page_id``.
+Each scenario page owns its own widgets, prompt assembly and its own readiness
+*requirements*. The shared control flow — readiness summary, generate button,
+LLM call, response cleaning, result summary, downloads, result actions,
+cross-page handoff and feedback widget — lives here. Page-specific behaviour
+comes in via the ``build_messages`` callback and the ``requirements``/``setup``
+readiness data; identity (session state keys, widget keys) comes in via
+``page_id``.
 
 Adding a new scenario page is now: write the widgets and prompt builder, then
-``run_scenario_page(page_id=..., build_messages=..., is_ready=..., ...)``.
+``run_scenario_page(page_id=..., build_messages=..., requirements=...,
+setup=...)``.
+
+Readiness is data, not a side effect: a page lists what it still needs, the
+coordinator merges that with the shared Setup blockers, shows them all in one
+summary and disables Generate until none remain — so a click is never spent
+discovering a predictable validation error, and no model call can start from an
+incomplete form.
+
+A persisted result belongs to its page for the lifetime of the session. Its
+keys are not widget keys, so navigating to the Assistant and back re-renders
+the same scenario, the same captured inputs and the same stable filenames; the
+result also stays put when the form is edited, and only an explicit Regenerate
+or Clear replaces or removes it.
 
 Generation runs in phases, and only the *base* phase is allowed to fail the
 run. Once the base scenario and its deterministic exports are persisted, the
@@ -37,6 +52,13 @@ from typing import Any
 
 import streamlit as st
 
+from core.assistant import (
+    DEFENSE_NARRATIVE_KEY,
+    SCENARIO_FLAG_KEY,
+    SCENARIO_META_KEY,
+    SCENARIO_TEXT_KEY,
+    render_assistant_link,
+)
 from core.detections import (
     assemble_defense_document,
     build_narrative_messages,
@@ -46,8 +68,16 @@ from core.detections import (
 from core.feedback import render_feedback_widget
 from core.llm import call_llm_stream
 from core.navigator import layer_filename, navigator_for_domain
+from core.readiness import Readiness, Requirements, resolve_readiness
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
+from core.state import setup_was_restored_from_link
+from core.summary import (
+    describe_inputs,
+    inputs_changed,
+    summarise_scenario,
+    summary_line,
+)
 
 try:  # Streamlit >= 1.37
     from streamlit.runtime.scriptrunner_utils.exceptions import (
@@ -142,6 +172,33 @@ class _Keys:
     def retry_narrative(self) -> str:
         return f"{self.page_id}_retry_narrative_requested"
 
+    @property
+    def run_id(self) -> str:
+        """The LangSmith run behind *this* result, so feedback can't drift."""
+        return f"{self.page_id}_scenario_run_id"
+
+    @property
+    def regenerate(self) -> str:
+        return f"{self.page_id}_regenerate_requested"
+
+    @property
+    def clear(self) -> str:
+        return f"{self.page_id}_clear_requested"
+
+    def result_keys(self) -> tuple[str, ...]:
+        """Every key holding this page's latest result (what Clear removes)."""
+        return (
+            self.generated,
+            self.text,
+            self.layer,
+            self.filename,
+            self.defense,
+            self.defense_report,
+            self.snapshot,
+            self.status,
+            self.run_id,
+        )
+
 
 BASE_PHASE = "base"
 NARRATIVE_PHASE = "narrative"
@@ -156,6 +213,15 @@ _NARRATIVE_REASONS = {
     "stopped": "You skipped the purple-team narrative before it finished.",
     "interrupted": "The purple-team narrative didn't finish.",
 }
+
+
+class _PhaseAborted(Exception):
+    """A phase gave up after recording why, with nothing left to render.
+
+    Raised instead of returning so the caller's tail still runs: a run that
+    produces no scenario of its own must put the page's persisted result back
+    on screen, not leave the page blank while the session still holds one.
+    """
 
 
 def _is_script_control(exc: BaseException) -> bool:
@@ -369,13 +435,15 @@ def run_scenario_page(
     *,
     page_id: str,
     build_messages: Callable[..., list[Message] | None],
-    is_ready: Callable[[], bool],
+    is_ready: Callable[[], bool] | None = None,
     download_name: str,
     trace_name: str,
     trace_tags: tuple[str, ...],
     status_text: str = "Generating scenario...",
     button_label: str = "Generate Scenario",
-    inline_control: Callable[[], None] | None = None,
+    render_modifiers: Callable[[], None] | None = None,
+    requirements: Requirements = None,
+    setup: Any | None = None,
     build_layer: Callable[..., str | None] | None = None,
     build_defense: Callable[..., dict | None] | None = None,
     defense_narrative: bool = False,
@@ -389,9 +457,19 @@ def run_scenario_page(
     send yet" — in that case ``is_ready`` should also be returning ``False``,
     but we double-check before calling the model.
 
-    ``inline_control`` is an optional callback rendered on the same row as the
-    generate button (e.g. the AI-enhanced adversary toggle) so page-specific
-    controls sit alongside the button rather than being lost above it.
+    ``render_modifiers`` is an optional callback rendering the page's
+    generation modifiers (the AI-enhanced adversary and purple-team toggles).
+    It is drawn *above* the Generate button, so a modifier that changes what is
+    generated — or adds a second model call — is a decision the user makes
+    before starting the request rather than one they notice afterwards.
+
+    ``requirements`` and ``setup`` are the page's readiness inputs, as data:
+    ``requirements`` yields the page's own blockers ("Select a threat actor
+    group…") and ``setup`` is the shared :class:`core.sidebar.SetupState`.
+    Together they drive one visible readiness summary and the Generate button's
+    disabled state, so no click is ever spent discovering predictable
+    validation. ``is_ready`` remains supported for callers that don't supply
+    readiness data.
 
     ``build_layer`` is an optional callback returning the ATT&CK Navigator
     layer JSON for the scenario's techniques, or ``None`` when the page/matrix
@@ -427,19 +505,50 @@ def run_scenario_page(
     # never finished it; settle that into a degraded status before rendering.
     _settle_interrupted_narrative(keys)
 
-    # Retry buttons use on_click callbacks, which Streamlit fires before this
-    # script runs — so the request is known here, whatever the notice's position.
+    # Result actions and retries use on_click callbacks, which Streamlit fires
+    # before this script runs — so every request is known here, whatever the
+    # position of the control that raised it.
     retry_base = bool(st.session_state.pop(keys.retry_base, False))
     retry_narrative = bool(st.session_state.pop(keys.retry_narrative, False))
+    regenerate = bool(st.session_state.pop(keys.regenerate, False))
+    if st.session_state.pop(keys.clear, False):
+        _clear_result(keys)
 
-    if inline_control is not None:
-        button_col, control_col = st.columns([1, 2], vertical_alignment="center")
-        with button_col:
-            clicked = st.button(button_label, key=f"{page_id}_generate")
-        with control_col:
-            inline_control()
-    else:
-        clicked = st.button(button_label, key=f"{page_id}_generate")
+    # Capture the current form once. The same snapshot describes what *will* be
+    # generated (the pre-flight summary), is frozen as the run's inputs when
+    # Generate is pressed, and is compared with the shown result's inputs to
+    # tell the user when the form has moved on.
+    current_inputs = copy.deepcopy(capture_inputs()) if capture_inputs else {}
+
+    readiness = resolve_readiness(requirements=requirements, setup=setup)
+    ready = readiness.ready and (is_ready() if is_ready is not None else True)
+
+    if render_modifiers is not None:
+        _render_modifier_controls(render_modifiers)
+
+    _render_readiness(readiness, snapshot=current_inputs, ready=ready)
+
+    clicked = st.button(
+        button_label,
+        key=f"{page_id}_generate",
+        disabled=not ready,
+        type="primary",
+        help=(
+            None
+            if ready
+            else "Complete the requirements listed above to enable generation."
+        ),
+    )
+
+    # Regenerate is deliberately never disabled: it lives with the result,
+    # which outlives the widget state that produced it -- navigating away and
+    # back resets a multiselect but keeps the scenario. Say why the click did
+    # nothing rather than swallowing it.
+    if regenerate and not ready:
+        st.warning(
+            "Regenerate needs the requirements above to be met. Nothing was "
+            "regenerated, and the result below is unchanged."
+        )
 
     # Reserve the notice's position now; it's written at the end of the run,
     # once we know whether this run's phases produced everything they should.
@@ -463,10 +572,10 @@ def run_scenario_page(
         return bool(st.session_state.get(keys.generated))
 
     rendered = False
-    if clicked and is_ready():
+    if (clicked or regenerate) and ready:
         # Freeze every user-controlled value before any slow work starts. Page
         # callbacks receive this snapshot rather than consulting live widgets.
-        snapshot = copy.deepcopy(capture_inputs() if capture_inputs else {})
+        snapshot = copy.deepcopy(current_inputs)
         snapshot.setdefault("scenario_type", page_id)
         snapshot.setdefault("captured_at", datetime.now(timezone.utc).isoformat())
         identity = snapshot.setdefault("identity", {})
@@ -489,18 +598,27 @@ def run_scenario_page(
             keys=keys, trace_name=trace_name, download_name=download_name
         )
 
-    # Re-render the persisted scenario on a plain rerun (e.g. after clicking a
-    # download button, which reruns the script with the generate button
-    # unpressed). Without this the scenario and its downloads would vanish.
-    if not rendered and st.session_state.get(keys.generated) and st.session_state.get(keys.text):
+    # Re-render the persisted scenario on a plain rerun — after a download
+    # click, after a widget change, and (because none of these keys are widget
+    # keys) after navigating away to the Assistant and back. Without this the
+    # scenario and its downloads would vanish from a page that still holds them.
+    has_result = bool(
+        st.session_state.get(keys.generated) and st.session_state.get(keys.text)
+    )
+    if not rendered and has_result:
         st.markdown("---")
-        _render_previous(keys=keys, download_name=download_name)
+        _render_previous(
+            keys=keys, download_name=download_name, current_inputs=current_inputs
+        )
+    elif not rendered and not has_result:
+        _render_no_result_note()
 
     _render_recovery_notice(keys, slot=notice_slot)
 
     render_feedback_widget(
         key_prefix=page_id,
         scenario_generated=st.session_state.get(keys.generated, False),
+        run_id=st.session_state.get(keys.run_id),
     )
 
 
@@ -529,10 +647,21 @@ def _generate_and_render(
         status.update(label=_elapsed_label(phase, started), state=state)
 
     try:
+        run_narrative = snapshot.get("modifiers", {}).get(
+            "purple_team_narrative", defense_narrative
+        )
         with st.status(_elapsed_label("Preparing inputs", started), expanded=True) as status:
             st.write(
-                "Generation often takes 30–50 seconds; reasoning and local models may "
-                "take several minutes. You can follow each phase here."
+                "Generation runs in phases, and each one's elapsed time is shown "
+                "here. The base scenario often takes 30–50 seconds; reasoning and "
+                "local models routinely take several minutes."
+                + (
+                    " The purple-team narrative then makes a second model call — "
+                    "the scenario, its downloads and the Navigator layer are saved "
+                    "before it starts."
+                    if run_narrative
+                    else ""
+                )
             )
             messages = _invoke_with_snapshot(build_messages, snapshot)
             if messages is None:
@@ -540,7 +669,7 @@ def _generate_and_render(
                 st.session_state[keys.status] = _failure(
                     BASE_PHASE, "error", "no scenario inputs were available"
                 )
-                return
+                raise _PhaseAborted
             config = LLMConfig.from_session_state(
                 trace_name=trace_name,
                 trace_tags=trace_tags,
@@ -576,7 +705,7 @@ def _generate_and_render(
                 st.session_state[keys.status] = _failure(
                     BASE_PHASE, "error", "the model returned no scenario"
                 )
-                return
+                raise _PhaseAborted
 
             # Deterministic artifacts are built only after the base model has
             # completed, and exclusively from the frozen input snapshot.
@@ -618,9 +747,6 @@ def _generate_and_render(
                 )
             base_persisted = True
 
-            run_narrative = snapshot.get("modifiers", {}).get(
-                "purple_team_narrative", defense_narrative
-            )
             if defense_report and run_narrative:
                 set_phase(status, "Generating purple-team narrative")
                 enriched = _run_narrative_phase(
@@ -646,6 +772,7 @@ def _generate_and_render(
                             layer_payload=layer_payload,
                             defense_state=enriched,
                             variant="current_enriched",
+                            snapshot=snapshot,
                         )
 
             # A missing optional phase is a degraded success, not a failed run:
@@ -656,6 +783,10 @@ def _generate_and_render(
                 )
             else:
                 set_phase(status, "Complete", state="complete")
+    except _PhaseAborted:
+        # The status is already recorded; the tail below restores the previous
+        # result, if the page has one.
+        pass
     except Exception as e:
         if _is_script_control(e):
             raise
@@ -667,8 +798,11 @@ def _generate_and_render(
             NARRATIVE_PHASE if base_persisted else BASE_PHASE, "error", str(e)
         )
 
+    # Whether this run rendered anything is what matters, not whether the model
+    # returned text: a stream that produced only reasoning tags, or failed after
+    # partial output, leaves `scenario_text` set with nothing on the page.
     if (
-        not scenario_text
+        not base_persisted
         and st.session_state.get(keys.generated)
         and st.session_state.get(keys.text)
     ):
@@ -812,7 +946,13 @@ def _run_narrative_phase(
         human_name=human_name,
     )
     st.session_state[keys.defense] = enriched
-    st.session_state["last_defense_narrative"] = narrative_md
+    # Only refresh the Assistant's narrative while the handoff still points at
+    # this page -- the same ownership rule _persist_and_render and _clear_result
+    # use. A narrative retry can land after another page has generated, and must
+    # not pair its narrative with that page's scenario.
+    meta = st.session_state.get(SCENARIO_META_KEY) or {}
+    if meta.get("page_id") == keys.page_id:
+        st.session_state[DEFENSE_NARRATIVE_KEY] = narrative_md
     st.session_state.pop(keys.status, None)
     return enriched
 
@@ -936,6 +1076,7 @@ def _retry_narrative(*, keys: _Keys, trace_name: str, download_name: str) -> boo
             layer_payload=st.session_state.get(keys.layer),
             defense_state=enriched,
             variant="retry_enriched",
+            snapshot=snapshot,
         )
         return True
     except Exception as e:
@@ -986,6 +1127,87 @@ def _render_recovery_notice(keys: _Keys, *, slot) -> None:
             )
 
 
+def _request_flag(request_key: str) -> None:
+    """Record a result-action request for the top of the next script run."""
+    st.session_state[request_key] = True
+
+
+def _clear_result(keys: _Keys) -> None:
+    """Drop this page's result on an explicit request, leaving Setup intact.
+
+    Only the page's own result namespace (and the Assistant handoff, when it
+    still points here) is removed — provider, model, matrix, industry and size
+    are shared setup and survive, so starting a new scenario never means
+    reconfiguring the provider.
+    """
+    for key in keys.result_keys():
+        st.session_state.pop(key, None)
+    st.session_state[keys.generated] = False
+    meta = st.session_state.get(SCENARIO_META_KEY) or {}
+    if meta.get("page_id") == keys.page_id:
+        for key in (
+            SCENARIO_FLAG_KEY,
+            SCENARIO_TEXT_KEY,
+            DEFENSE_NARRATIVE_KEY,
+            SCENARIO_META_KEY,
+        ):
+            st.session_state.pop(key, None)
+
+
+def _render_modifier_controls(render_modifiers: Callable[[], None]) -> None:
+    """Draw the page's generation modifiers above the Generate button."""
+    st.markdown("**Generation options**")
+    render_modifiers()
+    st.caption(
+        "Options apply to the next generation. The purple-team narrative makes a "
+        "second model call after the scenario is complete, so the full run can take "
+        "several minutes on a reasoning model."
+    )
+
+
+def _render_fact_table(facts: Iterable[tuple[str, str]]) -> None:
+    lines = [f"- **{label}:** {value}" for label, value in facts]
+    if lines:
+        st.markdown("\n".join(lines))
+
+
+def _render_readiness(
+    readiness: Readiness, *, snapshot: Snapshot, ready: bool
+) -> None:
+    """Show every outstanding requirement, or confirm what is about to run.
+
+    Page requirements come first (see ``core.readiness``) so the missing
+    selection the user is looking at isn't reported behind the shared Setup
+    fields. When everything is satisfied, the same snapshot that will be frozen
+    by Generate is summarised instead — a last chance to catch a wrong matrix or
+    organisation profile before any provider usage begins.
+    """
+    if readiness.blockers:
+        st.info(
+            "Complete these before generating:\n\n"
+            + "\n".join(f"- {blocker}" for blocker in readiness.blockers)
+        )
+        return
+    if not ready:
+        return
+    line = summary_line(snapshot)
+    if not line:
+        return
+    st.caption(f"Ready to generate — {line}")
+    with st.expander("Review the inputs for this generation"):
+        _render_fact_table(describe_inputs(snapshot))
+
+
+def _render_no_result_note() -> None:
+    """Explain a missing result on a deep-linked page, rather than say nothing."""
+    if setup_was_restored_from_link():
+        st.caption(
+            "Setup was restored from this page's link. Generated scenarios are kept "
+            "for the current browser session only, so anything generated before a "
+            "refresh isn't available here — generate again to recreate it."
+        )
+
+
 # --- Rendering ---------------------------------------------------------------
 
 
@@ -1006,15 +1228,29 @@ def _persist_and_render(
     # The structured report is kept so a narrative retry can rebuild its prompt
     # from the same data, without re-deriving it from (possibly changed) widgets.
     st.session_state[keys.defense_report] = defense_report
+    # Pin the LangSmith run to *this* result, so rating a scenario after
+    # navigating (or after another page has generated) can't submit feedback
+    # against a different run.
+    st.session_state[keys.run_id] = st.session_state.get("run_id")
+
+    snapshot = st.session_state.get(keys.snapshot) or {}
     # Cross-page handoff for the AttackGen Assistant chat page. The defense
     # narrative rides along so the Assistant can refine it too; set it
     # unconditionally (None when there's no narrative) so a stale one from an
-    # earlier generation can't linger after a plain-scenario regen.
-    st.session_state["last_scenario"] = True
-    st.session_state["last_scenario_text"] = cleaned
-    st.session_state["last_defense_narrative"] = (
+    # earlier generation can't linger after a plain-scenario regen. The metadata
+    # is what lets the Assistant name the scenario it is discussing and offer
+    # the route back to the page that produced it.
+    st.session_state[SCENARIO_FLAG_KEY] = True
+    st.session_state[SCENARIO_TEXT_KEY] = cleaned
+    st.session_state[DEFENSE_NARRATIVE_KEY] = (
         defense_state.get("narrative_md") if defense_state else None
     )
+    st.session_state[SCENARIO_META_KEY] = {
+        "page_id": keys.page_id,
+        "filename": download_name,
+        "generated_at": snapshot.get("captured_at"),
+        "snapshot": copy.deepcopy(snapshot),
+    }
 
     _render_result(
         page_id=keys.page_id,
@@ -1023,14 +1259,18 @@ def _persist_and_render(
         layer_payload=layer_payload,
         defense_state=defense_state,
         variant="current",
+        snapshot=snapshot,
     )
 
 
-def _render_previous(*, keys: _Keys, download_name: str) -> None:
+def _render_previous(
+    *, keys: _Keys, download_name: str, current_inputs: Snapshot | None = None
+) -> None:
     text = st.session_state.get(keys.text, "")
     # Prefer the name fixed at generation time so it stays stable (and matches
     # the layer) across the reruns a download click triggers.
     file_name = st.session_state.get(keys.filename) or download_name
+    snapshot = st.session_state.get(keys.snapshot) or {}
     st.markdown("Displaying previously generated scenario:")
     _render_result(
         page_id=keys.page_id,
@@ -1039,6 +1279,8 @@ def _render_previous(*, keys: _Keys, download_name: str) -> None:
         layer_payload=st.session_state.get(keys.layer),
         defense_state=st.session_state.get(keys.defense),
         variant="previous",
+        snapshot=snapshot,
+        stale=inputs_changed(snapshot, current_inputs),
     )
 
 
@@ -1050,49 +1292,170 @@ def _render_result(
     layer_payload: tuple[str, str] | None,
     defense_state: dict | None,
     variant: str,
+    snapshot: Snapshot | None = None,
+    stale: bool = False,
 ) -> None:
-    """Render the finished scenario and its Detection & Response companion.
+    """Render the finished scenario, its companion, and the result actions.
 
-    When a companion exists, the two long outputs go in side-by-side tabs so the
-    reader switches rather than scrolls; otherwise the scenario renders plainly.
-    ``variant`` ("current" / "previous") namespaces the download-button keys so a
+    The order is fixed on purpose: what produced this result, a compact summary
+    and section index for a long document, the full Markdown (in side-by-side
+    tabs when a Detection & Response companion exists, so the reader switches
+    rather than scrolls), then one action area holding every next step.
+    ``variant`` ("current" / "previous" / …) namespaces the widget keys so a
     generation run and a plain rerun can't collide on a Streamlit widget key.
     """
+    _render_result_meta(snapshot, stale=stale)
+    _render_summary_surface(cleaned)
     if defense_state:
         scenario_tab, defense_tab = st.tabs(["📄 Scenario", "🛡️ Detection & Response"])
         with scenario_tab:
-            _render_scenario(page_id, cleaned, file_name, layer_payload, variant)
+            st.markdown(cleaned)
         with defense_tab:
-            _render_defense_body(page_id, defense_state, variant)
+            _render_defense_body(defense_state)
     else:
-        _render_scenario(page_id, cleaned, file_name, layer_payload, variant)
+        st.markdown(cleaned)
+    _render_result_actions(
+        page_id=page_id,
+        cleaned=cleaned,
+        file_name=file_name,
+        layer_payload=layer_payload,
+        defense_state=defense_state,
+        variant=variant,
+    )
 
 
-def _render_scenario(
+def _render_result_meta(snapshot: Snapshot | None, *, stale: bool) -> None:
+    """Say what produced this result, and whether the form has moved on."""
+    if not snapshot:
+        return
+    line = summary_line(snapshot)
+    if line:
+        st.caption(f"Generated from — {line}")
+    if stale:
+        st.info(
+            "Your current selections differ from the inputs that produced this "
+            "result. It stays available until you regenerate or clear it."
+        )
+    with st.expander("Inputs captured when this scenario was generated"):
+        _render_fact_table(describe_inputs(snapshot))
+
+
+def _render_summary_surface(cleaned: str) -> None:
+    """A compact overview plus section navigation for a long scenario.
+
+    The generated Markdown is never truncated or rewritten — this sits above it
+    so a facilitator can orient themselves, and jump straight to the parts an
+    exercise is actually run from, without scrolling the whole document.
+    """
+    summary = summarise_scenario(cleaned)
+    if not summary.is_useful:
+        return
+    if summary.overview:
+        st.markdown(f"**Summary:** {summary.overview}")
+    if summary.sections:
+        st.caption(
+            f"{len(summary.sections)} sections · ~{summary.word_count:,} words · "
+            f"~{summary.reading_minutes} min read"
+        )
+        with st.expander("🧭 Jump to a section"):
+            if summary.quick_links:
+                st.markdown(
+                    "**Facilitator shortcuts:** "
+                    + " · ".join(
+                        f"[{label}](#{section.anchor})"
+                        for label, section in summary.quick_links
+                    )
+                )
+            st.markdown(
+                "\n".join(
+                    f"{'  ' * max(0, section.level - 1)}- [{section.title}]"
+                    f"(#{section.anchor})"
+                    for section in summary.sections
+                )
+            )
+
+
+def _render_result_actions(
+    *,
     page_id: str,
     cleaned: str,
     file_name: str,
     layer_payload: tuple[str, str] | None,
+    defense_state: dict | None,
     variant: str,
 ) -> None:
-    st.markdown(cleaned)
-    st.download_button(
-        label="Download Scenario",
-        data=cleaned,
-        file_name=file_name,
-        mime="text/markdown",
-        key=f"{page_id}_download_{variant}",
-    )
-    _render_layer_download(layer_payload, key=f"{page_id}_download_layer_{variant}")
+    """One consistent home for every next step available on a result.
+
+    Assistant handoff, all three downloads, regenerate and clear live together
+    here rather than being scattered between tabs, so the same actions are in
+    the same place whether the result was just generated or re-rendered after
+    navigating back to the page.
+    """
+    keys = _Keys(page_id)
+    st.markdown("**Next steps**")
+    assistant_col, regenerate_col, clear_col = st.columns(3)
+    with assistant_col:
+        render_assistant_link()
+    with regenerate_col:
+        st.button(
+            "Regenerate",
+            key=f"{page_id}_regenerate_{variant}",
+            on_click=_request_flag,
+            args=(keys.regenerate,),
+            help=(
+                "Generate again with your current selections. This result stays "
+                "on screen until the new one replaces it."
+            ),
+        )
+    with clear_col:
+        st.button(
+            "Clear result",
+            key=f"{page_id}_clear_{variant}",
+            on_click=_request_flag,
+            args=(keys.clear,),
+            help=(
+                "Remove this scenario from the session. Your Setup selections are "
+                "kept."
+            ),
+        )
+
+    downloads: list[Callable[[], None]] = [
+        lambda: st.download_button(
+            label="Download Scenario",
+            data=cleaned,
+            file_name=file_name,
+            mime="text/markdown",
+            key=f"{page_id}_download_{variant}",
+        )
+    ]
+    if layer_payload:
+        downloads.append(
+            lambda: _render_layer_download(
+                layer_payload, key=f"{page_id}_download_layer_{variant}"
+            )
+        )
+    if defense_state:
+        downloads.append(
+            lambda: st.download_button(
+                label="Download Detection & Response",
+                data=defense_state["download_md"],
+                file_name=defense_state["filename"],
+                mime="text/markdown",
+                key=f"{page_id}_download_defense_{variant}",
+            )
+        )
+    for column, render in zip(st.columns(len(downloads)), downloads):
+        with column:
+            render()
 
 
-def _render_defense_body(page_id: str, defense_state: dict, variant: str) -> None:
+def _render_defense_body(defense_state: dict) -> None:
     """Render the Detection & Response tab body.
 
     The optional narrative reads inline (it's the digestible walkthrough); the
     deterministic STIX join sits in an expander as reference — expanded when
-    there's no narrative so the tab is never empty. A single download bundles
-    both into one Markdown file.
+    there's no narrative so the tab is never empty. The combined download lives
+    in the shared result-action area below.
     """
     narrative_md = defense_state.get("narrative_md")
     if narrative_md:
@@ -1103,13 +1466,6 @@ def _render_defense_body(page_id: str, defense_state: dict, variant: str) -> Non
             expanded=not narrative_md,
         ):
             st.markdown(defense_state["deterministic_md"])
-    st.download_button(
-        label="Download Detection & Response",
-        data=defense_state["download_md"],
-        file_name=defense_state["filename"],
-        mime="text/markdown",
-        key=f"{page_id}_download_defense_{variant}",
-    )
 
 
 def _render_layer_download(

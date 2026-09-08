@@ -123,3 +123,57 @@ def test_sync_skips_falsy_values(fake_session_state, fake_query_params) -> None:
     assert "p" in fake_query_params
     assert "i" not in fake_query_params
     assert "s" not in fake_query_params
+
+
+# ---------------------------------------------------------------------------
+# Deep-link restoration marker
+# ---------------------------------------------------------------------------
+
+
+def test_restore_marks_that_setup_came_from_a_link(
+    fake_session_state, fake_query_params
+) -> None:
+    """Generated scenarios are session-only, so a page that restored its setup
+    from a URL can explain why no result came back with it."""
+    from core.state import RESTORED_KEY, setup_was_restored_from_link
+
+    fake_query_params.update({"p": "OpenAI API", "x": "Enterprise"})
+
+    restore_from_query_params()
+
+    assert fake_session_state[RESTORED_KEY] is True
+    assert setup_was_restored_from_link() is True
+
+
+def test_no_marker_when_the_url_carried_nothing_usable(
+    fake_session_state, fake_query_params
+) -> None:
+    from core.state import RESTORED_KEY, setup_was_restored_from_link
+
+    fake_query_params.update({"p": "BogusProvider", "x": "Bogus"})
+
+    restore_from_query_params()
+
+    assert RESTORED_KEY not in fake_session_state
+    assert setup_was_restored_from_link() is False
+
+
+def test_generated_content_never_reaches_the_url(
+    fake_session_state, fake_query_params
+) -> None:
+    """Scenario text, downloads and chat history stay in the session."""
+    fake_session_state.update(
+        {
+            "chosen_model_provider": "OpenAI API",
+            "llm_model_name": "gpt-5.5",
+            "threat_group_scenario_text": "# Secret scenario",
+            "last_scenario_text": "# Secret scenario",
+            "last_scenario_meta": {"page_id": "threat_group"},
+            "assistant_messages_scenario": [{"role": "user", "content": "hello"}],
+        }
+    )
+
+    sync_to_query_params()
+
+    assert set(fake_query_params) == {"p", "m"}
+    assert all("Secret scenario" not in value for value in fake_query_params.values())

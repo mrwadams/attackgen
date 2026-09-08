@@ -93,7 +93,14 @@ def _goto_scenario_page(page, base_url: str):
     # Generate button appearing is the signal that the first script run is done.
     # Waited for by test id, not by label, so a test asserting on that label
     # still fails on the label rather than timing out here.
-    page.wait_for_selector('[data-testid="stButton"] button', timeout=120_000)
+    #
+    # A button carrying `help=` is rendered twice by Streamlit -- a desktop copy
+    # and a mobile copy, one of which its CSS hides -- and which one comes first
+    # in the DOM depends on the viewport. Match only the visible copy, or a
+    # narrow viewport waits out the timeout on the hidden one.
+    page.locator('[data-testid="stButton"] button:visible').first.wait_for(
+        timeout=120_000
+    )
 
 
 def test_app_buttons_all_have_a_meaningful_accessible_name(
