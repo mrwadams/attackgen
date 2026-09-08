@@ -179,11 +179,6 @@ else:
     st.markdown("### Select ATT&CK Techniques")
 
 with st.expander("Use a Template (Optional)"):
-    if matrix == "ATLAS":
-        st.markdown("Select a template to quickly generate a custom scenario based on a predefined set of ATLAS techniques.")
-    else:
-        st.markdown("Select a template to quickly generate a custom scenario based on a predefined set of ATT&CK techniques.")
-
     selected_template = st.selectbox(
         "Select a template",
         options=[""] + list(incident_response_templates[matrix].keys()),
@@ -193,11 +188,6 @@ with st.expander("Use a Template (Optional)"):
         template_selection(selected_template, matrix)
 
 st.markdown("")
-
-if matrix == "ATLAS":
-    st.markdown("Use the multi-select box below to add or update the ATLAS techniques that you would like to include in a custom incident response testing scenario.")
-else:
-    st.markdown("Use the multi-select box below to add or update the ATT&CK techniques that you would like to include in a custom incident response testing scenario.")
 
 selected_techniques = []
 if not techniques_df.empty:
@@ -228,15 +218,7 @@ if not techniques_df.empty:
 
 
 st.markdown("")
-st.markdown(
-    """
-    ### Generate a Scenario
-
-    Click the button below to generate a scenario based on the selected technique(s).
-
-    Generation runs in phases and reports the elapsed time for each one. ⏱️
-    """
-)
+st.markdown("### Generate a Scenario")
 
 
 def _requirements() -> list[str]:

@@ -128,27 +128,11 @@ matrix = setup.matrix or "Enterprise"
 groups = load_groups(matrix)
 
 if matrix == "ATLAS":
-    st.markdown(
-        """
-        ### Select a Case Study
-
-        Use the drop-down selector below to select a case study from the MITRE ATLAS framework.
-
-        You can then optionally view all of the ATLAS techniques associated with the case study and/or the case study's page on the MITRE ATLAS site.
-        """
-    )
+    st.markdown("### Select a Case Study")
     entity_label = "case study"
     select_placeholder = "Select Case Study"
 else:
-    st.markdown(
-        f"""
-        ### Select a Threat Actor Group
-
-        Use the drop-down selector below to select a threat actor group from the MITRE ATT&CK framework.
-
-        You can then optionally view all of the {matrix} ATT&CK techniques associated with the group and/or the group's page on the MITRE ATT&CK site.
-        """
-    )
+    st.markdown("### Select a Threat Actor Group")
     entity_label = "threat actor group"
     select_placeholder = "Select Group"
 
@@ -213,24 +197,13 @@ except Exception as e:
 st.markdown("")
 
 if matrix == "ATLAS":
-    st.markdown(
-        """
-        ### Generate a Scenario
-
-        Click the button below to generate a scenario based on the selected case study. The documented attack procedure from the case study will be used to generate the scenario.
-
-        Generation runs in phases and reports the elapsed time for each one. ⏱️
-        """
-    )
+    st.markdown("### Generate a Scenario")
+    st.caption("Built from the case study's documented attack procedure.")
 else:
-    st.markdown(
-        """
-        ### Generate a Scenario
-
-        Click the button below to generate a scenario based on the selected threat actor group. A selection of the group's known techniques will be chosen at random and used to generate the scenario.
-
-        Generation runs in phases and reports the elapsed time for each one. ⏱️
-        """
+    st.markdown("### Generate a Scenario")
+    st.caption(
+        "Built from a random selection of the group's techniques, so each run "
+        "differs."
     )
 
 
