@@ -12,4 +12,10 @@ python-dotenv
 # cleared those alerts — they were never about the installed setuptools, which
 # already resolved to 84.0.0. See the skip-files note in security.yml.
 setuptools>=83.0.0
-streamlit
+# Floor is 1.55, not unpinned: every earlier version's frontend colour-parses
+# three deprecated CustomThemeConfig fields (widgetBackgroundColor,
+# widgetBorderColor, skeletonBackgroundColor) that no config.toml key can set,
+# so any [theme] section made the browser log
+# 'Invalid color passed for <key> in theme.sidebar: ""' on every rerun.
+# 1.55 removed those fields. tests/test_console_smoke.py fails below this floor.
+streamlit>=1.55
