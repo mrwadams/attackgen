@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 
 import core.llm as llm_module
@@ -16,6 +18,20 @@ def test_kwargs_always_set_num_retries_to_three() -> None:
     config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert kwargs["num_retries"] == 3
+
+
+def test_tenacity_is_installed_for_litellms_retry_path() -> None:
+    """`num_retries=3` above sends every failed call through litellm's retry
+    helper, which imports tenacity lazily and turns a missing install into
+    "tenacity import failed please run `pip install tenacity`" — replacing the
+    provider's real error with a bogus instruction. litellm does not declare
+    tenacity, and Streamlit stopped supplying it transitively after 1.51, so
+    `requirements.txt` names it and this pins that it is actually resolvable.
+    """
+    assert importlib.util.find_spec("tenacity") is not None, (
+        "tenacity is missing: litellm's retry path will mask every provider "
+        "error. It is listed in requirements.txt — check the resolve."
+    )
 
 
 def test_openai_provider_uses_max_completion_tokens() -> None:
