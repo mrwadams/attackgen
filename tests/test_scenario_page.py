@@ -2028,7 +2028,7 @@ def test_editing_the_form_keeps_the_result_and_says_it_is_out_of_date(
     assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
     assert downloads
     # ...but it is not passed off as matching the new selection either.
-    assert any("differ from the inputs" in info for info in stub_streamlit["infos"])
+    assert any("selections have changed" in info for info in stub_streamlit["infos"])
 
 
 def test_regenerate_action_runs_again_with_the_current_inputs(
@@ -2166,7 +2166,7 @@ def test_feedback_is_pinned_to_the_run_that_produced_the_result(
     assert fake_session_state["custom_scenario_run_id"] == "run-xyz"
 
 
-def test_deep_link_without_a_result_explains_that_scenarios_are_session_only(
+def test_a_restored_page_without_a_result_says_scenarios_do_not_survive_a_reload(
     stub_streamlit, fake_session_state
 ) -> None:
     from core.state import RESTORED_KEY
@@ -2184,7 +2184,7 @@ def test_deep_link_without_a_result_explains_that_scenarios_are_session_only(
     )
 
     note = "\n".join(stub_streamlit["captions"])
-    assert "current browser session only" in note
+    assert "aren't kept when the page reloads" in note
 
 
 def test_regenerate_says_why_nothing_happened_when_the_form_is_not_ready(

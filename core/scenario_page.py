@@ -1159,9 +1159,8 @@ def _render_modifier_controls(render_modifiers: Callable[[], None]) -> None:
     st.markdown("**Generation options**")
     render_modifiers()
     st.caption(
-        "Options apply to the next generation. The purple-team narrative makes a "
-        "second model call after the scenario is complete, so the full run can take "
-        "several minutes on a reasoning model."
+        "The purple-team narrative adds a second model call, so the run takes "
+        "longer."
     )
 
 
@@ -1194,17 +1193,19 @@ def _render_readiness(
     if not line:
         return
     st.caption(f"Ready to generate — {line}")
-    with st.expander("Review the inputs for this generation"):
-        _render_fact_table(describe_inputs(snapshot))
 
 
 def _render_no_result_note() -> None:
-    """Explain a missing result on a deep-linked page, rather than say nothing."""
+    """Answer "where did my scenario go?" after a reload, rather than say nothing.
+
+    The setup that came back is mirrored through the query string, but that is
+    our plumbing, not something the user asked for or can see — so this says
+    what was lost and how to get it back, not how the restore works.
+    """
     if setup_was_restored_from_link():
         st.caption(
-            "Setup was restored from this page's link. Generated scenarios are kept "
-            "for the current browser session only, so anything generated before a "
-            "refresh isn't available here — generate again to recreate it."
+            "Scenarios aren't kept when the page reloads — generate again to "
+            "recreate one."
         )
 
 
@@ -1332,11 +1333,8 @@ def _render_result_meta(snapshot: Snapshot | None, *, stale: bool) -> None:
     if line:
         st.caption(f"Generated from — {line}")
     if stale:
-        st.info(
-            "Your current selections differ from the inputs that produced this "
-            "result. It stays available until you regenerate or clear it."
-        )
-    with st.expander("Inputs captured when this scenario was generated"):
+        st.info("Your selections have changed since this scenario was generated.")
+    with st.expander("Full inputs"):
         _render_fact_table(describe_inputs(snapshot))
 
 

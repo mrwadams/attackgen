@@ -85,11 +85,8 @@ st.markdown("---")
 # --- Optional template selection ---
 with st.expander("Use a Template (Optional)"):
     st.markdown(
-        "Select a template to pre-populate the deployment archetype, threat categories and "
-        "STRIDE threats for a common AI insider threat scenario, along with the decisions the "
-        "exercise must force. Most templates leave the narrative to the model, so re-running "
-        "one gives a fresh exercise; templates that rehearse a specific incident also fill in "
-        "the scenario seed. You can adjust everything afterwards."
+        "Pre-populates the selections below, which you can then adjust. Templates "
+        "that rehearse a specific incident also fill in the scenario seed."
     )
     selected_template = st.selectbox(
         "Select a template",
@@ -136,11 +133,7 @@ st.info(
 
 # --- Threat categories ---
 st.markdown("### 2. Threat Categories (required)")
-st.markdown(
-    "Select one or more insider threat categories the scenario should focus on. This is the "
-    "form's one required selection — the STRIDE threats and agent capabilities below are "
-    "optional refinements of it."
-)
+st.markdown("The insider threat categories the scenario should focus on.")
 selected_categories = st.multiselect(
     "Select threat categories:",
     options=list(THREAT_CATEGORIES.keys()),
@@ -151,8 +144,8 @@ st.session_state['ai_insider_categories'] = selected_categories
 # --- STRIDE threats ---
 st.markdown("### 3. Specific STRIDE Threats (Optional)")
 st.markdown(
-    "Optionally narrow the scenario to specific STRIDE threats. If left empty, the STRIDE threats "
-    "associated with your selected categories will be used."
+    "Narrows the scenario to specific STRIDE threats. Left empty, the threats "
+    "associated with your categories are used."
 )
 selected_stride_options = st.multiselect(
     "Select STRIDE threats:",
@@ -180,11 +173,9 @@ selected_capabilities = st.multiselect(
 # --- Scenario seed ---
 st.markdown("### 5. Scenario Seed (Optional)")
 st.markdown(
-    "Describe the specific situation you want to rehearse — the deployment, what goes wrong, "
-    "and who is affected. The model builds the narrative around it rather than inventing its "
-    "own premise. Leave it empty and the model invents a premise from your selections, which "
-    "is usually what you want when re-running the same threat profile for a fresh exercise. "
-    "Templates that rehearse a specific incident fill this in for you; edit it freely."
+    "Describe the situation you want to rehearse — the deployment, what goes wrong, "
+    "and who is affected. Left empty, the model invents a premise from your "
+    "selections, so each run gives a fresh exercise."
 )
 scenario_seed = st.text_area(
     "Scenario seed:",
@@ -209,15 +200,7 @@ if required_decisions:
 
 st.markdown("")
 st.markdown("---")
-st.markdown(
-    """
-    ### Generate a Scenario
-
-    Click the button below to generate an AI insider threat scenario based on your selections.
-
-    Generation runs in phases and reports the elapsed time for each one. ⏱️
-    """
-)
+st.markdown("### Generate a Scenario")
 
 
 def _requirements() -> list[str]:
