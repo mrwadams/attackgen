@@ -69,9 +69,59 @@ jobs:
       - name: Run tests
         run: pytest
 
+  browser:
+    needs: verify
+    # The console and accessibility smoke checks skip themselves without a
+    # browser, so the matrix job above never runs them — which is how a fix
+    # that did not work and four broken tests reached review in #94. This job
+    # is the one place they actually execute. It is not part of the matrix:
+    # they drive a browser, not the interpreter, so a second Python version
+    # would re-download Chromium to prove nothing new.
+    name: Browser checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Resolve the Playwright version
+        id: playwright
+        # Keys the browser cache on the version that will actually be used, so
+        # an unpinned playwright picking up a new release re-downloads a
+        # matching Chromium instead of reusing a stale one.
+        run: echo "version=$(python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        run: playwright install --with-deps chromium
+
+      - name: Run browser checks
+        # ATTACKGEN_REQUIRE_BROWSER=1 turns the fixtures' "no browser, no
+        # server" skips into failures. Without it this job would report success
+        # having run nothing, which is the failure mode it exists to close.
+        env:
+          ATTACKGEN_REQUIRE_BROWSER: '1'
+        run: pytest -m browser
+
   docker:
     name: Build and push image
-    needs: [verify, test]
+    needs: [verify, test, browser]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

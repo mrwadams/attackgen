@@ -20,6 +20,12 @@ dependencies = [
     "pandas",
     "python-dotenv",
     "streamlit",
+    # Undeclared by litellm, which imports it lazily in its retry helper and
+    # turns a missing install into a bogus "pip install tenacity" instruction
+    # in place of the provider's real error. core/llm.py always sets
+    # num_retries=3, so `pip install .` needs it as much as requirements.txt
+    # does — the console script drives the same call path.
+    "tenacity",
 ]
 
 [project.scripts]

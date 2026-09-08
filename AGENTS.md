@@ -39,7 +39,7 @@ pytest
 
 In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.11–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
 
-`tests/test_console_smoke.py` and `tests/test_accessibility_smoke.py` are real-browser checks (Playwright + a headless `streamlit run`) for console hygiene and keyboard/focus/label accessibility on the Welcome and Threat Group Scenarios pages — both `@pytest.mark.browser`. They skip themselves (not fail) when Chromium isn't installed, which is the default in this repo's CI, so `pytest` alone stays green there. To actually run them: `pip install -r requirements-dev.txt && playwright install chromium && pytest -m browser`.
+`tests/test_console_smoke.py` and `tests/test_accessibility_smoke.py` are real-browser checks (Playwright + a headless `streamlit run`) for console hygiene and keyboard/focus/label accessibility on the Welcome and Threat Group Scenarios pages — both `@pytest.mark.browser`. They skip themselves (not fail) when Playwright or its Chromium binary is missing, so `pytest` alone stays green on a machine without a browser. The separate **`browser`** job in `tests.yml` (mirrored in `release.yml`, where `docker` gates on it) installs Chromium and runs `pytest -m browser` with `ATTACKGEN_REQUIRE_BROWSER=1`, which flips those skips to failures — without it the job would report success having run nothing. To run them locally, set the same flag so a failed Chromium install or a `streamlit run` that cannot bind reports red rather than `7 skipped`: `pip install -r requirements-dev.txt && playwright install chromium && ATTACKGEN_REQUIRE_BROWSER=1 pytest -m browser`.
 
 ## Architecture
 

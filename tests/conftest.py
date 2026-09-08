@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
@@ -9,7 +10,7 @@ import time
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 import streamlit as st
@@ -61,6 +62,23 @@ def mock_litellm_completion(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     return captured
 
 
+def _unavailable(reason: str) -> NoReturn:
+    """Skip a browser test, or fail it when the environment promised a browser.
+
+    Every browser-marked test skips itself when Playwright, its Chromium
+    binary, or a working ``streamlit run`` is missing, so a plain ``pytest``
+    stays green on a machine that has none of them. That silence is wrong in
+    the one place the checks are meant to run: a CI job dedicated to them
+    would report success having tested nothing, which is exactly how a broken
+    fix and four broken tests reached review in #94. Setting
+    ``ATTACKGEN_REQUIRE_BROWSER=1`` turns every one of those skips into a
+    failure.
+    """
+    if os.environ.get("ATTACKGEN_REQUIRE_BROWSER") == "1":
+        pytest.fail(f"ATTACKGEN_REQUIRE_BROWSER=1 but {reason}")
+    pytest.skip(reason)
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -72,14 +90,16 @@ def _wait_until_serving(base_url: str, proc: subprocess.Popen, timeout: float) -
     while time.monotonic() < deadline:
         if proc.poll() is not None:
             output = proc.stdout.read().decode(errors="replace") if proc.stdout else ""
-            pytest.skip(f"streamlit server exited before it started serving:\n{output}")
+            _unavailable(
+                f"streamlit server exited before it started serving:\n{output}"
+            )
         try:
             urllib.request.urlopen(base_url, timeout=1)
             return
         except OSError:
             time.sleep(0.5)
     proc.terminate()
-    pytest.skip(f"streamlit server did not start within {timeout}s")
+    _unavailable(f"streamlit server did not start within {timeout}s")
 
 
 @pytest.fixture(scope="session")
@@ -89,7 +109,9 @@ def streamlit_server():
     Session-scoped so every ``browser``-marked test shares one server instead
     of paying Streamlit's multi-second startup cost per test. Skips (rather
     than fails) when the server can't be started at all, so an environment
-    without a working ``streamlit run`` doesn't break the rest of the suite.
+    without a working ``streamlit run`` doesn't break the rest of the suite —
+    unless ``ATTACKGEN_REQUIRE_BROWSER=1`` says a server was expected, in which
+    case it fails; see ``_unavailable``.
     """
     port = _free_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -125,8 +147,11 @@ def browser():
     """A Chromium instance for one browser-marked test.
 
     Skips when Playwright isn't installed, or when it's installed but its
-    Chromium binary hasn't been downloaded (``playwright install chromium``)
-    — both are expected in CI, which doesn't run that install step.
+    Chromium binary hasn't been downloaded (``playwright install chromium``),
+    so a plain ``pytest`` stays green without either. The ``browser`` job in
+    `.github/workflows/tests.yml` installs both and sets
+    ``ATTACKGEN_REQUIRE_BROWSER=1``, which turns those skips into failures —
+    see ``_unavailable``.
 
     Deliberately *not* session-scoped, even though launching Chromium per test
     costs a fraction of a second. Playwright's sync API drives an asyncio loop
@@ -137,16 +162,23 @@ def browser():
     (``tests/test_mcp_server.py`` and ``tests/test_skills.py`` both do this).
     Entering and leaving the context per test keeps that loop contained.
     """
-    playwright_sync = pytest.importorskip("playwright.sync_api")
+    try:
+        import playwright.sync_api as playwright_sync
+    except ImportError as exc:
+        # `_unavailable` is annotated NoReturn, but keep the import's only use
+        # out of the except branch so nothing reads a name the failed import
+        # never bound.
+        _unavailable(f"Playwright is not installed: {exc}")
+
     with playwright_sync.sync_playwright() as p:
         try:
             instance = p.chromium.launch()
         except Exception as exc:  # Executable-not-found error type varies by platform.
-            # `else:` rather than falling through: pytest.skip() raises, so the
+            # `else:` rather than falling through: `_unavailable` raises, so the
             # yield below is already unreachable on this path, but CodeQL does
-            # not model skip() as NoReturn and flags `instance` as possibly
-            # unbound (py/uninitialized-local-variable, error severity).
-            pytest.skip(
+            # not model that and flags `instance` as possibly unbound
+            # (py/uninitialized-local-variable, error severity).
+            _unavailable(
                 "Chromium is not installed for Playwright "
                 f"(run `playwright install chromium`): {exc}"
             )
