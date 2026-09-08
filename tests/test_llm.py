@@ -25,7 +25,7 @@ def test_tenacity_is_installed_for_litellms_retry_path() -> None:
     helper, which imports tenacity lazily and turns a missing install into
     "tenacity import failed please run `pip install tenacity`" — replacing the
     provider's real error with a bogus instruction. litellm does not declare
-    tenacity, and Streamlit stopped supplying it transitively after 1.51, so
+    tenacity, and Streamlit declared it through 1.61 and dropped it in 1.62, so
     `requirements.txt` names it and this pins that it is actually resolvable.
     """
     assert importlib.util.find_spec("tenacity") is not None, (

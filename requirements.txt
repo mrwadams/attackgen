@@ -17,8 +17,8 @@ setuptools>=83.0.0
 # missing, but does not declare it. core/llm.py always sets num_retries=3, so
 # that path is reached on every failed call — without this, a provider error
 # reaches the user as a bogus install instruction instead of the real message.
-# Streamlit supplied tenacity transitively up to 1.51 and no longer does, so a
-# fresh install stopped getting it for free.
+# Streamlit declared tenacity through 1.61 and dropped it in 1.62, so the floor
+# below still resolves to a Streamlit that does not supply it for free.
 tenacity
 # Floor is 1.55, not unpinned: every earlier version's frontend colour-parses
 # three deprecated CustomThemeConfig fields (widgetBackgroundColor,
