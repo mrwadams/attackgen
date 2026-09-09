@@ -105,10 +105,19 @@ def test_unregistered_model_sends_temperature() -> None:
 
 def test_every_registered_anthropic_model_matches_reality() -> None:
     """Pins the flags against what the API actually accepted when probed on
-    2026-08-07. If a model is added without checking, this fails loudly."""
+    2026-08-07, plus Anthropic's documented removal of the sampling parameters
+    from Claude 4.7 onwards — every model in the registry above Haiku 4.5
+    returns a 400 for a custom temperature. If a model is added without
+    checking, this fails loudly."""
     from core.models import get_models_for_provider
 
-    rejects = {"claude-fable-5", "claude-opus-4-8", "claude-sonnet-5", "claude-opus-4-7"}
+    rejects = {
+        "claude-fable-5-1",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-fable-5",
+        "claude-opus-4-8",
+    }
     for model in get_models_for_provider("Anthropic API"):
         expected = model.model_id not in rejects
         assert model.supports_temperature is expected, model.model_id
