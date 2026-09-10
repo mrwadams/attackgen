@@ -220,11 +220,13 @@ def _requirements() -> list[str]:
     if lookup_error is not None:
         # Phrased as something the user can act on: every other line in the
         # readiness box is a step they can complete, so a bare "could not
-        # load" would read as a status report with no way forward.
+        # load" would read as a status report with no way forward. Reloading
+        # is deliberately not offered: it starts a new session, dropping a
+        # key typed into the sidebar and any scenario already generated.
         return [
-            f"Pick a different {entity_label}, or reload the page — loading "
-            f"the {matrix} techniques for '{selected_group_alias}' failed "
-            f"(see the error above)."
+            f"Pick a different {entity_label} — loading the {matrix} "
+            f"techniques for '{selected_group_alias}' failed (see the error "
+            f"above)."
         ]
     if techniques_df.empty or not kill_chain_string:
         return [
