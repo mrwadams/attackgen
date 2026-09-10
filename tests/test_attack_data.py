@@ -178,6 +178,45 @@ def test_every_shipped_threat_group_option_resolves(matrix):
             ).techniques
 
 
+def test_usable_options_exclude_raising_and_empty_candidates(monkeypatch):
+    """Pins the guarantee `pages/1_...py` relies on to treat these as unreachable.
+
+    `list_usable_scenario_options` probes every candidate with `seed=0` and
+    drops one that raises or resolves no techniques (core/attack_data.py:180).
+    """
+    monkeypatch.setattr(
+        ad,
+        "list_threat_groups",
+        lambda matrix: (
+            {"group": "RAISES", "url": "https://example.com/raises"},
+            {"group": "EMPTY", "url": "https://example.com/empty"},
+            {"group": "OK", "url": "https://example.com/ok"},
+        ),
+    )
+    monkeypatch.setattr(
+        ad,
+        "mitre_data_for_matrix",
+        lambda matrix: SimpleNamespace(get_groups_by_alias=lambda name: []),
+    )
+
+    def fake_resolve(matrix, name, seed=0):
+        if name == "RAISES":
+            raise ValueError("boom")
+        if name == "EMPTY":
+            return SimpleNamespace(techniques=[])
+        return SimpleNamespace(techniques=[{"Technique Name": "Web Protocols"}])
+
+    monkeypatch.setattr(ad, "resolve_threat_group_kill_chain", fake_resolve)
+
+    ad.list_usable_scenario_options.cache_clear()
+    try:
+        options = ad.list_usable_scenario_options("Enterprise")
+    finally:
+        ad.list_usable_scenario_options.cache_clear()
+
+    assert {option["group"] for option in options} == {"OK"}
+
+
 def test_natural_sort_key_orders_apt_numbers_numerically():
     # A plain string sort interleaves APT3 between APT29 and APT30; the natural
     # key must read the digit run as a number so APT3 precedes both.

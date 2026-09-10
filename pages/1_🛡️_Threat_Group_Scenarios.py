@@ -177,6 +177,12 @@ try:
             # tear down the readiness summary and any result this page is
             # already holding. The empty technique set becomes a readiness
             # blocker instead (see `_requirements`).
+            #
+            # In practice this can't happen through the UI: `load_groups` only
+            # offers entries from `list_usable_scenario_options`, which already
+            # probes every candidate and drops any that resolve no techniques
+            # (core/attack_data.py). Kept as defence in depth in case that
+            # invariant ever changes.
             st.warning(
                 f"There are no {matrix} techniques associated with the {entity}: {selected_group_alias}"
             )
@@ -218,11 +224,20 @@ def _requirements() -> list[str]:
     if selected_group_alias is None:
         return [f"Select a {entity_label} for the scenario."]
     if lookup_error is not None:
+        # Reachable even though the dropdown pre-filters candidates: the probe
+        # in `list_usable_scenario_options` uses a fixed `seed=0`, while this
+        # page's own resolution (above) uses the run's real seed for ATT&CK
+        # matrices, and only catches a narrower set of exception types. A
+        # candidate that only fails on the real draw, or raises something
+        # outside that set, still reaches here.
         return [
             f"Could not load the {matrix} techniques for "
             f"'{selected_group_alias}' — see the error above."
         ]
     if techniques_df.empty or not kill_chain_string:
+        # Same defence-in-depth caveat as the warning above: the dropdown
+        # already excludes candidates with no techniques, so this branch
+        # shouldn't be reachable through the UI today.
         return [
             f"Select a {entity_label} with associated {matrix} techniques — "
             f"'{selected_group_alias}' has none."
