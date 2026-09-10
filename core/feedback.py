@@ -1,9 +1,10 @@
 """LangSmith feedback widget for scenario pages.
 
 Pages don't see the LangSmith client — `render_feedback_widget` initialises one
-lazily from ``st.secrets['LANGCHAIN_API_KEY']`` and reads the active run id
-from ``st.session_state['run_id']`` (set by ``core.llm.call_llm`` when a
-LangSmith client is configured for tracing).
+lazily from ``st.secrets['LANGCHAIN_API_KEY']``. The run it rates is the one the
+caller passes in: ``core.llm.call_llm`` sets ``st.session_state['run_id']`` when
+a LangSmith client is configured for tracing, and ``core.scenario_page`` copies
+it into the page's own result namespace so it stays with that result.
 """
 
 from __future__ import annotations
@@ -47,8 +48,9 @@ def render_feedback_widget(
     `run_id` pins the feedback to the run that produced the scenario on screen.
     Pages persist it alongside the result, so rating a result after navigating
     away and back — or after another page has generated its own scenario —
-    cannot submit feedback against a different run. It falls back to the
-    session's most recent run when a caller has none.
+    cannot submit feedback against a different run. There is deliberately no
+    fallback to the session's most recent run: that is whatever any page last
+    generated, so a caller with no run id has no run to rate and gets a warning.
     """
     if _get_secret("LANGCHAIN_API_KEY") is None:
         st.info(
@@ -80,9 +82,8 @@ def render_feedback_widget(
 
 
 def _submit(
-    client: Any, placeholder: Any, *, kind: str, score: int, run_id: str | None = None
+    client: Any, placeholder: Any, *, kind: str, score: int, run_id: str | None
 ) -> None:
-    run_id = run_id or st.session_state.get("run_id")
     if not run_id:
         placeholder.warning("No run ID found. Please generate a scenario first.")
         return

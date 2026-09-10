@@ -83,7 +83,25 @@ def test_submit_warns_when_run_id_missing(fake_session_state: dict[str, Any]) ->
     client = _FakeClient()
     placeholder = _FakePlaceholder()
 
-    _submit(client, placeholder, kind="positive", score=1)
+    _submit(client, placeholder, kind="positive", score=1, run_id=None)
+
+    assert client.calls == []
+    assert placeholder.messages == [("warning", "No run ID found. Please generate a scenario first.")]
+
+
+def test_submit_never_falls_back_to_the_sessions_latest_run(
+    fake_session_state: dict[str, Any],
+) -> None:
+    """A result with no run id of its own has nothing to rate.
+
+    The session-wide ``run_id`` is whichever page generated last, so borrowing
+    it would attach this rating to someone else's scenario (issue #98).
+    """
+    fake_session_state["run_id"] = "run-from-another-page"
+    client = _FakeClient()
+    placeholder = _FakePlaceholder()
+
+    _submit(client, placeholder, kind="positive", score=1, run_id=None)
 
     assert client.calls == []
     assert placeholder.messages == [("warning", "No run ID found. Please generate a scenario first.")]
@@ -92,11 +110,10 @@ def test_submit_warns_when_run_id_missing(fake_session_state: dict[str, Any]) ->
 def test_submit_posts_feedback_and_records_success(
     fake_session_state: dict[str, Any],
 ) -> None:
-    fake_session_state["run_id"] = "run-abc"
     client = _FakeClient(record_id="fb-1")
     placeholder = _FakePlaceholder()
 
-    _submit(client, placeholder, kind="positive", score=1)
+    _submit(client, placeholder, kind="positive", score=1, run_id="run-abc")
 
     assert client.calls == [("run-abc", "positive", {"score": 1, "comment": ""})]
     assert fake_session_state["feedback"] == {"feedback_id": "fb-1", "score": 1}
@@ -106,11 +123,10 @@ def test_submit_posts_feedback_and_records_success(
 def test_submit_records_negative_with_score_zero(
     fake_session_state: dict[str, Any],
 ) -> None:
-    fake_session_state["run_id"] = "run-abc"
     client = _FakeClient(record_id="fb-2")
     placeholder = _FakePlaceholder()
 
-    _submit(client, placeholder, kind="negative", score=0)
+    _submit(client, placeholder, kind="negative", score=0, run_id="run-abc")
 
     assert client.calls == [("run-abc", "negative", {"score": 0, "comment": ""})]
     assert fake_session_state["feedback"] == {"feedback_id": "fb-2", "score": 0}
@@ -164,11 +180,10 @@ def test_thumbs_buttons_have_meaningful_accessible_names(
 def test_submit_surfaces_client_errors(
     fake_session_state: dict[str, Any],
 ) -> None:
-    fake_session_state["run_id"] = "run-abc"
     client = _FakeClient(raises=RuntimeError("network down"))
     placeholder = _FakePlaceholder()
 
-    _submit(client, placeholder, kind="positive", score=1)
+    _submit(client, placeholder, kind="positive", score=1, run_id="run-abc")
 
     assert "feedback" not in fake_session_state
     assert len(placeholder.messages) == 1
