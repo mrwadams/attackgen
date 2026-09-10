@@ -221,7 +221,7 @@ class TestGenerateTools:
         mock_litellm_completion.content = "custom scenario"
         out = s.generate_custom_scenario(
             "Enterprise", ["Phishing (T1566)", "T1059"], "Finance", "Large",
-            provider="OpenAI API", model="gpt-5.6-sol", api_key="k",
+            provider="OpenAI API", model="gpt-5.5", api_key="k",
         )
         assert out == "custom scenario"
         _args, kwargs = mock_litellm_completion.calls[0]
@@ -336,7 +336,7 @@ class TestGenerateTools:
         mock_litellm_completion.content = "custom body"
         out = s.generate_custom_scenario(
             "Enterprise", ["Command and Scripting Interpreter (T1059)"], "Finance", "Large",
-            provider="OpenAI API", model="gpt-5.6-sol", api_key="k",
+            provider="OpenAI API", model="gpt-5.5", api_key="k",
             include_detection=True,
         )
         assert "custom body" in out

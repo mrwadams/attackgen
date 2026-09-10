@@ -147,7 +147,7 @@ class TestModelSeam:
     ) -> None:
         _handoff(fake_session_state)
         fake_session_state["chosen_model_provider"] = "OpenAI API"
-        fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
         fake_session_state["llm_api_key"] = "k"
         sent: list[Any] = []
 
@@ -206,7 +206,7 @@ class TestModelSeam:
     ) -> None:
         _handoff(fake_session_state)
         fake_session_state["chosen_model_provider"] = "OpenAI API"
-        fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
 
         def _stream(_config, _messages):
             raise RuntimeError("upstream 503")

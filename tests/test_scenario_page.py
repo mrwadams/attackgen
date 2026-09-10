@@ -204,7 +204,7 @@ def test_does_nothing_when_button_not_pressed(
     stub_streamlit, fake_session_state, mock_litellm_completion
 ) -> None:
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     run_scenario_page(
@@ -255,7 +255,7 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
     mock_litellm_completion.content = "<think>plan</think>\n# Scenario\n\nBody."
 
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     messages = [{"role": "user", "content": "build me a scenario"}]
@@ -273,7 +273,7 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
     assert len(mock_litellm_completion.calls) == 1
     _args, kwargs = mock_litellm_completion.calls[0]
     assert kwargs["messages"] == messages
-    assert kwargs["model"] == "gpt-5.6-sol"
+    assert kwargs["model"] == "gpt-5.5"
 
     # The cleaned response — not the raw one — is what gets persisted.
     cleaned = fake_session_state["threat_group_scenario_text"]
@@ -300,7 +300,7 @@ def test_page_id_namespaces_session_state(
     mock_litellm_completion.content = "scenario A"
 
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     run_scenario_page(
@@ -326,7 +326,7 @@ def test_trace_name_and_tags_reach_llm_config(
     stub_streamlit["button_returns"] = True
 
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     captured: dict[str, Any] = {}
@@ -373,7 +373,7 @@ def test_layer_persisted_and_offered_for_download(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
@@ -413,7 +413,7 @@ def _run_and_capture_caption(
     """Generate a scenario whose layer is `layer_json`; return the layer caption."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     captions: list[str] = []
@@ -464,7 +464,7 @@ def test_no_layer_download_when_build_layer_returns_none(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
@@ -534,7 +534,7 @@ def test_no_layer_download_when_build_layer_absent(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
@@ -581,7 +581,7 @@ def test_defense_persisted_and_offered_for_download(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
@@ -626,7 +626,7 @@ def test_defense_narrative_makes_second_llm_call_and_persists(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "## Detection walkthrough\n\nStage 1."
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     run_scenario_page(
@@ -660,7 +660,7 @@ def test_no_defense_download_when_build_defense_returns_none(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     downloads = _capture_downloads(monkeypatch)
@@ -694,7 +694,7 @@ def test_result_is_tabbed_when_defense_present(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     tab_calls: list[list[str]] = []
@@ -725,7 +725,7 @@ def test_result_not_tabbed_without_defense(
     stub_streamlit["button_returns"] = True
     mock_litellm_completion.content = "# Scenario"
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     tab_calls: list[list[str]] = []
@@ -790,7 +790,7 @@ def test_phase_sequence_and_base_is_persisted_before_optional_enrichment(
 ) -> None:
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
     downloads = _capture_downloads(monkeypatch)
     calls = 0
@@ -920,7 +920,7 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
 ) -> None:
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     visible_steps: list[str] = []
     stub_streamlit["on_stream_chunk"] = (
         lambda _chunk, chunks: visible_steps.append("".join(chunks))
@@ -1028,7 +1028,7 @@ def _generate_with_narrative(
     """Generate a scenario, playing `narrative_script` for the optional phase."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
     controllable_stream.scripts = [["# Base scenario"], narrative_script]
     _run_page()
@@ -1180,7 +1180,7 @@ def test_skip_button_requests_the_stop(
     """The Skip control is what sets the flag the narrative phase watches."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     controllable_stream.scripts = [["# Base scenario"], ["## Walkthrough"]]
     _run_page()
 
@@ -1367,7 +1367,7 @@ def test_base_failure_notice_ends_in_a_single_full_stop(
     """The base-phase notice quotes the same details and must read the same."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     controllable_stream.scripts = [[RuntimeError(detail)]]
 
     _run_page()
@@ -1383,7 +1383,7 @@ def test_base_failure_is_attributed_to_the_base_phase(
 ) -> None:
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     controllable_stream.scripts = [[RuntimeError("rate limited")]]
 
     _run_page()
@@ -1409,7 +1409,7 @@ def test_base_retry_replays_the_captured_inputs(
 ) -> None:
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     controllable_stream.scripts = [[RuntimeError("rate limited")]]
     source = {"matrix": "Enterprise"}
 
@@ -1505,7 +1505,7 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
     ticking rather than freezing -- the core behaviour issue #89 asks for."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
     monkeypatch.setattr("core.scenario_page._monotonic", lambda: next(clock))
@@ -1543,7 +1543,7 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
     streamed call, the case the issue calls out as most visible."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
 
     clock = itertools.count()
     monkeypatch.setattr("core.scenario_page._monotonic", lambda: next(clock))
@@ -1590,7 +1590,7 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
     at `st.write_stream` incrementally, not batched after the call ends."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     visible_steps: list[str] = []
 
     # The source BLOCKS after the first chunk until the consumer has actually
@@ -1649,7 +1649,7 @@ def test_threaded_stream_error_surfaces_same_message_and_no_completion(
     reach "Complete" -- i.e. no spinner is left running as if still working."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
 
     errors: list[str] = []
     monkeypatch.setattr(st, "error", lambda msg, *a, **k: errors.append(msg))
@@ -1750,7 +1750,7 @@ def _setup_state(**overrides):
 
     state = {
         "chosen_model_provider": "OpenAI API",
-        "llm_model_name": "gpt-5.6-sol",
+        "llm_model_name": "gpt-5.5",
         "matrix": "Enterprise",
         "industry": "Finance / Banking",
         "company_size": "Medium (51-200 employees)",
@@ -1878,7 +1878,7 @@ def _generate_threat_group_result(
     """Generate one complete threat-group result (scenario + layer + defence)."""
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "OpenAI API"
-    fake_session_state["llm_model_name"] = "gpt-5.6-sol"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
     def _stream(_config, _messages):
@@ -2096,7 +2096,7 @@ def test_clear_result_removes_only_the_result(
     assert "last_scenario_text" not in fake_session_state
     # ...but Setup did not.
     assert fake_session_state["chosen_model_provider"] == "OpenAI API"
-    assert fake_session_state["llm_model_name"] == "gpt-5.6-sol"
+    assert fake_session_state["llm_model_name"] == "gpt-5.5"
     assert fake_session_state["llm_api_key"] == "k"
 
 

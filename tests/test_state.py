@@ -79,7 +79,7 @@ def test_sync_writes_only_the_persisted_shadow_keys(
     fake_session_state.update(
         {
             "chosen_model_provider": "OpenAI API",
-            "llm_model_name": "gpt-5.6-sol",
+            "llm_model_name": "gpt-5.5",
             "llm_api_base": "https://example.invalid/v1",
             "matrix": "Enterprise",
             "industry": "Finance",
@@ -94,7 +94,7 @@ def test_sync_writes_only_the_persisted_shadow_keys(
 
     assert set(fake_query_params) == {"p", "m", "b", "x", "i", "s"}
     assert fake_query_params["p"] == "OpenAI API"
-    assert fake_query_params["m"] == "gpt-5.6-sol"
+    assert fake_query_params["m"] == "gpt-5.5"
 
 
 def test_sync_never_writes_api_key_to_url(fake_session_state, fake_query_params) -> None:
@@ -102,7 +102,7 @@ def test_sync_never_writes_api_key_to_url(fake_session_state, fake_query_params)
     fake_session_state.update(
         {
             "chosen_model_provider": "OpenAI API",
-            "llm_model_name": "gpt-5.6-sol",
+            "llm_model_name": "gpt-5.5",
             "llm_api_key": "sk-super-secret",
         }
     )
@@ -165,7 +165,7 @@ def test_generated_content_never_reaches_the_url(
     fake_session_state.update(
         {
             "chosen_model_provider": "OpenAI API",
-            "llm_model_name": "gpt-5.6-sol",
+            "llm_model_name": "gpt-5.5",
             "threat_group_scenario_text": "# Secret scenario",
             "last_scenario_text": "# Secret scenario",
             "last_scenario_meta": {"page_id": "threat_group"},

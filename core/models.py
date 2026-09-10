@@ -118,23 +118,30 @@ MODELS: list[ModelInfo] = [
         provider_key="OpenAI API",
         help_text="GPT-5.6 Luna is the fast, cost-efficient option for high-volume workloads.",
     ),
-    # --- Anthropic (every model from Claude 4.7 on has sampling parameters
-    #     removed and returns a 400 for a custom temperature, so each entry
-    #     below sets supports_temperature=False; Haiku 4.5 predates that change
-    #     and still accepts one) ---
     ModelInfo(
-        model_id="claude-fable-5-1",
-        provider_key="Anthropic API",
-        supports_thinking=True,
-        supports_temperature=False,
-        help_text="Claude Fable 5.1 is Anthropic's most capable model for long-running agents and hard reasoning.",
+        model_id="gpt-5.5",
+        provider_key="OpenAI API",
+        help_text="GPT-5.5 is an earlier flagship for coding and professional work, kept for continuity.",
     ),
+    # --- Anthropic (Opus 5 leads the list because the sidebar defaults to the
+    #     first entry and Anthropic recommends it as the starting point for most
+    #     workloads, at half Fable 5.1's per-token price. Every model from Claude
+    #     4.7 on has sampling parameters removed and returns a 400 for a custom
+    #     temperature, so each entry below sets supports_temperature=False;
+    #     Haiku 4.5 predates that change and still accepts one) ---
     ModelInfo(
         model_id="claude-opus-5",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Opus 5 excels at complex agentic coding and enterprise work.",
+    ),
+    ModelInfo(
+        model_id="claude-fable-5-1",
+        provider_key="Anthropic API",
+        supports_thinking=True,
+        supports_temperature=False,
+        help_text="Claude Fable 5.1 is Anthropic's most capable model for long-running agents and hard reasoning.",
     ),
     ModelInfo(
         model_id="claude-sonnet-5",

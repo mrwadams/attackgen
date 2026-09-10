@@ -15,7 +15,7 @@ GEMINI_SAFETY_SETTINGS = llm_module.GEMINI_SAFETY_SETTINGS
 
 
 def test_kwargs_always_set_num_retries_to_three() -> None:
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert kwargs["num_retries"] == 3
 
@@ -39,7 +39,7 @@ def test_openai_provider_uses_max_completion_tokens() -> None:
     current OpenAI chat model takes max_completion_tokens, not max_tokens."""
     config = LLMConfig(
         provider="OpenAI API",
-        model_name="gpt-5.6-sol",
+        model_name="gpt-5.5",
         api_key="k",
         max_tokens=4096,
     )
@@ -47,11 +47,11 @@ def test_openai_provider_uses_max_completion_tokens() -> None:
     assert kwargs["max_completion_tokens"] == 4096
     assert "max_tokens" not in kwargs
     # OpenAI keeps the empty litellm_prefix, so the model string is bare.
-    assert kwargs["model"] == "gpt-5.6-sol"
+    assert kwargs["model"] == "gpt-5.5"
 
 
 def test_openai_provider_without_max_tokens_omits_completion_tokens() -> None:
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert "max_completion_tokens" not in kwargs
     assert "max_tokens" not in kwargs
@@ -62,7 +62,7 @@ def test_openai_provider_omits_temperature() -> None:
     one — otherwise litellm raises BadRequestError (regression: v0.13). The
     whole OpenAI family is the reasoning family, so we gate on the provider."""
     config = LLMConfig(
-        provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k", temperature=0.7
+        provider="OpenAI API", model_name="gpt-5.5", api_key="k", temperature=0.7
     )
     kwargs = _build_litellm_kwargs(config)
     assert "temperature" not in kwargs
@@ -194,7 +194,7 @@ def test_call_llm_returns_completion_content(
     disable_langsmith, mock_litellm_completion
 ) -> None:
     mock_litellm_completion.content = "hello world"
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
 
     result = call_llm(config, [{"role": "user", "content": "hi"}])
 

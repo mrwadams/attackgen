@@ -14,7 +14,7 @@ def test_no_requirements_and_complete_setup_is_ready() -> None:
     setup = get_setup_state(
         {
             "chosen_model_provider": "OpenAI API",
-            "llm_model_name": "gpt-5.6-sol",
+            "llm_model_name": "gpt-5.5",
             "matrix": "Enterprise",
             "industry": "Finance / Banking",
             "company_size": "Medium (51-200 employees)",
