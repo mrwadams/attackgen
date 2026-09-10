@@ -1,7 +1,7 @@
 """Unified model registry — single source of truth for providers and models.
 
 To add or update a model, edit the MODELS list below. Nothing else needs to change.
-Model list last refreshed against provider docs 2026-07-14.
+Model list last refreshed against provider docs 2026-09-10.
 
 Provider model listing pages:
   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/models
@@ -99,9 +99,14 @@ MODELS: list[ModelInfo] = [
     #     default — both handled at provider level in core/llm.py, so no
     #     supports_temperature flag is needed on these entries) ---
     ModelInfo(
+        model_id="gpt-6-astra",
+        provider_key="OpenAI API",
+        help_text="GPT-6 Astra is OpenAI's most capable model, built for the hardest end-to-end work.",
+    ),
+    ModelInfo(
         model_id="gpt-5.6-sol",
         provider_key="OpenAI API",
-        help_text="GPT-5.6 Sol is OpenAI's flagship frontier reasoning model for complex work.",
+        help_text="GPT-5.6 Sol is the previous-generation flagship for complex professional work.",
     ),
     ModelInfo(
         model_id="gpt-5.6-terra",
@@ -116,22 +121,27 @@ MODELS: list[ModelInfo] = [
     ModelInfo(
         model_id="gpt-5.5",
         provider_key="OpenAI API",
-        help_text="GPT-5.5 is OpenAI's previous-generation flagship model.",
+        help_text="GPT-5.5 is an earlier flagship for coding and professional work, kept for continuity.",
     ),
-    # --- Anthropic ---
+    # --- Anthropic (Opus 5 leads the list because the sidebar defaults to the
+    #     first entry and Anthropic recommends it as the starting point for most
+    #     workloads, at half Fable 5.1's per-token price. Every model from Claude
+    #     4.7 on has sampling parameters removed and returns a 400 for a custom
+    #     temperature, so each entry below sets supports_temperature=False;
+    #     Haiku 4.5 predates that change and still accepts one) ---
     ModelInfo(
-        model_id="claude-fable-5",
+        model_id="claude-opus-5",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
-        help_text="Claude Fable 5 is Anthropic's most capable model for long-running agents and hard reasoning.",
+        help_text="Claude Opus 5 excels at complex agentic coding and enterprise work.",
     ),
     ModelInfo(
-        model_id="claude-opus-4-8",
+        model_id="claude-fable-5-1",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
-        help_text="Claude Opus 4.8 excels at complex agentic coding and enterprise work.",
+        help_text="Claude Fable 5.1 is Anthropic's most capable model for long-running agents and hard reasoning.",
     ),
     ModelInfo(
         model_id="claude-sonnet-5",
@@ -141,11 +151,18 @@ MODELS: list[ModelInfo] = [
         help_text="Claude Sonnet 5 offers the best balance of speed and near-Opus intelligence.",
     ),
     ModelInfo(
-        model_id="claude-opus-4-7",
+        model_id="claude-fable-5",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
-        help_text="Claude Opus 4.7 is the previous-generation Opus, kept for continuity.",
+        help_text="Claude Fable 5 is the previous-generation Fable, kept for continuity.",
+    ),
+    ModelInfo(
+        model_id="claude-opus-4-8",
+        provider_key="Anthropic API",
+        supports_thinking=True,
+        supports_temperature=False,
+        help_text="Claude Opus 4.8 is the previous-generation Opus, kept for continuity.",
     ),
     ModelInfo(
         model_id="claude-haiku-4-5-20251001",
@@ -160,16 +177,22 @@ MODELS: list[ModelInfo] = [
         help_text="Gemini 3.1 Pro is Google's highest-reasoning model with 1M context.",
     ),
     ModelInfo(
-        model_id="gemini-3.5-flash",
+        model_id="gemini-3.8-flash",
         provider_key="Google AI API",
         supports_thinking=True,
-        help_text="Gemini 3.5 Flash is Google's GA flagship fast model with 1M context.",
+        help_text="Gemini 3.8 Flash is Google's GA flagship fast model with 1M context.",
     ),
     ModelInfo(
-        model_id="gemini-3.1-flash-lite",
+        model_id="gemini-3.7-flash",
         provider_key="Google AI API",
         supports_thinking=True,
-        help_text="Gemini 3.1 Flash Lite is the most cost-efficient option with 1M context.",
+        help_text="Gemini 3.7 Flash is the previous-generation Flash, kept for continuity.",
+    ),
+    ModelInfo(
+        model_id="gemini-3.5-flash-lite",
+        provider_key="Google AI API",
+        supports_thinking=True,
+        help_text="Gemini 3.5 Flash Lite is the most cost-efficient option with 1M context.",
     ),
     # --- Mistral ---
     ModelInfo(
@@ -199,14 +222,9 @@ MODELS: list[ModelInfo] = [
         help_text="GPT-OSS 20B is a fast open-weight model on Groq.",
     ),
     ModelInfo(
-        model_id="llama-3.3-70b-versatile",
+        model_id="qwen/qwen3.8-27b",
         provider_key="Groq API",
-        help_text="Llama 3.3 70B excels at general-purpose tasks.",
-    ),
-    ModelInfo(
-        model_id="llama-3.1-8b-instant",
-        provider_key="Groq API",
-        help_text="Llama 3.1 8B is Groq's fastest, most cost-efficient tier.",
+        help_text="Qwen3.8 27B is an open-weight reasoning model on Groq.",
     ),
     # --- Custom: no static list; the user types the model name in the sidebar ---
 ]

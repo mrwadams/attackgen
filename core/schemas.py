@@ -15,7 +15,7 @@ class LLMConfig:
     """
 
     provider: str           # "OpenAI API", "Anthropic API", "Google AI API", "Mistral API", "Groq API", "Custom"
-    model_name: str         # Bare model id, e.g. "gpt-5.5", "claude-sonnet-4-6"
+    model_name: str         # Bare model id, e.g. "gpt-6-astra", "claude-sonnet-5"
     api_key: str | None = None
     api_base: str | None = None      # For Custom (OpenAI-compatible) endpoints
     temperature: float = 0.7
