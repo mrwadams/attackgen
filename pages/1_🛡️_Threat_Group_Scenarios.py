@@ -218,9 +218,13 @@ def _requirements() -> list[str]:
     if selected_group_alias is None:
         return [f"Select a {entity_label} for the scenario."]
     if lookup_error is not None:
+        # Phrased as something the user can act on: every other line in the
+        # readiness box is a step they can complete, so a bare "could not
+        # load" would read as a status report with no way forward.
         return [
-            f"Could not load the {matrix} techniques for "
-            f"'{selected_group_alias}' — see the error above."
+            f"Pick a different {entity_label}, or reload the page — loading "
+            f"the {matrix} techniques for '{selected_group_alias}' failed "
+            f"(see the error above)."
         ]
     if techniques_df.empty or not kill_chain_string:
         return [
