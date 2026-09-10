@@ -154,6 +154,7 @@ selected_group_alias = st.selectbox(
 kill_chain_string = ""
 techniques_df = pd.DataFrame()
 selected_techniques_df = pd.DataFrame()
+lookup_error = None
 
 try:
     if selected_group_alias is not None:
@@ -191,7 +192,12 @@ try:
 
             kill_chain_string = kill_chain.kill_chain_string
 except Exception as e:
-    st.error("An error occurred: " + str(e))
+    # A failed lookup leaves the DataFrames at their empty defaults, which on
+    # its own is indistinguishable from a group that genuinely has no
+    # techniques. Record the failure so `_requirements` can say what actually
+    # happened instead of contradicting the error above.
+    lookup_error = str(e)
+    st.error("An error occurred: " + lookup_error)
 
 
 st.markdown("")
@@ -211,6 +217,11 @@ def _requirements() -> list[str]:
     """This page's own readiness blockers, in the order the form presents them."""
     if selected_group_alias is None:
         return [f"Select a {entity_label} for the scenario."]
+    if lookup_error is not None:
+        return [
+            f"Could not load the {matrix} techniques for "
+            f"'{selected_group_alias}' — see the error above."
+        ]
     if techniques_df.empty or not kill_chain_string:
         return [
             f"Select a {entity_label} with associated {matrix} techniques — "
