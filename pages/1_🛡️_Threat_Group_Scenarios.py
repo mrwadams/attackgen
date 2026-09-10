@@ -177,6 +177,12 @@ try:
             # tear down the readiness summary and any result this page is
             # already holding. The empty technique set becomes a readiness
             # blocker instead (see `_requirements`).
+            #
+            # In practice this can't happen through the UI: `load_groups` only
+            # offers entries from `list_usable_scenario_options`, which already
+            # probes every candidate and drops any that resolve no techniques
+            # (core/attack_data.py). Kept as defence in depth in case that
+            # invariant ever changes.
             st.warning(
                 f"There are no {matrix} techniques associated with the {entity}: {selected_group_alias}"
             )
@@ -218,6 +224,14 @@ def _requirements() -> list[str]:
     if selected_group_alias is None:
         return [f"Select a {entity_label} for the scenario."]
     if lookup_error is not None:
+        # Reachable even though the dropdown pre-filters candidates: the probe
+        # in `list_usable_scenario_options` resolves with a fixed `seed=0`,
+        # while this page resolves with the run's real, unseeded draw for
+        # ATT&CK matrices. A candidate that only fails on the real draw passes
+        # the probe and lands here. A failure the probe does hit never gets
+        # this far: the filter drops it if its type is in the filter's catch
+        # list, and otherwise it escapes `load_groups` and crashes the page.
+        #
         # Phrased as something the user can act on: every other line in the
         # readiness box is a step they can complete, so a bare "could not
         # load" would read as a status report with no way forward. Reloading
@@ -229,6 +243,9 @@ def _requirements() -> list[str]:
             f"above)."
         ]
     if techniques_df.empty or not kill_chain_string:
+        # Same defence-in-depth caveat as the warning above: the dropdown
+        # already excludes candidates with no techniques, so this branch
+        # shouldn't be reachable through the UI today.
         return [
             f"Select a {entity_label} with associated {matrix} techniques — "
             f"'{selected_group_alias}' has none."
