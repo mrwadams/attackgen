@@ -225,11 +225,12 @@ def _requirements() -> list[str]:
         return [f"Select a {entity_label} for the scenario."]
     if lookup_error is not None:
         # Reachable even though the dropdown pre-filters candidates: the probe
-        # in `list_usable_scenario_options` uses a fixed `seed=0`, while this
-        # page's own resolution (above) uses the run's real seed for ATT&CK
-        # matrices, and only catches a narrower set of exception types. A
-        # candidate that only fails on the real draw, or raises something
-        # outside that set, still reaches here.
+        # in `list_usable_scenario_options` resolves with a fixed `seed=0`,
+        # while this page resolves with the run's real, unseeded draw for
+        # ATT&CK matrices. A candidate that only fails on the real draw passes
+        # the probe and lands here. A failure the probe does hit never gets
+        # this far: the filter drops it if its type is in the filter's catch
+        # list, and otherwise it escapes `load_groups` and crashes the page.
         return [
             f"Could not load the {matrix} techniques for "
             f"'{selected_group_alias}' — see the error above."
