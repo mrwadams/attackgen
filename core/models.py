@@ -1,7 +1,7 @@
 """Unified model registry — single source of truth for providers and models.
 
 To add or update a model, edit the MODELS list below. Nothing else needs to change.
-Model list last refreshed against provider docs 2026-09-09.
+Model list last refreshed against provider docs 2026-09-10.
 
 Provider model listing pages:
   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/models
@@ -99,9 +99,14 @@ MODELS: list[ModelInfo] = [
     #     default — both handled at provider level in core/llm.py, so no
     #     supports_temperature flag is needed on these entries) ---
     ModelInfo(
+        model_id="gpt-6-astra",
+        provider_key="OpenAI API",
+        help_text="GPT-6 Astra is OpenAI's most capable model, built for the hardest end-to-end work.",
+    ),
+    ModelInfo(
         model_id="gpt-5.6-sol",
         provider_key="OpenAI API",
-        help_text="GPT-5.6 Sol is OpenAI's flagship frontier reasoning model for complex work.",
+        help_text="GPT-5.6 Sol is the previous-generation flagship for complex professional work.",
     ),
     ModelInfo(
         model_id="gpt-5.6-terra",
@@ -112,11 +117,6 @@ MODELS: list[ModelInfo] = [
         model_id="gpt-5.6-luna",
         provider_key="OpenAI API",
         help_text="GPT-5.6 Luna is the fast, cost-efficient option for high-volume workloads.",
-    ),
-    ModelInfo(
-        model_id="gpt-5.5",
-        provider_key="OpenAI API",
-        help_text="GPT-5.5 is OpenAI's previous-generation flagship model.",
     ),
     # --- Anthropic (every model from Claude 4.7 on has sampling parameters
     #     removed and returns a 400 for a custom temperature, so each entry
@@ -170,10 +170,16 @@ MODELS: list[ModelInfo] = [
         help_text="Gemini 3.1 Pro is Google's highest-reasoning model with 1M context.",
     ),
     ModelInfo(
+        model_id="gemini-3.8-flash",
+        provider_key="Google AI API",
+        supports_thinking=True,
+        help_text="Gemini 3.8 Flash is Google's GA flagship fast model with 1M context.",
+    ),
+    ModelInfo(
         model_id="gemini-3.7-flash",
         provider_key="Google AI API",
         supports_thinking=True,
-        help_text="Gemini 3.7 Flash is Google's GA flagship fast model with 1M context.",
+        help_text="Gemini 3.7 Flash is the previous-generation Flash, kept for continuity.",
     ),
     ModelInfo(
         model_id="gemini-3.5-flash-lite",

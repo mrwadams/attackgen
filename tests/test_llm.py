@@ -15,7 +15,7 @@ GEMINI_SAFETY_SETTINGS = llm_module.GEMINI_SAFETY_SETTINGS
 
 
 def test_kwargs_always_set_num_retries_to_three() -> None:
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert kwargs["num_retries"] == 3
 
@@ -39,7 +39,7 @@ def test_openai_provider_uses_max_completion_tokens() -> None:
     current OpenAI chat model takes max_completion_tokens, not max_tokens."""
     config = LLMConfig(
         provider="OpenAI API",
-        model_name="gpt-5.5",
+        model_name="gpt-5.6-sol",
         api_key="k",
         max_tokens=4096,
     )
@@ -47,11 +47,11 @@ def test_openai_provider_uses_max_completion_tokens() -> None:
     assert kwargs["max_completion_tokens"] == 4096
     assert "max_tokens" not in kwargs
     # OpenAI keeps the empty litellm_prefix, so the model string is bare.
-    assert kwargs["model"] == "gpt-5.5"
+    assert kwargs["model"] == "gpt-5.6-sol"
 
 
 def test_openai_provider_without_max_tokens_omits_completion_tokens() -> None:
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
     kwargs = _build_litellm_kwargs(config)
     assert "max_completion_tokens" not in kwargs
     assert "max_tokens" not in kwargs
@@ -62,7 +62,7 @@ def test_openai_provider_omits_temperature() -> None:
     one — otherwise litellm raises BadRequestError (regression: v0.13). The
     whole OpenAI family is the reasoning family, so we gate on the provider."""
     config = LLMConfig(
-        provider="OpenAI API", model_name="gpt-5.5", api_key="k", temperature=0.7
+        provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k", temperature=0.7
     )
     kwargs = _build_litellm_kwargs(config)
     assert "temperature" not in kwargs
@@ -107,19 +107,19 @@ def test_every_registered_anthropic_model_matches_reality() -> None:
     """Pins the flags against what the API actually accepted when probed on
     2026-08-07, plus Anthropic's documented removal of the sampling parameters
     from Claude 4.7 onwards — every model in the registry above Haiku 4.5
-    returns a 400 for a custom temperature. If a model is added without
-    checking, this fails loudly."""
+    returns a 400 for a custom temperature.
+
+    The expectation is an allow-list of the models *verified* to accept a
+    temperature, so the test fails in the unsafe direction: `supports_temperature`
+    defaults to True, and an entry added without checking the flag is absent from
+    `accepts`, trips this assertion, and never reaches a user as a 400 at
+    generation time. Listing the rejecting models instead would let exactly that
+    entry pass."""
     from core.models import get_models_for_provider
 
-    rejects = {
-        "claude-fable-5-1",
-        "claude-opus-5",
-        "claude-sonnet-5",
-        "claude-fable-5",
-        "claude-opus-4-8",
-    }
+    accepts = {"claude-haiku-4-5-20251001"}
     for model in get_models_for_provider("Anthropic API"):
-        expected = model.model_id not in rejects
+        expected = model.model_id in accepts
         assert model.supports_temperature is expected, model.model_id
 
 
@@ -194,7 +194,7 @@ def test_call_llm_returns_completion_content(
     disable_langsmith, mock_litellm_completion
 ) -> None:
     mock_litellm_completion.content = "hello world"
-    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.5", api_key="k")
+    config = LLMConfig(provider="OpenAI API", model_name="gpt-5.6-sol", api_key="k")
 
     result = call_llm(config, [{"role": "user", "content": "hi"}])
 

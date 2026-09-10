@@ -50,4 +50,4 @@ def test_get_models_for_provider_unknown_returns_empty() -> None:
 
 def test_get_model_unknown_returns_none() -> None:
     assert get_model("OpenAI API", "no-such-model") is None
-    assert get_model("Nope", "gpt-5.5") is None
+    assert get_model("Nope", "gpt-5.6-sol") is None
