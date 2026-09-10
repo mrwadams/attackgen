@@ -69,17 +69,21 @@ attack_data = load_attack_data()
 def load_techniques():
     """Returns (techniques_df, error). ``error`` is ``None`` on success.
 
-    A failed lookup leaves ``techniques_df`` at its empty default, which on
-    its own is indistinguishable from a matrix with no techniques (never
-    happens in practice, but nothing enforces that). The error is threaded
-    back to ``_requirements`` so it can name the load failure instead of
-    telling the user to select a technique from a picker that never rendered.
+    An empty list is reported as a failure too: a matrix always has
+    techniques, so an empty one means the bundle didn't parse as expected, and
+    the picker has nothing to offer either way. The error is threaded back to
+    ``_requirements`` so it can name the load failure instead of telling the
+    user to select a technique from a picker that never rendered.
     """
     try:
-        return pd.DataFrame(list_technique_options(matrix)), None
+        options = list_technique_options(matrix)
     except Exception as e:
         logger.error("Error in load_techniques: %s", e)
         return pd.DataFrame(), str(e)
+    if not options:
+        logger.error("Error in load_techniques: no %s techniques found", matrix)
+        return pd.DataFrame(), "the technique list came back empty."
+    return pd.DataFrame(options), None
 
 
 techniques_df, techniques_load_error = load_techniques()
