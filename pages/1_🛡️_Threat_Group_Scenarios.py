@@ -231,9 +231,16 @@ def _requirements() -> list[str]:
         # the probe and lands here. A failure the probe does hit never gets
         # this far: the filter drops it if its type is in the filter's catch
         # list, and otherwise it escapes `load_groups` and crashes the page.
+        #
+        # Phrased as something the user can act on: every other line in the
+        # readiness box is a step they can complete, so a bare "could not
+        # load" would read as a status report with no way forward. Reloading
+        # is deliberately not offered: it starts a new session, dropping a
+        # key typed into the sidebar and any scenario already generated.
         return [
-            f"Could not load the {matrix} techniques for "
-            f"'{selected_group_alias}' — see the error above."
+            f"Pick a different {entity_label} — loading the {matrix} "
+            f"techniques for '{selected_group_alias}' failed (see the error "
+            f"above)."
         ]
     if techniques_df.empty or not kill_chain_string:
         # Same defence-in-depth caveat as the warning above: the dropdown

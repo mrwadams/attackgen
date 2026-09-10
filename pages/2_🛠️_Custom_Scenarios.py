@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 import streamlit as st
 
@@ -13,6 +15,8 @@ from core.navigator import build_layer, dumps, parse_technique_id
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------ Streamlit Configuration ------------------ #
@@ -63,14 +67,26 @@ attack_data = load_attack_data()
 
 
 def load_techniques():
+    """Returns (techniques_df, error). ``error`` is ``None`` on success.
+
+    An empty list is reported as a failure too: a matrix always has
+    techniques, so an empty one means the bundle didn't parse as expected, and
+    the picker has nothing to offer either way. The error is threaded back to
+    ``_requirements`` so it can name the load failure instead of telling the
+    user to select a technique from a picker that never rendered.
+    """
     try:
-        return pd.DataFrame(list_technique_options(matrix))
+        options = list_technique_options(matrix)
     except Exception as e:
-        print(f"Error in load_techniques: {e}")
-        return pd.DataFrame()
+        logger.error("Error in load_techniques: %s", e)
+        return pd.DataFrame(), str(e)
+    if not options:
+        logger.error("Error in load_techniques: no %s techniques found", matrix)
+        return pd.DataFrame(), "the technique list came back empty."
+    return pd.DataFrame(options), None
 
 
-techniques_df = load_techniques()
+techniques_df, techniques_load_error = load_techniques()
 
 
 # ------------------ Prompt Construction ------------------ #
@@ -178,6 +194,9 @@ if matrix == "ATLAS":
 else:
     st.markdown("### Select ATT&CK Techniques")
 
+if techniques_load_error is not None:
+    st.error(f"Could not load the {matrix} techniques: {techniques_load_error}")
+
 with st.expander("Use a Template (Optional)"):
     selected_template = st.selectbox(
         "Select a template",
@@ -190,7 +209,7 @@ with st.expander("Use a Template (Optional)"):
 st.markdown("")
 
 selected_techniques = []
-if not techniques_df.empty:
+if techniques_load_error is None:
     if matrix == "ATLAS":
         technique_options = techniques_df['Display Name'].tolist()
     else:
@@ -222,9 +241,11 @@ st.markdown("### Generate a Scenario")
 
 
 def _requirements() -> list[str]:
-    """This page's own readiness blocker: at least one technique."""
+    """This page's own readiness blockers, in the order the form presents them."""
+    label = "ATLAS" if matrix == "ATLAS" else "ATT&CK"
+    if techniques_load_error is not None:
+        return [f"Could not load the {label} techniques — see the error above."]
     if not selected_techniques:
-        label = "ATLAS" if matrix == "ATLAS" else "ATT&CK"
         return [f"Select at least one {label} technique for the scenario."]
     return []
 
