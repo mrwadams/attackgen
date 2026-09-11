@@ -12,7 +12,12 @@ Two layers ship here:
   1. ``build_defense_report`` + ``defense_to_markdown`` — the deterministic,
      always-on join. Enterprise/ICS resolve full detection strategies via
      ``mitreattack-python``; ATLAS has no detection model, so it degrades to
-     mitigations only.
+     mitigations only. ``resolve_defense_report`` is the one-call entry point
+     pages and the MCP server use — it resolves the right ``core.attack_data``
+     bundle for a matrix itself, so callers never choose ``mitre_data`` /
+     ``atlas_data`` by hand. ``build_defense_report`` keeps those two
+     parameters as an injection seam for tests (and for callers that already
+     hold a resolved bundle).
   2. An optional LLM "purple narrative" pass (``build_narrative_messages``) that
      weaves the *supplied* detections/mitigations into a stage-by-stage
      defender's walkthrough of the scenario. Opt-in via a per-page toggle.
@@ -25,6 +30,8 @@ analytics arrive as plain dicts (key access). ``_field`` papers over both.
 from __future__ import annotations
 
 import streamlit as st
+
+from core import attack_data as ad
 
 # Per-page toggle for the optional LLM narrative pass. The deterministic section
 # is always on (it's free); the narrative costs a second model call, so it's
@@ -222,6 +229,25 @@ def build_defense_report(
         "techniques": techniques,
         "log_sources": _rollup_log_sources(techniques),
     }
+
+
+def resolve_defense_report(matrix: str, technique_ids: list[str]) -> dict | None:
+    """Build the Detection & Response report for a matrix, resolving its own bundle.
+
+    The one entry point pages and the MCP server call: given a matrix and a set
+    of technique IDs, resolves the right ``core.attack_data`` bundle
+    (Enterprise/ICS -> ``mitre_data_for_matrix``, ATLAS -> ``atlas_data``) and
+    delegates to ``build_defense_report``. Returns ``None`` for a matrix with no
+    bundle to resolve, mirroring ``build_defense_report``'s own contract for an
+    unrecognised matrix.
+    """
+    if matrix == "ATLAS":
+        return build_defense_report(matrix=matrix, technique_ids=technique_ids, atlas_data=ad.atlas_data())
+    if matrix in ("Enterprise", "ICS"):
+        return build_defense_report(
+            matrix=matrix, technique_ids=technique_ids, mitre_data=ad.mitre_data_for_matrix(matrix)
+        )
+    return None
 
 
 def defense_to_markdown(report: dict) -> str:

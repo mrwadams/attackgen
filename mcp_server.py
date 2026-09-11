@@ -32,10 +32,10 @@ from typing import Literal
 from mcp.server.mcpserver import MCPServer
 
 from core import attack_data as ad
-from core.detections import build_defense_report, defense_to_markdown
+from core.detections import defense_to_markdown, resolve_defense_report
 from core.llm import call_llm
 from core.models import PROVIDERS, get_models_for_provider, get_provider
-from core.navigator import build_layer, dumps, parse_technique_id
+from core.navigator import build_layer, dumps, normalise_technique_ids
 from core.prompts import (
     build_ai_insider_messages,
     build_custom_messages,
@@ -57,33 +57,6 @@ _DEFAULT_MODEL = os.getenv("ATTACKGEN_MODEL", "")
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
-
-
-def _resolve_kill_chain(matrix: str, group: str, seed: int | None) -> ad.KillChain:
-    """Resolve a threat group (ATT&CK) or case study (ATLAS) to a kill chain."""
-    if matrix == "ATLAS":
-        return ad.resolve_case_study_kill_chain(group)
-    return ad.resolve_threat_group_kill_chain(matrix, group, seed=seed)
-
-
-def _defense_markdown(matrix: str, technique_ids: list[str]) -> str | None:
-    """Build the Detection & Response Markdown for a set of technique IDs, if any."""
-    if matrix == "ATLAS":
-        report = build_defense_report(
-            matrix=matrix, technique_ids=technique_ids, atlas_data=ad.atlas_data()
-        )
-    else:
-        report = build_defense_report(
-            matrix=matrix,
-            technique_ids=technique_ids,
-            mitre_data=ad.mitre_data_for_matrix(matrix),
-        )
-    return defense_to_markdown(report) if report else None
-
-
-def _normalise_ids(techniques: list[str]) -> list[str]:
-    """Accept ``"Name (ID)"`` display labels or bare IDs; return bare IDs."""
-    return [parse_technique_id(t) or t.strip() for t in techniques if t and t.strip()]
 
 
 def _make_config(
@@ -172,7 +145,7 @@ def get_kill_chain(
     the scenario directly. Returns ``techniques``, ``all_techniques``,
     ``kill_chain_string`` and (optionally) ``messages``.
     """
-    kc = _resolve_kill_chain(matrix, group, seed)
+    kc = ad.resolve_kill_chain(matrix, group, seed=seed)
     result = asdict(kc)
     if industry and company_size and kc.techniques:
         result["messages"] = build_threat_group_messages(
@@ -197,8 +170,9 @@ def get_detection_report(matrix: Matrix, technique_ids: list[str]) -> dict:
     ``{"matrix", "markdown"}``; ``markdown`` is ``None`` when there's no defensive
     data (e.g. ATLAS, which has mitigations only).
     """
-    ids = _normalise_ids(technique_ids)
-    return {"matrix": matrix, "markdown": _defense_markdown(matrix, ids)}
+    ids = normalise_technique_ids(technique_ids)
+    report = resolve_defense_report(matrix, ids)
+    return {"matrix": matrix, "markdown": defense_to_markdown(report) if report else None}
 
 
 @mcp.tool()
@@ -214,7 +188,7 @@ def get_navigator_layer(
     ``{"layer_json"}`` (a JSON string ready to upload to the Navigator), or
     ``layer_json=None`` for a matrix with no Navigator domain.
     """
-    ids = _normalise_ids(technique_ids)
+    ids = normalise_technique_ids(technique_ids)
     layer = build_layer(
         name=name,
         matrix=matrix,
@@ -353,7 +327,7 @@ def generate_threat_group_scenario(
     adds the AI-enhanced-adversary framing; ``include_detection`` appends the
     purple-team Detection & Response section.
     """
-    kc = _resolve_kill_chain(matrix, group, seed)
+    kc = ad.resolve_kill_chain(matrix, group, seed=seed)
     if not kc.techniques:
         raise ValueError(f"No techniques found for '{group}' in the {matrix} matrix.")
     messages = build_threat_group_messages(
@@ -370,7 +344,8 @@ def generate_threat_group_scenario(
     )
     scenario = _generate(config, messages)
     if include_detection:
-        detection = _defense_markdown(matrix, [t["ATT&CK ID"] for t in kc.techniques])
+        report = resolve_defense_report(matrix, kc.technique_ids)
+        detection = defense_to_markdown(report) if report else None
         if detection:
             scenario = f"{scenario}\n\n---\n\n{detection}"
     return scenario
@@ -413,7 +388,8 @@ def generate_custom_scenario(
     )
     scenario = _generate(config, messages)
     if include_detection:
-        detection = _defense_markdown(matrix, _normalise_ids(techniques))
+        report = resolve_defense_report(matrix, normalise_technique_ids(techniques))
+        detection = defense_to_markdown(report) if report else None
         if detection:
             scenario = f"{scenario}\n\n---\n\n{detection}"
     return scenario

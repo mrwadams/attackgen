@@ -172,11 +172,7 @@ def list_usable_scenario_options(matrix: str) -> tuple[dict, ...]:
     for candidate in candidates:
         name = candidate["group"]
         try:
-            kill_chain = (
-                resolve_case_study_kill_chain(name)
-                if matrix == "ATLAS"
-                else resolve_threat_group_kill_chain(matrix, name, seed=0)
-            )
+            kill_chain = resolve_kill_chain(matrix, name, seed=0)
         except (AttributeError, IndexError, KeyError, TypeError, ValueError):
             continue
         if not kill_chain.techniques:
@@ -258,6 +254,11 @@ class KillChain:
     techniques: list[dict]
     kill_chain_string: str
     all_techniques: list[dict] = field(default_factory=list)
+
+    @property
+    def technique_ids(self) -> list[str]:
+        """Bare ATT&CK/ATLAS IDs of ``techniques`` (the set fed to the model)."""
+        return [t["ATT&CK ID"] for t in self.techniques]
 
 
 def _kill_chain_string(techniques: list[dict]) -> str:
@@ -370,3 +371,19 @@ def resolve_case_study_kill_chain(case_study_name: str) -> KillChain:
         kill_chain_string=_kill_chain_string(records),
         all_techniques=records,
     )
+
+
+def resolve_kill_chain(matrix: str, group_alias: str, *, seed: int | None = None) -> KillChain:
+    """Resolve a threat group / case study to a ``KillChain`` for any matrix.
+
+    The one entry point callers outside ``core`` should use: dispatches to
+    ``resolve_case_study_kill_chain`` for ATLAS (``seed`` is ignored — there is
+    no sampling) or ``resolve_threat_group_kill_chain`` for Enterprise/ICS
+    (``seed`` makes the per-phase sample deterministic). Raises ``ValueError``
+    for any other matrix.
+    """
+    if matrix == "ATLAS":
+        return resolve_case_study_kill_chain(group_alias)
+    if matrix in ("Enterprise", "ICS"):
+        return resolve_threat_group_kill_chain(matrix, group_alias, seed=seed)
+    raise ValueError(f"Unknown matrix '{matrix}'.")

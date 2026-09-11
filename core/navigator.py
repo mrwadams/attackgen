@@ -65,6 +65,15 @@ def parse_technique_id(display: str) -> str | None:
     return match.group(1) if match else None
 
 
+def normalise_technique_ids(techniques: list[str]) -> list[str]:
+    """Accept ``"Name (ID)"`` display labels or bare IDs; return bare IDs.
+
+    Blank entries are dropped. A string with no trailing ``"(ID)"`` is assumed
+    to already be a bare ID and is returned stripped, unchanged.
+    """
+    return [parse_technique_id(t) or t.strip() for t in techniques if t and t.strip()]
+
+
 def tactic_shortname(phase_name: str | None) -> str | None:
     """Convert a display phase name to a Navigator tactic shortname.
 
