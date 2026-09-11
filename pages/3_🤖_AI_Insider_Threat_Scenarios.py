@@ -154,12 +154,8 @@ selected_stride_options = st.multiselect(
 )
 st.session_state['ai_insider_stride'] = selected_stride_options
 selected_stride = [stride_code_from_option(opt) for opt in selected_stride_options]
-
-if not selected_stride and selected_categories:
-    derived = []
-    for category in selected_categories:
-        derived.extend(THREAT_CATEGORIES[category]['stride'])
-    selected_stride = list(dict.fromkeys(derived))
+# Left empty, build_ai_insider_messages derives STRIDE codes from
+# selected_categories itself — shared with the MCP server.
 
 # --- Agent capabilities ---
 st.markdown("### 4. Frontier Agent Capabilities (Optional)")
