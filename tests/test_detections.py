@@ -13,12 +13,14 @@ from types import SimpleNamespace
 import pytest
 
 from atlas_parser import ATLASData
+import core.detections as det
 from core.detections import (
     assemble_defense_document,
     build_defense_report,
     build_narrative_messages,
     defense_download_name,
     defense_to_markdown,
+    resolve_defense_report,
 )
 
 
@@ -138,6 +140,42 @@ class TestBuildDefenseReportAtlas:
         assert (
             build_defense_report(matrix="ATLAS", technique_ids=["AML.T0051"]) is None
         )
+
+
+class TestResolveDefenseReport:
+    """The one entry point pages and the MCP server call — it resolves its own
+    STIX bundle rather than asking the caller to pick `mitre_data`/`atlas_data`."""
+
+    def test_enterprise_resolves_its_own_bundle(self, monkeypatch):
+        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        report = resolve_defense_report("Enterprise", ["T1059"])
+        assert report["matrix"] == "Enterprise"
+        assert report["techniques"][0]["id"] == "T1059"
+
+    def test_ics_resolves_its_own_bundle(self, monkeypatch):
+        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        report = resolve_defense_report("ICS", ["T1059"])
+        assert report["matrix"] == "ICS"
+
+    def test_atlas_resolves_its_own_bundle(self, atlas, monkeypatch):
+        monkeypatch.setattr(det.ad, "atlas_data", lambda: atlas)
+        report = resolve_defense_report("ATLAS", ["AML.T0051"])
+        assert report["matrix"] == "ATLAS"
+        assert report["techniques"][0]["mitigations"]
+
+    def test_unknown_matrix_returns_none(self):
+        assert resolve_defense_report("Mobile", ["T1059"]) is None
+
+    def test_matches_build_defense_report_with_the_same_injected_data(self, monkeypatch):
+        """Same shape as calling `build_defense_report` directly with the bundle
+        `resolve_defense_report` would have resolved itself."""
+        fake = FakeMitreData()
+        direct = build_defense_report(matrix="Enterprise", technique_ids=["T1059"], mitre_data=fake)
+
+        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: fake)
+        via_resolver = resolve_defense_report("Enterprise", ["T1059"])
+
+        assert via_resolver == direct
 
 
 class TestLogSourceHygiene:

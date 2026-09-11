@@ -144,6 +144,58 @@ class TestResolveCaseStudyAtlas:
         assert kc.techniques == [] and kc.kill_chain_string == ""
 
 
+class TestKillChainTechniqueIds:
+    def test_technique_ids_derived_from_techniques(self):
+        kc = ad.KillChain(
+            matrix="Enterprise",
+            group_alias="TESTGROUP",
+            techniques=[
+                {"Technique Name": "A", "ATT&CK ID": "T1001", "Phase Name": "Execution"},
+                {"Technique Name": "B", "ATT&CK ID": "T1002", "Phase Name": "Persistence"},
+            ],
+            kill_chain_string="",
+        )
+        assert kc.technique_ids == ["T1001", "T1002"]
+
+    def test_technique_ids_empty_for_empty_kill_chain(self):
+        assert ad.KillChain("Enterprise", "NOPE", [], "", []).technique_ids == []
+
+
+class TestResolveKillChain:
+    """The one entry point callers outside `core` use to resolve a kill chain."""
+
+    def test_dispatches_atlas_to_case_study_resolver(self):
+        studies = ad.list_case_studies()
+        name = studies[0]["group"]
+        via_dispatcher = ad.resolve_kill_chain("ATLAS", name)
+        via_direct = ad.resolve_case_study_kill_chain(name)
+        assert via_dispatcher.techniques == via_direct.techniques
+        assert via_dispatcher.matrix == "ATLAS"
+
+    def test_dispatches_enterprise_to_threat_group_resolver(self, fake_enterprise):
+        via_dispatcher = ad.resolve_kill_chain("Enterprise", "TESTGROUP", seed=0)
+        via_direct = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
+        assert via_dispatcher.techniques == via_direct.techniques
+
+    def test_dispatches_ics_to_threat_group_resolver(self, fake_enterprise):
+        # fake_enterprise patches mitre_data_for_matrix for any matrix.
+        via_dispatcher = ad.resolve_kill_chain("ICS", "TESTGROUP", seed=0)
+        via_direct = ad.resolve_threat_group_kill_chain("ICS", "TESTGROUP", seed=0)
+        assert via_dispatcher.techniques == via_direct.techniques
+
+    def test_atlas_ignores_seed(self):
+        studies = ad.list_case_studies()
+        name = studies[0]["group"]
+        # ATLAS has no sampling, so a seed makes no difference to the result.
+        assert ad.resolve_kill_chain("ATLAS", name, seed=7).techniques == (
+            ad.resolve_kill_chain("ATLAS", name).techniques
+        )
+
+    def test_unknown_matrix_raises(self, fake_enterprise):
+        with pytest.raises(ValueError):
+            ad.resolve_kill_chain("Mobile", "TESTGROUP")
+
+
 class TestListings:
     def test_list_threat_groups_enterprise_shape(self):
         groups = ad.list_threat_groups("Enterprise")

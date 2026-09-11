@@ -2,17 +2,12 @@ import pandas as pd
 import streamlit as st
 
 from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
-from core.attack_data import (
-    list_usable_scenario_options,
-    load_attack_data,
-    resolve_case_study_kill_chain,
-    resolve_threat_group_kill_chain,
-)
+from core.attack_data import list_usable_scenario_options, resolve_kill_chain
 from core.prompts import build_threat_group_messages
 from core.detections import (
-    build_defense_report,
     is_defense_narrative_on,
     render_defense_narrative_toggle,
+    resolve_defense_report,
 )
 from core.navigator import build_layer, dumps, tactic_shortname
 from core.scenario_page import run_scenario_page
@@ -32,9 +27,7 @@ company_size = setup.company_size
 
 # ------------------ Data Loading ------------------ #
 # Loaders + kill-chain resolution live in core/attack_data.py (shared with the
-# MCP server). load_attack_data() is lazily cached there.
-
-attack_data = load_attack_data()
+# MCP server).
 
 
 @st.cache_resource
@@ -95,24 +88,14 @@ def build_layer_payload(snapshot):
 def build_defense_payload(snapshot):
     """Join the scenario's techniques to their detection strategies + mitigations.
 
-    Uses the same ``selected_techniques_df`` the prompt and layer were built
-    from, so the Detection & Response companion matches the scenario's kill
-    chain. Returns ``None`` when there's no defensive data.
+    Uses the same technique IDs the prompt and layer were built from, so the
+    Detection & Response companion matches the scenario's kill chain. Returns
+    ``None`` when there's no defensive data.
     """
-    sampled_techniques = snapshot["sampled_techniques"]
-    if not sampled_techniques:
+    technique_ids = snapshot["technique_ids"]
+    if not technique_ids:
         return None
-    technique_ids = [str(row["ATT&CK ID"]) for row in sampled_techniques]
-    matrix = snapshot["matrix"]
-    if matrix == "ATLAS":
-        return build_defense_report(
-            matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
-        )
-    return build_defense_report(
-        matrix=matrix,
-        technique_ids=technique_ids,
-        mitre_data=attack_data[matrix.lower()],
-    )
+    return resolve_defense_report(snapshot["matrix"], technique_ids)
 
 
 def _modifiers():
@@ -154,6 +137,7 @@ selected_group_alias = st.selectbox(
 kill_chain_string = ""
 techniques_df = pd.DataFrame()
 selected_techniques_df = pd.DataFrame()
+technique_ids: list[str] = []
 lookup_error = None
 
 try:
@@ -166,10 +150,7 @@ try:
 
         # Kill-chain resolution (incl. the per-phase sampling for ATT&CK) lives in
         # core.attack_data, shared with the MCP server. This page just renders it.
-        if matrix == "ATLAS":
-            kill_chain = resolve_case_study_kill_chain(selected_group_alias)
-        else:
-            kill_chain = resolve_threat_group_kill_chain(matrix, selected_group_alias)
+        kill_chain = resolve_kill_chain(matrix, selected_group_alias)
 
         if not kill_chain.all_techniques:
             entity = "case study" if matrix == "ATLAS" else "threat group"
@@ -191,6 +172,7 @@ try:
             # defense) expects, from the resolver's JSON-native records.
             techniques_df = pd.DataFrame(kill_chain.all_techniques)
             selected_techniques_df = pd.DataFrame(kill_chain.techniques)
+            technique_ids = kill_chain.technique_ids
 
             expander_title = "Associated ATLAS Techniques" if matrix == "ATLAS" else "Associated ATT&CK Techniques"
             with st.expander(expander_title):
@@ -261,6 +243,7 @@ def _capture_inputs():
         "selected_entity": {"type": entity_label, "name": selected_group_alias},
         "selected_techniques": techniques_df.to_dict(orient="records"),
         "sampled_techniques": selected_techniques_df.to_dict(orient="records"),
+        "technique_ids": technique_ids,
         "kill_chain_string": kill_chain_string,
         "modifiers": {
             "ai_uplift": is_ai_uplift_on("threat_group"),
