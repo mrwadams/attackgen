@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from atlas_parser import ATLASData
-import core.detections as det
 from core.detections import (
     assemble_defense_document,
     build_defense_report,
@@ -147,18 +146,18 @@ class TestResolveDefenseReport:
     STIX bundle rather than asking the caller to pick `mitre_data`/`atlas_data`."""
 
     def test_enterprise_resolves_its_own_bundle(self, monkeypatch):
-        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        monkeypatch.setattr("core.attack_data.mitre_data_for_matrix", lambda matrix: FakeMitreData())
         report = resolve_defense_report("Enterprise", ["T1059"])
         assert report["matrix"] == "Enterprise"
         assert report["techniques"][0]["id"] == "T1059"
 
     def test_ics_resolves_its_own_bundle(self, monkeypatch):
-        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: FakeMitreData())
+        monkeypatch.setattr("core.attack_data.mitre_data_for_matrix", lambda matrix: FakeMitreData())
         report = resolve_defense_report("ICS", ["T1059"])
         assert report["matrix"] == "ICS"
 
     def test_atlas_resolves_its_own_bundle(self, atlas, monkeypatch):
-        monkeypatch.setattr(det.ad, "atlas_data", lambda: atlas)
+        monkeypatch.setattr("core.attack_data.atlas_data", lambda: atlas)
         report = resolve_defense_report("ATLAS", ["AML.T0051"])
         assert report["matrix"] == "ATLAS"
         assert report["techniques"][0]["mitigations"]
@@ -172,7 +171,7 @@ class TestResolveDefenseReport:
         fake = FakeMitreData()
         direct = build_defense_report(matrix="Enterprise", technique_ids=["T1059"], mitre_data=fake)
 
-        monkeypatch.setattr(det.ad, "mitre_data_for_matrix", lambda matrix: fake)
+        monkeypatch.setattr("core.attack_data.mitre_data_for_matrix", lambda matrix: fake)
         via_resolver = resolve_defense_report("Enterprise", ["T1059"])
 
         assert via_resolver == direct
