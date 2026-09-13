@@ -244,7 +244,21 @@ def _requirements() -> list[str]:
     """This page's own readiness blockers, in the order the form presents them."""
     label = "ATLAS" if matrix == "ATLAS" else "ATT&CK"
     if techniques_load_error is not None:
-        return [f"Could not load the {label} techniques — see the error above."]
+        # Phrased as something the user can act on: every other line in the
+        # readiness box is a step they can complete, so a bare "could not
+        # load" would read as a status report with no way forward. The whole
+        # matrix's technique list failed, so — unlike page 1, where the user
+        # can pick a different group — the step that changes what gets loaded
+        # is switching framework in the sidebar. `load_techniques` isn't
+        # cached, so the switch retries the load on the next rerun. Names
+        # `matrix` rather than `label`, which is "ATT&CK" for both Enterprise
+        # and ICS and so wouldn't say which one failed. Reloading is
+        # deliberately not offered: it starts a new session, dropping a key
+        # typed into the sidebar and any scenario already generated.
+        return [
+            f"Choose a different MITRE framework in the Setup sidebar — "
+            f"loading the {matrix} techniques failed (see the error above)."
+        ]
     if not selected_techniques:
         return [f"Select at least one {label} technique for the scenario."]
     return []
