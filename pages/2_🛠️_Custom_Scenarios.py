@@ -7,11 +7,11 @@ from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trac
 from core.attack_data import list_technique_options, load_attack_data
 from core.prompts import build_custom_messages
 from core.detections import (
-    build_defense_report,
     is_defense_narrative_on,
     render_defense_narrative_toggle,
+    resolve_defense_report,
 )
-from core.navigator import build_layer, dumps, parse_technique_id
+from core.navigator import build_layer, dumps, normalise_technique_ids
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
@@ -112,18 +112,14 @@ def build_layer_payload(snapshot):
     without a tactic (valid — Navigator places them by ID). Returns the layer
     JSON, or ``None`` when the matrix has no Navigator.
     """
-    techniques = []
-    for display in snapshot["selected_techniques"]:
-        technique_id = parse_technique_id(display)
-        if technique_id:
-            techniques.append((technique_id, None))
-    if not techniques:
+    technique_ids = normalise_technique_ids(snapshot["selected_techniques"])
+    if not technique_ids:
         return None
     matrix = snapshot["matrix"]
     layer = build_layer(
         name=f"AttackGen: Custom Scenario ({matrix})",
         matrix=matrix,
-        techniques=techniques,
+        techniques=[(tid, None) for tid in technique_ids],
         description=f"Techniques selected for a custom AttackGen scenario ({matrix} matrix).",
     )
     if layer is None:
@@ -134,26 +130,13 @@ def build_layer_payload(snapshot):
 def build_defense_payload(snapshot):
     """Join the selected techniques to their detection strategies + mitigations.
 
-    Parses the same multiselect the prompt and layer were built from. Returns
-    ``None`` when nothing is selected or there's no defensive data.
+    Normalises the same multiselect the prompt and layer were built from.
+    Returns ``None`` when nothing is selected or there's no defensive data.
     """
-    technique_ids = [
-        tid
-        for tid in (parse_technique_id(d) for d in snapshot["selected_techniques"])
-        if tid
-    ]
+    technique_ids = normalise_technique_ids(snapshot["selected_techniques"])
     if not technique_ids:
         return None
-    matrix = snapshot["matrix"]
-    if matrix == "ATLAS":
-        return build_defense_report(
-            matrix=matrix, technique_ids=technique_ids, atlas_data=attack_data["atlas"]
-        )
-    return build_defense_report(
-        matrix=matrix,
-        technique_ids=technique_ids,
-        mitre_data=attack_data[matrix.lower()],
-    )
+    return resolve_defense_report(snapshot["matrix"], technique_ids)
 
 
 def _modifiers():
