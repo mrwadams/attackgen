@@ -25,6 +25,7 @@ from data.ai_insider_threats import (
     CONTROLS_FRAMEWORK,
     DEPLOYMENT_ARCHETYPES,
     DETECTION_STRATEGIES,
+    THREAT_CATEGORIES,
     build_threat_context,
 )
 
@@ -226,14 +227,24 @@ def build_ai_insider_messages(
     *,
     archetype_name: str,
     selected_categories: list[str],
-    selected_stride: list[str],
-    selected_capabilities: list[str],
+    selected_stride: list[str] | None = None,
+    selected_capabilities: list[str] | None = None,
     industry: str,
     company_size: str,
     scenario_seed: str | None = None,
     required_decisions: list[str] | None = None,
 ) -> list[Message]:
     """Build the [system, user] messages for an AI Insider Threat scenario.
+
+    ``selected_stride`` left empty is derived from ``selected_categories`` (the
+    STRIDE codes each category maps to), so a category-only selection still
+    produces the "Specific STRIDE threats in scope" block. This is the one
+    place that derivation happens — the page and the MCP server both pass
+    their raw selections through instead of deriving it themselves.
+
+    ``selected_capabilities`` distinguishes "not specified" from "deliberately
+    none": omitted (``None``, the default) means every capability; an explicit
+    ``[]`` means the deliberate opt-out line.
 
     ``scenario_seed`` is optional free-text narrative framing (a template's
     ``brief``, or whatever the user typed into the page's seed box).
@@ -242,7 +253,19 @@ def build_ai_insider_messages(
     prompt byte-identical to a build without them.
     """
     archetype = DEPLOYMENT_ARCHETYPES[archetype_name]
+
+    if not selected_stride and selected_categories:
+        derived = []
+        for category in selected_categories:
+            derived.extend(THREAT_CATEGORIES.get(category, {}).get("stride", []))
+        selected_stride = list(dict.fromkeys(derived))
+    else:
+        selected_stride = list(selected_stride or [])
+
     threat_context = build_threat_context(selected_categories, selected_stride)
+
+    if selected_capabilities is None:
+        selected_capabilities = list(AGENT_CAPABILITIES)
 
     if selected_capabilities:
         capability_lines = "\n".join(

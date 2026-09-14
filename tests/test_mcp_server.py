@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 import pytest
 
 import core.llm as llm_module
 import mcp_server as s
 from core.attack_data import KillChain
+from core.prompts import build_ai_insider_messages
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     DEPLOYMENT_ARCHETYPES,
+    THREAT_CATEGORIES,
     resolve_template,
 )
 from tests.test_detections import FakeMitreData
@@ -190,19 +191,33 @@ class TestDataTools:
         for other in list(AGENT_CAPABILITIES)[1:]:
             assert other not in user
 
-    def test_mcp_default_matches_the_streamlit_page(self):
-        """Page 3 defaults its multiselect to `list(AGENT_CAPABILITIES)`. If that
-        changes, this default should change with it or the two surfaces drift
-        apart again."""
-        page = (
-            Path(__file__).resolve().parent.parent
-            / "pages" / "3_🤖_AI_Insider_Threat_Scenarios.py"
-        ).read_text(encoding="utf-8")
-        assert "default=list(AGENT_CAPABILITIES.keys())" in page
-        kwargs = s._resolve_ai_insider_inputs(
-            EVAL_ESCAPE, "", None, None, None, "Technology", "Large", None,
+    def test_category_only_selection_matches_the_streamlit_page(self):
+        """Selecting categories with no explicit STRIDE threats used to
+        silently drop the "Specific STRIDE threats in scope" block over MCP,
+        because only page 3 derived STRIDE codes from categories itself. Both
+        entry points now funnel through `build_ai_insider_messages`, so an MCP
+        call must produce the same prompt as a direct call built the way the
+        page builds it (raw selections, capabilities defaulted to the full
+        set to match the page's multiselect default)."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        category = next(iter(THREAT_CATEGORIES))
+
+        mcp_messages = s.get_ai_insider_prompt(
+            archetype, categories=[category],
+            industry="Technology", company_size="Large",
+        )["messages"]
+
+        page_equivalent_messages = build_ai_insider_messages(
+            archetype_name=archetype,
+            selected_categories=[category],
+            selected_stride=[],
+            selected_capabilities=list(AGENT_CAPABILITIES),
+            industry="Technology",
+            company_size="Large",
         )
-        assert kwargs["selected_capabilities"] == list(AGENT_CAPABILITIES)
+
+        assert mcp_messages == page_equivalent_messages
+        assert "Specific STRIDE threats in scope" in mcp_messages[1]["content"]
 
 
 class TestGenerateTools:

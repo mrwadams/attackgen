@@ -266,12 +266,11 @@ def _resolve_ai_insider_inputs(
     the organisation context is missing — ``template`` gives those arguments
     defaults, so they are no longer required by the tool schema.
 
-    ``capabilities`` is the one selection no template supplies, so it defaults
-    to the full set — matching page 3's multiselect, which ships all of them
-    selected. Omitting it otherwise fell through to ``[]``, which the builder
-    reads as "no capabilities highlighted" and answers with a generic line,
-    silently giving MCP callers a weaker prompt than UI users for the same
-    template. Pass ``[]`` explicitly to opt out and get that line deliberately.
+    No template supplies ``capabilities``, so it passes through unresolved
+    (``None`` when the caller omits it too) — ``build_ai_insider_messages``
+    is the one place that turns "not specified" into the full capability set,
+    shared with page 3's multiselect default. Category-to-STRIDE derivation
+    for a category-only selection lives there too.
     """
     preset = aip.resolve_template(template) if template else {}
     resolved_archetype = archetype or preset.get("archetype", "")
@@ -284,9 +283,7 @@ def _resolve_ai_insider_inputs(
         "archetype_name": resolved_archetype,
         "selected_categories": categories or preset.get("categories", []),
         "selected_stride": stride or preset.get("stride", []),
-        "selected_capabilities": (
-            list(aip.AGENT_CAPABILITIES) if capabilities is None else capabilities
-        ),
+        "selected_capabilities": capabilities,
         "industry": industry,
         "company_size": company_size,
         "scenario_seed": seed,
