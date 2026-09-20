@@ -20,6 +20,7 @@ from core.navigator import (
     dumps,
     layer_filename,
     navigator_for_domain,
+    normalise_technique_ids,
     parse_technique_id,
     tactic_shortname,
 )
@@ -72,6 +73,25 @@ class TestParseTechniqueId:
     def test_no_id_returns_none(self):
         assert parse_technique_id("Just a name") is None
         assert parse_technique_id("") is None
+
+
+class TestNormaliseTechniqueIds:
+    def test_labels_normalised_to_bare_ids(self):
+        assert normalise_technique_ids(
+            ["Spearphishing Attachment (T1193)", "LLM Prompt Injection (AML.T0051)"]
+        ) == ["T1193", "AML.T0051"]
+
+    def test_bare_ids_pass_through(self):
+        assert normalise_technique_ids(["T1059", "AML.T0051"]) == ["T1059", "AML.T0051"]
+
+    def test_mixed_labels_and_bare_ids(self):
+        assert normalise_technique_ids(["Phishing (T1566)", "T1059"]) == ["T1566", "T1059"]
+
+    def test_blank_entries_dropped(self):
+        assert normalise_technique_ids(["", None, "  ", "T1059"]) == ["T1059"]
+
+    def test_empty_list(self):
+        assert normalise_technique_ids([]) == []
 
 
 class TestBuildLayer:
