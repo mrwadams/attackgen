@@ -2509,3 +2509,53 @@ def test_clear_result_also_clears_apply_recovery_state(
     assert "threat_group_scenario_pre_apply" not in fake_session_state
     assert "threat_group_scenario_applied_at" not in fake_session_state
     assert not has_been_applied("threat_group")
+
+
+def test_regenerating_clears_the_previous_results_apply_state(
+    stub_streamlit, fake_session_state, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new generation is not "refined": it must not inherit the old revert.
+
+    Left behind, the pre-apply stash would let "Revert to original" replace a
+    freshly generated scenario with the *previous* one's pre-apply text.
+    """
+    _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)
+    _apply_both_artifacts(fake_session_state)
+    assert has_been_applied("threat_group")
+
+    # Regenerate: same page, a new scenario from the model.
+    def _stream(_config, _messages):
+        yield "# Brand new APT29 Scenario"
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+    stub_streamlit["button_returns"] = True
+    stub_streamlit["buttons"].clear()
+    stub_streamlit["captions"].clear()
+    run_scenario_page(
+        page_id="threat_group",
+        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        requirements=[],
+        setup=_setup_state(),
+        download_name="AttackGen APT29 Enterprise.md",
+        trace_name="Threat Group Scenario",
+        trace_tags=("threat_group_scenario",),
+        build_layer=lambda _s: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _s: _DEFENSE_REPORT,
+        capture_inputs=lambda: copy.deepcopy(_THREAT_GROUP_INPUTS),
+    )
+
+    assert fake_session_state["threat_group_scenario_text"] == "# Brand new APT29 Scenario"
+    assert "threat_group_scenario_pre_apply" not in fake_session_state
+    assert not has_been_applied("threat_group")
+    assert applied_caption("threat_group") is None
+    assert not any(
+        b.get("key", "").startswith("threat_group_revert_")
+        for b in stub_streamlit["buttons"]
+    )
+    assert not any(
+        "Refined via the AttackGen Assistant" in c for c in stub_streamlit["captions"]
+    )
+    assert not any(
+        "reflects the techniques of the originally generated scenario" in c
+        for c in stub_streamlit["captions"]
+    )

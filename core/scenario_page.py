@@ -1335,6 +1335,13 @@ def _persist_and_render(
 ) -> None:
     st.session_state[keys.generated] = True
     st.session_state[keys.text] = cleaned
+    # A freshly generated result has never been through the Assistant's apply,
+    # so drop the previous result's apply-recovery state. Left behind, a
+    # Regenerate inherits the "Refined via the Assistant" caption, the layer's
+    # "not regenerated" notice, and a "Revert to original" that would replace
+    # the new scenario with the *old* one's pre-apply text.
+    st.session_state.pop(keys.pre_apply, None)
+    st.session_state.pop(keys.applied_at, None)
     st.session_state[keys.layer] = layer_payload
     st.session_state[keys.filename] = download_name
     st.session_state[keys.defense] = defense_state
