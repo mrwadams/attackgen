@@ -3,11 +3,16 @@ import streamlit as st
 from core.assistant import (
     CLEANED_REPLY_KEY,
     TARGETS,
+    apply_summary_note,
+    apply_write_back,
     render_empty_state,
     render_scenario_identity,
+    resolve_download_artifacts,
+    run_apply,
     scenario_handoff,
     stream_assistant_reply,
 )
+from core.scenario_page import applied_caption, mark_applied, stash_pre_apply
 from core.sidebar import render_setup_blockers, render_setup_sidebar
 from core.styles import inject_emoji_fonts
 
@@ -29,6 +34,12 @@ if scenario is None:
     st.stop()
 
 render_scenario_identity(scenario)
+
+page_id = (scenario.meta or {}).get("page_id")
+if page_id:
+    caption = applied_caption(page_id)
+    if caption:
+        st.caption(caption)
 
 # Pick what to edit. The Detection & Response and combined options only appear
 # when a purple-team narrative was generated alongside the scenario (page 1/2
@@ -103,6 +114,81 @@ if prompt := st.chat_input("Type your message here...", disabled=not setup.compl
     st.session_state[messages_key].append(
         {"role": "assistant", "content": st.session_state.pop(CLEANED_REPLY_KEY, "")}
     )
+
+
+st.markdown("---")
+
+# The chat only ever refines a conversation; nothing reaches the downloadable
+# artifact (or the Assistant's own panels above) until this dedicated call
+# rewrites it. Gated on a real user turn so there is always something to apply.
+has_user_turn = any(m["role"] == "user" for m in st.session_state[messages_key])
+apply_clicked = st.button(
+    "Apply changes to downloads",
+    key=f"assistant_apply_{target}",
+    disabled=not has_user_turn,
+)
+if not has_user_turn:
+    st.caption(
+        "Ask for at least one change in the chat above before applying it to "
+        "the downloads."
+    )
+
+if apply_clicked:
+    history = "\n".join(
+        f"{m['role']}: {m['content']}" for m in st.session_state[messages_key]
+    )
+    try:
+        with st.spinner("Applying changes..."):
+            applied = run_apply(target=target, scenario=scenario, chat_history=history)
+    except Exception as e:  # noqa: BLE001 - shown in the chat, no state changes
+        with st.chat_message("assistant"):
+            st.error(f"An error occurred while applying changes: {e}")
+    else:
+        if applied is None:
+            # Refused, not applied: no session state changes, so this is shown
+            # for this run only rather than appended to the chat history.
+            with st.chat_message("assistant"):
+                st.error(
+                    "The model returned an empty response, so nothing was applied. "
+                    "Try again, or ask a follow-up question first."
+                )
+        elif not page_id:
+            with st.chat_message("assistant"):
+                st.error("No originating page was found, so nothing was applied.")
+        else:
+            stash_pre_apply(page_id)
+            for artifact in applied:
+                apply_write_back(
+                    page_id=page_id,
+                    artifact=artifact.artifact,
+                    revised_text=artifact.text,
+                )
+            mark_applied(page_id)
+            st.session_state[messages_key].append(
+                {"role": "assistant", "content": apply_summary_note(applied)}
+            )
+            st.rerun()
+
+download_specs = []
+artifacts = resolve_download_artifacts(scenario)
+if target in ("scenario", "both") and "scenario" in artifacts:
+    filename, data = artifacts["scenario"]
+    download_specs.append(("Download Scenario", data, filename))
+if target in ("defense", "both") and "defense" in artifacts:
+    filename, data = artifacts["defense"]
+    download_specs.append(("Download Detection & Response", data, filename))
+if download_specs:
+    for column, (label, data, filename) in zip(
+        st.columns(len(download_specs)), download_specs
+    ):
+        with column:
+            st.download_button(
+                label=label,
+                data=data,
+                file_name=filename,
+                mime="text/markdown",
+                key=f"assistant_download_{filename}",
+            )
 
 
 def clear_conversation():

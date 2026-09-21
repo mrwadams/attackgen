@@ -21,7 +21,8 @@ from typing import Any
 
 import streamlit as st
 
-from core.llm import call_llm_stream
+from core.detections import assemble_defense_document, defense_title
+from core.llm import call_llm, call_llm_stream
 from core.response import clean_model_response, stream_filter_thinking
 from core.routes import ASSISTANT_PAGE, SCENARIO_PAGES, PageInfo, page_info
 from core.schemas import LLMConfig
@@ -214,6 +215,223 @@ def stream_assistant_reply(
         with st.expander("View Model's Reasoning"):
             st.markdown(thinking)
     st.session_state[CLEANED_REPLY_KEY] = cleaned
+
+
+# --- Apply: rewriting the downloadable artifact from the chat ---------------
+#
+# The chat stream refines a conversation; "apply" is a separate, dedicated
+# model call that takes the whole of that mode's history and returns the
+# complete revised artifact as raw Markdown, which is then written back to the
+# page state and downloads the scenario coordinator renders. `both` mode makes
+# two such calls — one per artifact — each given the other artifact's current
+# text so a change that affects both stays aligned across them.
+
+APPLY_TRACE_NAME = "AttackGen Assistant — Apply"
+APPLY_TRACE_TAGS = ("assistant", "assistant_apply")
+
+APPLY_SYSTEM_PROMPT = (
+    "You are revising a document, given its current text and a chat history of "
+    "requested changes. Return the complete, revised document as raw Markdown. "
+    "Do not include any conversational framing, preamble, acknowledgement, or "
+    "explanation of what changed — reply with only the finished document."
+)
+
+ARTIFACT_LABELS = {
+    "scenario": "the scenario",
+    "defense": "the Detection & Response narrative",
+}
+
+
+@dataclass(frozen=True)
+class ApplyCall:
+    """One dedicated apply call: which artifact it revises, and its messages."""
+
+    artifact: str
+    messages: list[dict[str, str]]
+
+
+@dataclass(frozen=True)
+class AppliedArtifact:
+    """One artifact's guarded, revised text from a completed apply call."""
+
+    artifact: str
+    text: str
+
+
+def build_apply_messages(
+    *,
+    target: str,
+    scenario_text: str,
+    defense_narrative: str | None,
+    chat_history: str,
+) -> list[ApplyCall]:
+    """Build the dedicated apply call(s) for one Assistant mode.
+
+    ``scenario``/``defense`` modes need one call; ``both`` needs two, one per
+    artifact, each also given the *other* artifact's current text so the pair
+    can be kept consistent without either call revising both at once.
+    """
+    calls: list[ApplyCall] = []
+
+    if target in ("scenario", "both"):
+        reference = (
+            "\n\nFor reference, here is the current Detection & Response "
+            f"narrative (do not include or revise it in your reply):\n\n{defense_narrative}"
+            if target == "both" and defense_narrative
+            else ""
+        )
+        user_content = (
+            f"Here is the current incident response scenario:\n\n{scenario_text}\n\n"
+            f"Here is the chat history of requested refinements:\n{chat_history}"
+            f"{reference}\n\n"
+            "Return the complete revised scenario as raw Markdown, and nothing else."
+        )
+        calls.append(
+            ApplyCall(
+                artifact="scenario",
+                messages=[
+                    {"role": "system", "content": APPLY_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+            )
+        )
+
+    if target in ("defense", "both"):
+        reference = (
+            "\n\nFor reference, here is the current incident response scenario "
+            f"(do not include or revise it in your reply):\n\n{scenario_text}"
+            if target == "both"
+            else ""
+        )
+        user_content = (
+            f"Here is the current Detection & Response narrative:\n\n{defense_narrative}\n\n"
+            f"Here is the chat history of requested refinements:\n{chat_history}"
+            f"{reference}\n\n"
+            "Return the complete revised narrative as raw Markdown, and nothing else."
+        )
+        calls.append(
+            ApplyCall(
+                artifact="defense",
+                messages=[
+                    {"role": "system", "content": APPLY_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+            )
+        )
+
+    return calls
+
+
+def guard_applied_artifact(raw_text: str) -> str | None:
+    """Refuse an empty or whitespace-only apply return.
+
+    Thinking tags are stripped the same way a chat reply's are; there is no
+    length-based check — a short-but-real revision is not an error.
+    """
+    if not raw_text:
+        return None
+    _, cleaned = clean_model_response(raw_text)
+    cleaned = cleaned.strip()
+    return cleaned or None
+
+
+def apply_write_back(
+    *,
+    page_id: str,
+    artifact: str,
+    revised_text: str,
+    session_state: Any | None = None,
+) -> None:
+    """Write one revised artifact back to its page state and the Assistant handoff.
+
+    Mirrors the keys ``core.scenario_page`` persists: ``{page_id}_scenario_text``
+    for the scenario; ``{page_id}_scenario_defense`` for the Detection &
+    Response companion, whose ``narrative_md`` is replaced and whose
+    ``download_md`` is rebuilt from it — the deterministic STIX reference
+    (``deterministic_md``) is carried over byte-for-byte, never regenerated.
+    The cross-page handoff keys are updated too, so the Assistant's own panels
+    and a later chat turn's base move with the artifact.
+    """
+    state = st.session_state if session_state is None else session_state
+    if artifact == "scenario":
+        state[f"{page_id}_scenario_text"] = revised_text
+        state[SCENARIO_TEXT_KEY] = revised_text
+    elif artifact == "defense":
+        defense_state = dict(state.get(f"{page_id}_scenario_defense") or {})
+        title = defense_title(defense_state.get("download_md", ""))
+        deterministic_md = defense_state.get("deterministic_md", "")
+        defense_state["narrative_md"] = revised_text
+        defense_state["download_md"] = assemble_defense_document(
+            deterministic_md, revised_text, title=title
+        )
+        state[f"{page_id}_scenario_defense"] = defense_state
+        state[DEFENSE_NARRATIVE_KEY] = revised_text
+    else:
+        raise ValueError(f"unknown artifact: {artifact!r}")
+
+
+def run_apply(
+    *, target: str, scenario: AssistantScenario, chat_history: str
+) -> list[AppliedArtifact] | None:
+    """Make the dedicated apply call(s) for ``target`` and guard each result.
+
+    Returns ``None`` — refusing the whole apply rather than writing back a
+    partial, out-of-alignment pair — if any call's return is empty or
+    whitespace-only. Raises whatever the model call raises; the caller (the
+    Assistant page) decides how to surface that.
+    """
+    calls = build_apply_messages(
+        target=target,
+        scenario_text=scenario.text,
+        defense_narrative=scenario.defense_narrative,
+        chat_history=chat_history,
+    )
+    config = LLMConfig.from_session_state(
+        trace_name=APPLY_TRACE_NAME, trace_tags=APPLY_TRACE_TAGS
+    )
+    results: list[AppliedArtifact] = []
+    for call in calls:
+        raw = call_llm(config, call.messages)
+        guarded = guard_applied_artifact(raw)
+        if guarded is None:
+            return None
+        results.append(AppliedArtifact(artifact=call.artifact, text=guarded))
+    return results
+
+
+def apply_summary_note(applied: list[AppliedArtifact]) -> str:
+    """The chat message marking a successful apply point in the history."""
+    labels = [ARTIFACT_LABELS.get(a.artifact, a.artifact) for a in applied]
+    return f"✅ Applied changes to {' and '.join(labels)}."
+
+
+def resolve_download_artifacts(
+    scenario: AssistantScenario, session_state: Any | None = None
+) -> dict[str, tuple[str, str]]:
+    """Filenames + data for the downloads the Assistant page offers.
+
+    Reads the page-scoped keys ``core.scenario_page`` persists for the
+    scenario's originating page, so a download offered here is always the same
+    file (same name, same content) the scenario page itself would offer.
+    Returns only the artifacts that exist — e.g. no ``"defense"`` entry when
+    no purple-team narrative was generated.
+    """
+    state = st.session_state if session_state is None else session_state
+    page_id = (scenario.meta or {}).get("page_id")
+    artifacts: dict[str, tuple[str, str]] = {}
+    if not page_id:
+        return artifacts
+
+    filename = state.get(f"{page_id}_scenario_filename")
+    text = state.get(f"{page_id}_scenario_text")
+    if filename and text:
+        artifacts["scenario"] = (filename, text)
+
+    defense_state = state.get(f"{page_id}_scenario_defense")
+    if defense_state and defense_state.get("download_md"):
+        artifacts["defense"] = (defense_state["filename"], defense_state["download_md"])
+
+    return artifacts
 
 
 # --- Navigation surfaces -----------------------------------------------------
