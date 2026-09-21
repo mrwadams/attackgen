@@ -63,6 +63,7 @@ from core.detections import (
     assemble_defense_document,
     build_narrative_messages,
     defense_download_name,
+    defense_title,
     defense_to_markdown,
 )
 from core.feedback import render_feedback_widget
@@ -185,6 +186,20 @@ class _Keys:
     def clear(self) -> str:
         return f"{self.page_id}_clear_requested"
 
+    @property
+    def pre_apply(self) -> str:
+        """The scenario + narrative stashed before the *first* Assistant apply."""
+        return f"{self.page_id}_scenario_pre_apply"
+
+    @property
+    def applied_at(self) -> str:
+        """When the Assistant last applied changes to this result, if ever."""
+        return f"{self.page_id}_scenario_applied_at"
+
+    @property
+    def revert(self) -> str:
+        return f"{self.page_id}_revert_requested"
+
     def result_keys(self) -> tuple[str, ...]:
         """Every key holding this page's latest result (what Clear removes)."""
         return (
@@ -197,6 +212,8 @@ class _Keys:
             self.snapshot,
             self.status,
             self.run_id,
+            self.pre_apply,
+            self.applied_at,
         )
 
 
@@ -513,6 +530,8 @@ def run_scenario_page(
     regenerate = bool(st.session_state.pop(keys.regenerate, False))
     if st.session_state.pop(keys.clear, False):
         _clear_result(keys)
+    if st.session_state.pop(keys.revert, False):
+        _revert_to_original(keys)
 
     # Capture the current form once. The same snapshot describes what *will* be
     # generated (the pre-flight summary), is frozen as the run's inputs when
@@ -1132,6 +1151,99 @@ def _request_flag(request_key: str) -> None:
     st.session_state[request_key] = True
 
 
+# --- Assistant "apply" recovery -----------------------------------------------
+#
+# The Assistant's apply step (core.assistant.apply_write_back) overwrites this
+# page's scenario text and Detection & Response narrative in place. These
+# functions are the other half of that contract: stashing what was there
+# before the *first* apply of the session, so a single "Revert to original"
+# action can undo every apply since, and captioning the result as refined.
+
+
+def stash_pre_apply(page_id: str) -> None:
+    """Stash the pre-apply scenario + narrative once, before the first apply.
+
+    A second or third apply in the same session must not overwrite this
+    stash with its own (already-refined) starting point — "Revert to
+    original" always means the version this page generated, not the version
+    before the *most recent* apply.
+    """
+    keys = _Keys(page_id)
+    if keys.pre_apply in st.session_state:
+        return
+    defense_state = st.session_state.get(keys.defense) or {}
+    st.session_state[keys.pre_apply] = {
+        "text": st.session_state.get(keys.text),
+        "narrative": defense_state.get("narrative_md"),
+    }
+
+
+def mark_applied(page_id: str) -> str:
+    """Record now as this page's last successful Assistant apply; return it."""
+    applied_at = datetime.now(timezone.utc).isoformat()
+    st.session_state[_Keys(page_id).applied_at] = applied_at
+    return applied_at
+
+
+def has_been_applied(page_id: str) -> bool:
+    """Has the Assistant applied changes to this page's result?"""
+    return bool(st.session_state.get(_Keys(page_id).applied_at))
+
+
+def _format_applied(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return parsed.strftime("%Y-%m-%d %H:%M UTC" if parsed.tzinfo else "%Y-%m-%d %H:%M")
+
+
+def applied_caption(page_id: str) -> str | None:
+    """The "refined via the Assistant" caption, or ``None`` if never applied.
+
+    Shared by this page's result and the Assistant page itself, so the two
+    always describe the same apply in the same words.
+    """
+    applied_at = st.session_state.get(_Keys(page_id).applied_at)
+    if not applied_at:
+        return None
+    return f"Refined via the AttackGen Assistant — last applied {_format_applied(applied_at)}."
+
+
+def _revert_to_original(keys: _Keys) -> None:
+    """Restore the scenario and narrative stashed before the first apply.
+
+    Both move together — a scenario without its matching narrative (or vice
+    versa) would leave the Detection & Response tab describing a different
+    incident than the one on screen.
+    """
+    stash = st.session_state.pop(keys.pre_apply, None)
+    st.session_state.pop(keys.applied_at, None)
+    if not stash:
+        return
+
+    original_text = stash.get("text")
+    st.session_state[keys.text] = original_text
+
+    original_narrative = stash.get("narrative")
+    defense_state = st.session_state.get(keys.defense)
+    if defense_state is not None:
+        defense_state = dict(defense_state)
+        title = defense_title(defense_state.get("download_md", ""))
+        defense_state["narrative_md"] = original_narrative
+        defense_state["download_md"] = assemble_defense_document(
+            defense_state.get("deterministic_md", ""), original_narrative, title=title
+        )
+        st.session_state[keys.defense] = defense_state
+
+    # Follow the same ownership rule _persist_and_render and _clear_result use:
+    # only refresh the Assistant handoff while it still points at this page.
+    meta = st.session_state.get(SCENARIO_META_KEY) or {}
+    if meta.get("page_id") == keys.page_id:
+        st.session_state[SCENARIO_TEXT_KEY] = original_text
+        st.session_state[DEFENSE_NARRATIVE_KEY] = original_narrative
+
+
 def _clear_result(keys: _Keys) -> None:
     """Drop this page's result on an explicit request, leaving Setup intact.
 
@@ -1305,7 +1417,7 @@ def _render_result(
     ``variant`` ("current" / "previous" / …) namespaces the widget keys so a
     generation run and a plain rerun can't collide on a Streamlit widget key.
     """
-    _render_result_meta(snapshot, stale=stale)
+    _render_result_meta(snapshot, stale=stale, page_id=page_id)
     _render_summary_surface(cleaned)
     if defense_state:
         scenario_tab, defense_tab = st.tabs(["📄 Scenario", "🛡️ Detection & Response"])
@@ -1325,8 +1437,14 @@ def _render_result(
     )
 
 
-def _render_result_meta(snapshot: Snapshot | None, *, stale: bool) -> None:
+def _render_result_meta(
+    snapshot: Snapshot | None, *, stale: bool, page_id: str | None = None
+) -> None:
     """Say what produced this result, and whether the form has moved on."""
+    if page_id:
+        caption = applied_caption(page_id)
+        if caption:
+            st.caption(caption)
     if not snapshot:
         return
     line = summary_line(snapshot)
@@ -1417,6 +1535,19 @@ def _render_result_actions(
             ),
         )
 
+    if has_been_applied(page_id):
+        st.button(
+            "Revert to original",
+            key=f"{page_id}_revert_{variant}",
+            on_click=_request_flag,
+            args=(keys.revert,),
+            help=(
+                "Restore the scenario and Detection & Response narrative to the "
+                "version generated here, undoing every change the Assistant has "
+                "applied since."
+            ),
+        )
+
     downloads: list[Callable[[], None]] = [
         lambda: st.download_button(
             label="Download Scenario",
@@ -1429,7 +1560,9 @@ def _render_result_actions(
     if layer_payload:
         downloads.append(
             lambda: _render_layer_download(
-                layer_payload, key=f"{page_id}_download_layer_{variant}"
+                layer_payload,
+                key=f"{page_id}_download_layer_{variant}",
+                applied=has_been_applied(page_id),
             )
         )
     if defense_state:
@@ -1467,9 +1600,14 @@ def _render_defense_body(defense_state: dict) -> None:
 
 
 def _render_layer_download(
-    layer_payload: tuple[str, str] | None, *, key: str
+    layer_payload: tuple[str, str] | None, *, key: str, applied: bool = False
 ) -> None:
-    """Render the ATT&CK Navigator layer download, if one was produced."""
+    """Render the ATT&CK Navigator layer download, if one was produced.
+
+    ``applied`` says whether the Assistant has since applied changes to this
+    result — the layer itself is never regenerated from those, so it still
+    describes only the techniques of the originally generated scenario.
+    """
     if not layer_payload:
         return
     layer_json, filename = layer_payload
@@ -1491,3 +1629,8 @@ def _render_layer_download(
         f"Upload to the [{nav_name}]({nav_url}) via "
         "**Open Existing Layer → Upload from local**."
     )
+    if applied:
+        st.caption(
+            "This layer reflects the techniques of the originally generated "
+            "scenario — it is not regenerated when the Assistant applies changes."
+        )

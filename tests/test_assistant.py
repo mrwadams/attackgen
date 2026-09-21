@@ -19,14 +19,24 @@ import pytest
 import streamlit as st
 
 from core.assistant import (
+    APPLY_TRACE_NAME,
+    APPLY_TRACE_TAGS,
     CLEANED_REPLY_KEY,
     DEFENSE_NARRATIVE_KEY,
     SCENARIO_FLAG_KEY,
     SCENARIO_META_KEY,
     SCENARIO_TEXT_KEY,
+    AppliedArtifact,
+    AssistantScenario,
+    apply_summary_note,
+    apply_write_back,
+    build_apply_messages,
     build_assistant_messages,
+    guard_applied_artifact,
     render_empty_state,
     render_scenario_identity,
+    resolve_download_artifacts,
+    run_apply,
     scenario_handoff,
     stream_assistant_reply,
 )
@@ -225,3 +235,275 @@ class TestModelSeam:
 
         assert "upstream 503" in "".join(chunks)
         assert "upstream 503" in fake_session_state[CLEANED_REPLY_KEY]
+
+
+# --- Apply: rewriting the downloadable artifact from the chat (issue #58) ----
+
+
+class TestBuildApplyMessages:
+    def test_scenario_mode_makes_one_call_with_no_cross_reference(self) -> None:
+        calls = build_apply_messages(
+            target="scenario",
+            scenario_text="# Scenario",
+            defense_narrative="## Narrative",
+            chat_history="user: shorten it",
+        )
+
+        assert [c.artifact for c in calls] == ["scenario"]
+        content = calls[0].messages[1]["content"]
+        assert "# Scenario" in content
+        assert "shorten it" in content
+        # Not in `both` mode: the other artifact isn't pulled in for reference.
+        assert "## Narrative" not in content
+
+    def test_defense_mode_makes_one_call_with_no_cross_reference(self) -> None:
+        calls = build_apply_messages(
+            target="defense",
+            scenario_text="# Scenario",
+            defense_narrative="## Narrative",
+            chat_history="user: add a log source",
+        )
+
+        assert [c.artifact for c in calls] == ["defense"]
+        content = calls[0].messages[1]["content"]
+        assert "## Narrative" in content
+        assert "add a log source" in content
+        assert "# Scenario" not in content
+
+    def test_both_mode_makes_two_calls_each_given_the_others_current_text(self) -> None:
+        calls = build_apply_messages(
+            target="both",
+            scenario_text="# Scenario",
+            defense_narrative="## Narrative",
+            chat_history="user: change the industry",
+        )
+
+        assert sorted(c.artifact for c in calls) == ["defense", "scenario"]
+        scenario_call = next(c for c in calls if c.artifact == "scenario")
+        defense_call = next(c for c in calls if c.artifact == "defense")
+
+        # Each call revises its own artifact but is given the other's current
+        # text so the pair can be kept aligned.
+        assert "# Scenario" in scenario_call.messages[1]["content"]
+        assert "## Narrative" in scenario_call.messages[1]["content"]
+        assert "# Scenario" in defense_call.messages[1]["content"]
+        assert "## Narrative" in defense_call.messages[1]["content"]
+
+    def test_both_mode_omits_the_narrative_reference_when_there_is_none(self) -> None:
+        """A `both`-mode call that has no narrative yet must not print "None"."""
+        calls = build_apply_messages(
+            target="both",
+            scenario_text="# Scenario",
+            defense_narrative=None,
+            chat_history="",
+        )
+
+        scenario_call = next(c for c in calls if c.artifact == "scenario")
+        assert "None" not in scenario_call.messages[1]["content"]
+
+
+class TestGuardAppliedArtifact:
+    def test_empty_string_is_refused(self) -> None:
+        assert guard_applied_artifact("") is None
+
+    def test_whitespace_only_is_refused(self) -> None:
+        assert guard_applied_artifact("   \n\t  ") is None
+
+    def test_thinking_only_is_refused(self) -> None:
+        assert guard_applied_artifact("<think>reasoning about it</think>") is None
+
+    def test_thinking_is_stripped_from_a_real_return(self) -> None:
+        raw = "<think>plan</think>\n# Revised scenario\n\nBody."
+        assert guard_applied_artifact(raw) == "# Revised scenario\n\nBody."
+
+    def test_short_return_is_not_refused(self) -> None:
+        """No length-based check — a short-but-real revision must pass."""
+        assert guard_applied_artifact("Ok.") == "Ok."
+
+
+class TestApplyWriteBack:
+    def test_scenario_artifact_updates_page_state_and_handoff(self) -> None:
+        state = {"threat_group_scenario_text": "# Old", "last_scenario_text": "# Old"}
+
+        apply_write_back(
+            page_id="threat_group",
+            artifact="scenario",
+            revised_text="# New scenario",
+            session_state=state,
+        )
+
+        assert state["threat_group_scenario_text"] == "# New scenario"
+        assert state["last_scenario_text"] == "# New scenario"
+
+    def test_defense_artifact_replaces_narrative_and_rebuilds_download(self) -> None:
+        deterministic_md = "## 🛡️ Detection & Response\n\nSome reference."
+        state = {
+            "threat_group_scenario_defense": {
+                "deterministic_md": deterministic_md,
+                "narrative_md": "## Old walkthrough",
+                "download_md": (
+                    "# Detection & Response — AttackGen APT29 Enterprise\n\n"
+                    "## Old walkthrough\n\n---\n\n## Detection & Response Reference\n\n"
+                    + deterministic_md
+                ),
+                "filename": "scn_detection.md",
+            },
+            "last_defense_narrative": "## Old walkthrough",
+        }
+
+        apply_write_back(
+            page_id="threat_group",
+            artifact="defense",
+            revised_text="## New walkthrough",
+            session_state=state,
+        )
+
+        defense = state["threat_group_scenario_defense"]
+        assert defense["narrative_md"] == "## New walkthrough"
+        assert "## New walkthrough" in defense["download_md"]
+        assert "## Old walkthrough" not in defense["download_md"]
+        # The deterministic STIX reference is carried over byte-for-byte.
+        assert deterministic_md in defense["download_md"]
+        assert defense["deterministic_md"] == deterministic_md
+        # The title recovered from the old document is preserved in the new one.
+        assert "AttackGen APT29 Enterprise" in defense["download_md"]
+        # Filenames are untouched by an apply.
+        assert defense["filename"] == "scn_detection.md"
+        assert state["last_defense_narrative"] == "## New walkthrough"
+
+    def test_unknown_artifact_raises(self) -> None:
+        with pytest.raises(ValueError):
+            apply_write_back(
+                page_id="threat_group",
+                artifact="nope",
+                revised_text="x",
+                session_state={},
+            )
+
+
+class TestRunApply:
+    def _scenario(self, **overrides) -> AssistantScenario:
+        defaults = dict(
+            text="# Scenario", defense_narrative="## Narrative", meta={"page_id": "threat_group"}
+        )
+        defaults.update(overrides)
+        return AssistantScenario(**defaults)
+
+    def test_scenario_mode_makes_one_traced_call(
+        self, fake_session_state, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_session_state["chosen_model_provider"] = "OpenAI API"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
+        calls: list[Any] = []
+
+        def _call_llm(config, messages):
+            calls.append((config, messages))
+            return "# Revised scenario"
+
+        monkeypatch.setattr("core.assistant.call_llm", _call_llm)
+
+        result = run_apply(
+            target="scenario", scenario=self._scenario(), chat_history="user: shorten it"
+        )
+
+        assert result == [AppliedArtifact(artifact="scenario", text="# Revised scenario")]
+        assert len(calls) == 1
+        config, _messages = calls[0]
+        assert config.trace_name == APPLY_TRACE_NAME
+        assert config.trace_tags == APPLY_TRACE_TAGS
+
+    def test_both_mode_makes_two_calls_and_returns_both_artifacts(
+        self, fake_session_state, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_session_state["chosen_model_provider"] = "OpenAI API"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
+
+        def _call_llm(_config, messages):
+            # `build_apply_messages` always yields scenario before defense.
+            content = messages[1]["content"]
+            return (
+                "# Revised scenario"
+                if content.startswith("Here is the current incident response scenario")
+                else "## Revised narrative"
+            )
+
+        monkeypatch.setattr("core.assistant.call_llm", _call_llm)
+
+        result = run_apply(
+            target="both", scenario=self._scenario(), chat_history="user: change the industry"
+        )
+
+        assert {a.artifact for a in result} == {"scenario", "defense"}
+        texts = {a.artifact: a.text for a in result}
+        assert texts["scenario"] == "# Revised scenario"
+        assert texts["defense"] == "## Revised narrative"
+
+    def test_any_empty_return_refuses_the_whole_apply(
+        self, fake_session_state, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake_session_state["chosen_model_provider"] = "OpenAI API"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
+        seen = []
+
+        def _call_llm(_config, messages):
+            seen.append(messages)
+            return "   " if len(seen) == 1 else "## Revised narrative"
+
+        monkeypatch.setattr("core.assistant.call_llm", _call_llm)
+
+        result = run_apply(
+            target="both", scenario=self._scenario(), chat_history=""
+        )
+
+        assert result is None
+
+
+class TestApplySummaryNote:
+    def test_scenario_only(self) -> None:
+        note = apply_summary_note([AppliedArtifact(artifact="scenario", text="x")])
+        assert note == "✅ Applied changes to the scenario."
+
+    def test_both_artifacts(self) -> None:
+        note = apply_summary_note(
+            [
+                AppliedArtifact(artifact="scenario", text="x"),
+                AppliedArtifact(artifact="defense", text="y"),
+            ]
+        )
+        assert note == "✅ Applied changes to the scenario and the Detection & Response narrative."
+
+
+class TestResolveDownloadArtifacts:
+    def test_returns_scenario_and_defense_when_both_persisted(self) -> None:
+        state = {
+            "threat_group_scenario_filename": "scn_20260908.md",
+            "threat_group_scenario_text": "# Scenario",
+            "threat_group_scenario_defense": {
+                "filename": "scn_20260908_detection.md",
+                "download_md": "# Detection & Response — scn\n\n...",
+            },
+        }
+        scenario = AssistantScenario(text="# Scenario", meta={"page_id": "threat_group"})
+
+        artifacts = resolve_download_artifacts(scenario, session_state=state)
+
+        assert artifacts["scenario"] == ("scn_20260908.md", "# Scenario")
+        assert artifacts["defense"] == (
+            "scn_20260908_detection.md",
+            "# Detection & Response — scn\n\n...",
+        )
+
+    def test_no_page_id_returns_nothing(self) -> None:
+        scenario = AssistantScenario(text="# Scenario", meta={})
+        assert resolve_download_artifacts(scenario, session_state={}) == {}
+
+    def test_no_defense_state_omits_it(self) -> None:
+        state = {
+            "threat_group_scenario_filename": "scn.md",
+            "threat_group_scenario_text": "# Scenario",
+        }
+        scenario = AssistantScenario(text="# Scenario", meta={"page_id": "threat_group"})
+
+        artifacts = resolve_download_artifacts(scenario, session_state=state)
+
+        assert artifacts == {"scenario": ("scn.md", "# Scenario")}
