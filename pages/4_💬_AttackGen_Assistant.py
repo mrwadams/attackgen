@@ -2,7 +2,7 @@ import streamlit as st
 
 from core.assistant import (
     CLEANED_REPLY_KEY,
-    TARGETS,
+    Conversation,
     render_empty_state,
     render_scenario_identity,
     scenario_handoff,
@@ -58,8 +58,6 @@ elif target == "both":
 else:
     panels = [("Generated Scenario", scenario.text)]
 
-greeting = TARGETS[target]["greeting"]
-
 for label, content in panels:
     with st.expander(label):
         with st.container(height=400, border=True):
@@ -67,14 +65,13 @@ for label, content in panels:
 
 chat_container = st.empty()
 
-# Keep a separate history per target so switching between the scenario and the
-# Detection & Response narrative doesn't feed one artifact's chat into the other.
-messages_key = f"assistant_messages_{target}"
-if messages_key not in st.session_state:
-    st.session_state[messages_key] = [{"role": "assistant", "content": greeting}]
+# The conversation belongs to this scenario and this editing target: a newly
+# generated scenario starts afresh, and switching mode doesn't feed one
+# artifact's chat into the other.
+conversation = Conversation(scenario, target)
 
 with chat_container:
-    for message in st.session_state[messages_key]:
+    for message in conversation.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
@@ -83,14 +80,12 @@ if not setup.complete:
     render_setup_blockers(setup)
 
 if prompt := st.chat_input("Type your message here...", disabled=not setup.complete):
-    st.session_state[messages_key].append({"role": "user", "content": prompt})
+    history = conversation.chat_history()
+    conversation.append("user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        history = "\n".join(
-            f"{m['role']}: {m['content']}" for m in st.session_state[messages_key][:-1]
-        )
         st.write_stream(
             stream_assistant_reply(
                 target=target,
@@ -100,17 +95,15 @@ if prompt := st.chat_input("Type your message here...", disabled=not setup.compl
             )
         )
 
-    st.session_state[messages_key].append(
-        {"role": "assistant", "content": st.session_state.pop(CLEANED_REPLY_KEY, "")}
-    )
+    conversation.append("assistant", st.session_state.pop(CLEANED_REPLY_KEY, ""))
 
 
 def clear_conversation():
-    st.session_state[messages_key] = [{"role": "assistant", "content": greeting}]
+    conversation.reset()
     chat_container.empty()
     with chat_container:
         with st.chat_message("assistant"):
-            st.markdown(st.session_state[messages_key][0]["content"])
+            st.markdown(conversation.messages[0]["content"])
 
 
 with st.container():
