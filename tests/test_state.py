@@ -169,7 +169,10 @@ def test_generated_content_never_reaches_the_url(
             "threat_group_scenario_text": "# Secret scenario",
             "last_scenario_text": "# Secret scenario",
             "last_scenario_meta": {"page_id": "threat_group"},
-            "assistant_messages_scenario": [{"role": "user", "content": "hello"}],
+            "assistant_conversations": {
+                "scenario": ("threat_group", "", ""),
+                "targets": {"scenario": [{"role": "user", "content": "hello"}]},
+            },
         }
     )
 
