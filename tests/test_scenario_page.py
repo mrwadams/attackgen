@@ -2347,7 +2347,7 @@ def test_revert_button_and_caption_appear_after_an_apply(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2377,7 +2377,7 @@ def test_layer_caption_notes_it_reflects_the_original_scenario_after_apply(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2413,7 +2413,7 @@ def test_revert_restores_the_scenario_and_narrative_together(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2429,7 +2429,7 @@ def test_revert_restores_the_scenario_and_narrative_together(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2466,7 +2466,7 @@ def test_revert_does_not_appear_when_nothing_was_ever_applied(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2489,7 +2489,7 @@ def test_clear_result_also_clears_apply_recovery_state(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2524,7 +2524,7 @@ def test_regenerating_clears_the_previous_results_apply_state(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
