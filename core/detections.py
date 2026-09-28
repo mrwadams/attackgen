@@ -29,6 +29,8 @@ analytics arrive as plain dicts (key access). ``_field`` papers over both.
 
 from __future__ import annotations
 
+import re
+
 import streamlit as st
 
 from core import attack_data as ad
@@ -319,6 +321,25 @@ def assemble_defense_document(
         parts += [narrative_md.strip(), "", "---", "", "## Detection & Response Reference", ""]
     parts.append(deterministic_md.strip())
     return "\n".join(parts).strip() + "\n"
+
+
+_TITLE_RE = re.compile(r"^# Detection & Response — (.+)$")
+
+
+def defense_title(download_md: str) -> str:
+    """Recover the ``title`` an already-assembled document was built with.
+
+    The title itself isn't persisted anywhere — only the assembled document is
+    — so reassembling one with a different narrative (the Assistant's apply
+    and revert) reads it back from the document's own first line rather than
+    re-deriving it. Returns ``""`` if the document doesn't start with the
+    expected header.
+    """
+    stripped = (download_md or "").strip()
+    if not stripped:
+        return ""
+    match = _TITLE_RE.match(stripped.splitlines()[0])
+    return match.group(1) if match else ""
 
 
 # ---------------------------------------------------------------------------
