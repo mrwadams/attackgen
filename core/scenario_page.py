@@ -45,7 +45,7 @@ import queue
 import re
 import threading
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -69,7 +69,6 @@ from core.detections import (
 from core.feedback import render_feedback_widget
 from core.llm import call_llm_stream
 from core.navigator import layer_filename, navigator_for_domain
-from core.readiness import Readiness, Requirements, resolve_readiness
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 from core.state import setup_was_restored_from_link
@@ -452,14 +451,13 @@ def run_scenario_page(
     *,
     page_id: str,
     build_messages: Callable[..., list[Message] | None],
-    is_ready: Callable[[], bool] | None = None,
     download_name: str,
     trace_name: str,
     trace_tags: tuple[str, ...],
     status_text: str = "Generating scenario...",
     button_label: str = "Generate Scenario",
     render_modifiers: Callable[[], None] | None = None,
-    requirements: Requirements = None,
+    requirements: Callable[[], Iterable[str]] | None = None,
     setup: Any | None = None,
     build_layer: Callable[..., str | None] | None = None,
     build_defense: Callable[..., dict | None] | None = None,
@@ -471,8 +469,8 @@ def run_scenario_page(
     ``page_id`` namespaces the persisted scenario keys and Streamlit widget
     keys so the three pages can coexist in one Streamlit session without
     colliding. ``build_messages`` may return ``None`` to indicate "nothing to
-    send yet" — in that case ``is_ready`` should also be returning ``False``,
-    but we double-check before calling the model.
+    send yet" — in that case ``requirements`` should also be reporting a
+    blocker, but we double-check before calling the model.
 
     ``render_modifiers`` is an optional callback rendering the page's
     generation modifiers (the AI-enhanced adversary and purple-team toggles).
@@ -481,12 +479,11 @@ def run_scenario_page(
     before starting the request rather than one they notice afterwards.
 
     ``requirements`` and ``setup`` are the page's readiness inputs, as data:
-    ``requirements`` yields the page's own blockers ("Select a threat actor
+    ``requirements`` is a callable yielding the page's own blockers ("Select a threat actor
     group…") and ``setup`` is the shared :class:`core.sidebar.SetupState`.
     Together they drive one visible readiness summary and the Generate button's
     disabled state, so no click is ever spent discovering predictable
-    validation. ``is_ready`` remains supported for callers that don't supply
-    readiness data.
+    validation.
 
     ``build_layer`` is an optional callback returning the ATT&CK Navigator
     layer JSON for the scenario's techniques, or ``None`` when the page/matrix
@@ -539,13 +536,16 @@ def run_scenario_page(
     # tell the user when the form has moved on.
     current_inputs = copy.deepcopy(capture_inputs()) if capture_inputs else {}
 
-    readiness = resolve_readiness(requirements=requirements, setup=setup)
-    ready = readiness.ready and (is_ready() if is_ready is not None else True)
+    # Page blockers come first: the Setup fields are the same on every page and
+    # already stated in the sidebar, whereas the missing selection is the thing
+    # the user is looking at.
+    blockers = (*(requirements() if requirements else ()), *_setup_blockers(setup))
+    ready = not blockers
 
     if render_modifiers is not None:
         _render_modifier_controls(render_modifiers)
 
-    _render_readiness(readiness, snapshot=current_inputs, ready=ready)
+    _render_readiness(blockers, snapshot=current_inputs)
 
     clicked = st.button(
         button_label,
@@ -1282,24 +1282,25 @@ def _render_fact_table(facts: Iterable[tuple[str, str]]) -> None:
         st.markdown("\n".join(lines))
 
 
-def _render_readiness(
-    readiness: Readiness, *, snapshot: Snapshot, ready: bool
-) -> None:
+def _setup_blockers(setup: Any | None) -> tuple[str, ...]:
+    """The shared Setup blockers, or none when the caller supplies no Setup."""
+    return tuple(getattr(setup, "blockers", ()) or ())
+
+
+def _render_readiness(blockers: Sequence[str], *, snapshot: Snapshot) -> None:
     """Show every outstanding requirement, or confirm what is about to run.
 
-    Page requirements come first (see ``core.readiness``) so the missing
+    ``blockers`` arrives page-first (see ``run_scenario_page``) so the missing
     selection the user is looking at isn't reported behind the shared Setup
     fields. When everything is satisfied, the same snapshot that will be frozen
     by Generate is summarised instead — a last chance to catch a wrong matrix or
     organisation profile before any provider usage begins.
     """
-    if readiness.blockers:
+    if blockers:
         st.info(
             "Complete these before generating:\n\n"
-            + "\n".join(f"- {blocker}" for blocker in readiness.blockers)
+            + "\n".join(f"- {blocker}" for blocker in blockers)
         )
-        return
-    if not ready:
         return
     line = summary_line(snapshot)
     if not line:

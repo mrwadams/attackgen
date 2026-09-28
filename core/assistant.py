@@ -35,6 +35,10 @@ DEFENSE_NARRATIVE_KEY = "last_defense_narrative"
 SCENARIO_META_KEY = "last_scenario_meta"
 CLEANED_REPLY_KEY = "_last_assistant_cleaned"
 
+# Session-state key of the Assistant's conversations. Owned by
+# :class:`Conversation`; nothing else reads or writes it.
+CONVERSATIONS_KEY = "assistant_conversations"
+
 
 SCENARIO_SYSTEM_PROMPT = (
     "You are an AI assistant that helps users update and ask questions about their incident "
@@ -109,6 +113,21 @@ class AssistantScenario:
         return page_info(str(meta.get("page_id", "")))
 
     @property
+    def identity(self) -> tuple[str, ...] | None:
+        """Which generated result this is, from the handoff metadata alone.
+
+        The coordinator stamps every persisted result with the page that
+        produced it and when it was generated, so two generations — on
+        different pages, or a regenerate on the same one — never share an
+        identity. ``None`` when the metadata carries neither.
+        """
+        meta = self.meta or {}
+        parts = tuple(
+            str(meta.get(field) or "") for field in ("page_id", "generated_at", "filename")
+        )
+        return parts if any(parts) else None
+
+    @property
     def title(self) -> str:
         """A short human identity for the result, e.g. ``APT29 · Enterprise ATT&CK``."""
         meta = self.meta or {}
@@ -134,6 +153,58 @@ def scenario_handoff(session_state: Any | None = None) -> AssistantScenario | No
         defense_narrative=state.get(DEFENSE_NARRATIVE_KEY),
         meta=state.get(SCENARIO_META_KEY) or {},
     )
+
+
+class Conversation:
+    """The Assistant's chat about one scenario, for one editing target.
+
+    A conversation belongs to the scenario it is about as well as the target
+    being edited: switching between Scenario, Detection & Response and the
+    combined mode keeps a separate conversation per mode, while a newly
+    generated scenario starts every mode afresh. Only the current scenario's
+    conversations are kept — the first access for a different scenario drops
+    the superseded ones, so they don't accumulate for the life of the session.
+
+    Works against any mapping (``st.session_state`` by default), so the rule can
+    be tested without a Streamlit runtime.
+    """
+
+    def __init__(
+        self,
+        scenario: AssistantScenario,
+        target: str,
+        session_state: Any | None = None,
+    ) -> None:
+        self.target = target
+        self._state = st.session_state if session_state is None else session_state
+        store = self._state.get(CONVERSATIONS_KEY)
+        if not store or store.get("scenario") != scenario.identity:
+            store = {"scenario": scenario.identity, "targets": {}}
+            self._state[CONVERSATIONS_KEY] = store
+        targets = store["targets"]
+        if target not in targets:
+            targets[target] = self._seed()
+        self._messages: list[dict[str, str]] = targets[target]
+
+    def _seed(self) -> list[dict[str, str]]:
+        return [{"role": "assistant", "content": TARGETS[self.target]["greeting"]}]
+
+    @property
+    def messages(self) -> list[dict[str, str]]:
+        """Every turn so far, starting with the greeting."""
+        return list(self._messages)
+
+    def chat_history(self) -> str:
+        """The turns so far, formatted as the chat history sent to the model."""
+        return "\n".join(f"{m['role']}: {m['content']}" for m in self._messages)
+
+    def append(self, role: str, content: str) -> None:
+        """Add one turn to this conversation."""
+        self._messages.append({"role": role, "content": content})
+
+    def reset(self) -> None:
+        """Start this scenario's conversation for this target over."""
+        self._messages[:] = self._seed()
 
 
 def build_assistant_messages(

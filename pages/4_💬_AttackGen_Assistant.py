@@ -2,7 +2,7 @@ import streamlit as st
 
 from core.assistant import (
     CLEANED_REPLY_KEY,
-    TARGETS,
+    Conversation,
     apply_summary_note,
     apply_write_back,
     render_empty_state,
@@ -69,8 +69,6 @@ elif target == "both":
 else:
     panels = [("Generated Scenario", scenario.text)]
 
-greeting = TARGETS[target]["greeting"]
-
 for label, content in panels:
     with st.expander(label):
         with st.container(height=400, border=True):
@@ -78,14 +76,13 @@ for label, content in panels:
 
 chat_container = st.empty()
 
-# Keep a separate history per target so switching between the scenario and the
-# Detection & Response narrative doesn't feed one artifact's chat into the other.
-messages_key = f"assistant_messages_{target}"
-if messages_key not in st.session_state:
-    st.session_state[messages_key] = [{"role": "assistant", "content": greeting}]
+# The conversation belongs to this scenario and this editing target: a newly
+# generated scenario starts afresh, and switching mode doesn't feed one
+# artifact's chat into the other.
+conversation = Conversation(scenario, target)
 
 with chat_container:
-    for message in st.session_state[messages_key]:
+    for message in conversation.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
@@ -94,14 +91,12 @@ if not setup.complete:
     render_setup_blockers(setup)
 
 if prompt := st.chat_input("Type your message here...", disabled=not setup.complete):
-    st.session_state[messages_key].append({"role": "user", "content": prompt})
+    history = conversation.chat_history()
+    conversation.append("user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        history = "\n".join(
-            f"{m['role']}: {m['content']}" for m in st.session_state[messages_key][:-1]
-        )
         st.write_stream(
             stream_assistant_reply(
                 target=target,
@@ -111,9 +106,7 @@ if prompt := st.chat_input("Type your message here...", disabled=not setup.compl
             )
         )
 
-    st.session_state[messages_key].append(
-        {"role": "assistant", "content": st.session_state.pop(CLEANED_REPLY_KEY, "")}
-    )
+    conversation.append("assistant", st.session_state.pop(CLEANED_REPLY_KEY, ""))
 
 
 st.markdown("---")
@@ -121,7 +114,7 @@ st.markdown("---")
 # The chat only ever refines a conversation; nothing reaches the downloadable
 # artifact (or the Assistant's own panels above) until this dedicated call
 # rewrites it. Gated on a real user turn so there is always something to apply.
-has_user_turn = any(m["role"] == "user" for m in st.session_state[messages_key])
+has_user_turn = any(m["role"] == "user" for m in conversation.messages)
 apply_clicked = st.button(
     "Apply changes to downloads",
     key=f"assistant_apply_{target}",
@@ -134,9 +127,7 @@ if not has_user_turn:
     )
 
 if apply_clicked:
-    history = "\n".join(
-        f"{m['role']}: {m['content']}" for m in st.session_state[messages_key]
-    )
+    history = conversation.chat_history()
     try:
         with st.spinner("Applying changes..."):
             applied = run_apply(target=target, scenario=scenario, chat_history=history)
@@ -164,9 +155,7 @@ if apply_clicked:
                     revised_text=artifact.text,
                 )
             mark_applied(page_id)
-            st.session_state[messages_key].append(
-                {"role": "assistant", "content": apply_summary_note(applied)}
-            )
+            conversation.append("assistant", apply_summary_note(applied))
             st.rerun()
 
 download_specs = []
@@ -192,11 +181,11 @@ if download_specs:
 
 
 def clear_conversation():
-    st.session_state[messages_key] = [{"role": "assistant", "content": greeting}]
+    conversation.reset()
     chat_container.empty()
     with chat_container:
         with st.chat_message("assistant"):
-            st.markdown(st.session_state[messages_key][0]["content"])
+            st.markdown(conversation.messages[0]["content"])
 
 
 with st.container():

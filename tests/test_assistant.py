@@ -22,12 +22,15 @@ from core.assistant import (
     APPLY_TRACE_NAME,
     APPLY_TRACE_TAGS,
     CLEANED_REPLY_KEY,
+    CONVERSATIONS_KEY,
     DEFENSE_NARRATIVE_KEY,
     SCENARIO_FLAG_KEY,
     SCENARIO_META_KEY,
     SCENARIO_TEXT_KEY,
+    TARGETS,
     AppliedArtifact,
     AssistantScenario,
+    Conversation,
     apply_summary_note,
     apply_write_back,
     build_apply_messages,
@@ -113,6 +116,152 @@ class TestHandoff:
         fake_session_state[SCENARIO_FLAG_KEY] = False
 
         assert scenario_handoff() is None
+
+
+def _second_handoff(state: dict[str, Any], *, page_id: str = "custom") -> None:
+    """Write the handoff a later generation leaves behind, replacing the first."""
+    state[SCENARIO_TEXT_KEY] = "# Second Scenario\n\nBody."
+    state[SCENARIO_META_KEY] = {
+        "page_id": page_id,
+        "filename": "AttackGen_Custom_Enterprise_20260908-101500.md",
+        "generated_at": "2026-09-08T10:15:00+00:00",
+        "snapshot": {"matrix": "Enterprise"},
+    }
+
+
+class TestConversation:
+    def test_identity_comes_from_the_handoff_metadata(self, fake_session_state) -> None:
+        _handoff(fake_session_state)
+        first = scenario_handoff().identity
+        _second_handoff(fake_session_state, page_id="threat_group")
+
+        assert first is not None
+        assert scenario_handoff().identity != first
+
+    def test_a_new_conversation_is_seeded_with_the_target_greeting(
+        self, fake_session_state
+    ) -> None:
+        _handoff(fake_session_state)
+
+        conversation = Conversation(scenario_handoff(), "defense")
+
+        assert conversation.messages == [
+            {"role": "assistant", "content": TARGETS["defense"]["greeting"]}
+        ]
+
+    def test_a_second_scenario_starts_a_fresh_conversation(self, fake_session_state) -> None:
+        _handoff(fake_session_state)
+        first = Conversation(scenario_handoff(), "scenario")
+        first.append("user", "Make it about ransomware.")
+        first.append("assistant", "Done.")
+
+        _second_handoff(fake_session_state)
+        second = Conversation(scenario_handoff(), "scenario")
+
+        assert second.messages == [
+            {"role": "assistant", "content": TARGETS["scenario"]["greeting"]}
+        ]
+        assert "ransomware" not in second.chat_history()
+
+    def test_regenerating_on_the_same_page_starts_a_fresh_conversation(
+        self, fake_session_state
+    ) -> None:
+        _handoff(fake_session_state)
+        Conversation(scenario_handoff(), "scenario").append("user", "old turn")
+
+        _second_handoff(fake_session_state, page_id="threat_group")
+
+        assert "old turn" not in Conversation(scenario_handoff(), "scenario").chat_history()
+
+    def test_returning_to_the_same_scenario_keeps_its_history(
+        self, fake_session_state
+    ) -> None:
+        _handoff(fake_session_state)
+        Conversation(scenario_handoff(), "scenario").append("user", "Add an inject.")
+
+        # A later visit (a rerun, or navigating away and back) resolves the
+        # handoff afresh; the result it names is unchanged.
+        again = Conversation(scenario_handoff(), "scenario")
+
+        assert again.messages[-1] == {"role": "user", "content": "Add an inject."}
+
+    def test_each_target_keeps_its_own_conversation(self, fake_session_state) -> None:
+        _handoff(fake_session_state)
+        Conversation(scenario_handoff(), "scenario").append("user", "scenario turn")
+        Conversation(scenario_handoff(), "defense").append("user", "defense turn")
+
+        scenario_chat = Conversation(scenario_handoff(), "scenario").chat_history()
+        defense_chat = Conversation(scenario_handoff(), "defense").chat_history()
+        both_chat = Conversation(scenario_handoff(), "both").chat_history()
+
+        assert "scenario turn" in scenario_chat and "defense turn" not in scenario_chat
+        assert "defense turn" in defense_chat and "scenario turn" not in defense_chat
+        assert "turn" not in both_chat
+
+    def test_clear_resets_only_the_current_scenario_and_target(
+        self, fake_session_state
+    ) -> None:
+        _handoff(fake_session_state)
+        scenario_chat = Conversation(scenario_handoff(), "scenario")
+        scenario_chat.append("user", "scenario turn")
+        Conversation(scenario_handoff(), "defense").append("user", "defense turn")
+
+        scenario_chat.reset()
+
+        assert Conversation(scenario_handoff(), "scenario").messages == [
+            {"role": "assistant", "content": TARGETS["scenario"]["greeting"]}
+        ]
+        assert "defense turn" in Conversation(scenario_handoff(), "defense").chat_history()
+
+    def test_superseded_conversations_do_not_accumulate(self, fake_session_state) -> None:
+        _handoff(fake_session_state)
+        for target in TARGETS:
+            Conversation(scenario_handoff(), target).append("user", "first scenario")
+
+        _second_handoff(fake_session_state)
+        Conversation(scenario_handoff(), "scenario")
+
+        store = fake_session_state[CONVERSATIONS_KEY]
+        assert list(store["targets"]) == ["scenario"]
+        assert "first scenario" not in repr(store)
+
+    def test_only_the_current_scenario_turns_reach_the_model(
+        self, fake_session_state, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _handoff(fake_session_state)
+        fake_session_state["chosen_model_provider"] = "OpenAI API"
+        fake_session_state["llm_model_name"] = "gpt-5.5"
+        fake_session_state["llm_api_key"] = "k"
+        stale = Conversation(scenario_handoff(), "scenario")
+        stale.append("user", "Question about APT29.")
+        stale.append("assistant", "Answer about APT29.")
+
+        _second_handoff(fake_session_state)
+        scenario = scenario_handoff()
+        conversation = Conversation(scenario, "scenario")
+        conversation.append("user", "Earlier question.")
+        conversation.append("assistant", "Earlier answer.")
+        sent: list[Any] = []
+
+        def _stream(config, messages):
+            sent.append(messages)
+            yield "Reply."
+
+        monkeypatch.setattr("core.assistant.call_llm_stream", _stream)
+
+        list(
+            stream_assistant_reply(
+                target="scenario",
+                scenario=scenario,
+                chat_history=conversation.chat_history(),
+                user_input="New question.",
+            )
+        )
+
+        content = sent[0][1]["content"]
+        assert "Earlier question." in content and "Earlier answer." in content
+        assert TARGETS["scenario"]["greeting"] in content
+        assert "APT29" not in content
 
 
 class TestNavigationSurfaces:

@@ -26,4 +26,4 @@ tenacity
 # so any [theme] section made the browser log
 # 'Invalid color passed for <key> in theme.sidebar: ""' on every rerun.
 # 1.55 removed those fields. tests/test_console_smoke.py fails below this floor.
-streamlit>=1.63.0
+streamlit>=1.64.0
