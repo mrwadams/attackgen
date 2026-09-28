@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "attackgen"
-version = "0.16.0"
+version = "0.17.0"
 description = "Generate tailored incident-response scenarios from MITRE ATT&CK / ATLAS using LLMs"
 # 3.11 floor, not 3.10: litellm 1.98.0+ imports `NotRequired`/`Required` from
 # stdlib `typing` on the `import litellm` path, which is 3.11+ only. See the
