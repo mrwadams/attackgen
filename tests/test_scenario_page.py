@@ -8,12 +8,12 @@ anything — we only care about the control flow at the seam.
 
 from __future__ import annotations
 
-import copy
 import itertools
 import re
 import threading
 import time
 from contextlib import contextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,6 +22,16 @@ import streamlit as st
 
 import core.llm as llm_module
 from core.assistant import apply_write_back
+from core.request import (
+    AIInsiderPayload,
+    CustomPayload,
+    Modifiers,
+    Organisation,
+    RequestIdentity,
+    ScenarioRequest,
+    SelectedEntity,
+    ThreatGroupPayload,
+)
 from core.scenario_page import (
     BASE_PHASE,
     _SCRIPT_CONTROL,
@@ -218,7 +228,7 @@ def test_does_nothing_when_button_not_pressed(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -235,7 +245,7 @@ def test_skips_llm_when_not_ready(
     stub_streamlit["button_returns"] = True
     build_calls: list[None] = []
 
-    def build():
+    def build(_request):
         build_calls.append(None)
         return [{"role": "user", "content": "x"}]
 
@@ -270,7 +280,7 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: messages,
+        build_messages=lambda _request: messages,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -312,7 +322,7 @@ def test_page_id_namespaces_session_state(
 
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -346,7 +356,7 @@ def test_trace_name_and_tags_reach_llm_config(
 
     run_scenario_page(
         page_id="ai_insider",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -386,11 +396,11 @@ def test_layer_persisted_and_offered_for_download(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda: layer_json,
+        build_layer=lambda _request: layer_json,
     )
 
     # The layer is persisted as (json, generated_filename) for later reruns.
@@ -425,11 +435,11 @@ def _run_and_capture_caption(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen Group Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda: layer_json,
+        build_layer=lambda _request: layer_json,
     )
     return "\n".join(captions)
 
@@ -474,11 +484,11 @@ def test_no_layer_download_when_build_layer_returns_none(
 
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
-        build_layer=lambda: None,  # e.g. an unsupported matrix
+        build_layer=lambda _request: None,  # e.g. an unsupported matrix
     )
 
     assert fake_session_state["custom_scenario_layer"] is None
@@ -508,12 +518,12 @@ def test_persisted_scenario_and_downloads_survive_rerun(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: None,
+        build_messages=lambda _request: None,
         requirements=_NOT_READY,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda: None,
+        build_layer=lambda _request: None,
     )
 
     # Both downloads re-offered with the names fixed at generation time — not
@@ -543,7 +553,7 @@ def test_no_layer_download_when_build_layer_absent(
 
     run_scenario_page(
         page_id="ai_insider",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -589,11 +599,11 @@ def test_defense_persisted_and_offered_for_download(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_defense=lambda: _DEFENSE_REPORT,
+        build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=False,
     )
 
@@ -631,11 +641,11 @@ def test_defense_narrative_makes_second_llm_call_and_persists(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_defense=lambda: _DEFENSE_REPORT,
+        build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=True,
     )
 
@@ -666,11 +676,11 @@ def test_no_defense_download_when_build_defense_returns_none(
 
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
-        build_defense=lambda: None,  # e.g. ATLAS technique with no mitigations
+        build_defense=lambda _request: None,  # e.g. ATLAS technique with no mitigations
         defense_narrative=True,  # even requested, nothing to narrate
     )
 
@@ -700,11 +710,11 @@ def test_result_is_tabbed_when_defense_present(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_defense=lambda: _DEFENSE_REPORT,
+        build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=False,
     )
 
@@ -730,7 +740,7 @@ def test_result_not_tabbed_without_defense(
 
     run_scenario_page(
         page_id="ai_insider",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -761,12 +771,12 @@ def test_persisted_defense_survives_rerun(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: None,
+        build_messages=lambda _request: None,
         requirements=_NOT_READY,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_defense=lambda: None,
+        build_defense=lambda _request: None,
     )
 
     detection_downloads = [
@@ -816,14 +826,14 @@ def test_phase_sequence_and_base_is_persisted_before_optional_enrichment(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _snapshot: '{"domain": "enterprise-attack"}',
-        build_defense=lambda _snapshot: _DEFENSE_REPORT,
+        build_layer=lambda _request: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=True,
-        capture_inputs=lambda: {"matrix": "Enterprise"},
+        capture_inputs=lambda: ScenarioRequest(matrix="Enterprise"),
     )
 
     assert calls == 2
@@ -853,23 +863,28 @@ def test_generate_captures_input_and_identity_metadata(
     stub_streamlit["button_returns"] = True
     fake_session_state["chosen_model_provider"] = "Anthropic API"
     fake_session_state["llm_model_name"] = "claude-sonnet-4-6"
-    source = {
-        "scenario_type": "custom",
-        "matrix": "Enterprise",
-        "organisation": {"industry": "Finance", "company_size": "Large"},
-        "selected_techniques": ["PowerShell (T1059.001)"],
-        "sampled_techniques": ["PowerShell (T1059.001)"],
-        "modifiers": {"ai_uplift": True},
-    }
-    callback_snapshots = []
+    # The widget values the page reads when it builds its request.
+    source = {"matrix": "Enterprise", "techniques": ["PowerShell (T1059.001)"]}
 
-    def build_messages(snapshot):
-        callback_snapshots.append(snapshot)
-        # Mutating the original widget-backed mapping after capture must not
-        # affect prompt/export callbacks or persisted metadata.
+    def capture_inputs():
+        return ScenarioRequest(
+            scenario_type="custom",
+            matrix=source["matrix"],
+            organisation=Organisation(industry="Finance", company_size="Large"),
+            techniques=tuple(source["techniques"]),
+            modifiers=Modifiers(ai_uplift=True),
+            payload=CustomPayload(),
+        )
+
+    callback_requests = []
+
+    def build_messages(request):
+        callback_requests.append(request)
+        # Moving the widgets on after capture must not affect prompt/export
+        # callbacks or persisted metadata.
         source["matrix"] = "ICS"
-        source["selected_techniques"].append("Changed later")
-        return [{"role": "user", "content": snapshot["matrix"]}]
+        source["techniques"].append("Changed later")
+        return [{"role": "user", "content": request.matrix}]
 
     def stream(_config, messages):
         assert messages[0]["content"] == "Enterprise"
@@ -883,27 +898,32 @@ def test_generate_captures_input_and_identity_metadata(
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario", "ai_enhanced"),
-        build_layer=lambda snapshot: (
+        build_layer=lambda request: (
             '{"domain": "enterprise-attack"}'
-            if snapshot["matrix"] == "Enterprise"
+            if request.matrix == "Enterprise"
             else None
         ),
-        capture_inputs=lambda: source,
+        capture_inputs=capture_inputs,
     )
 
-    captured = fake_session_state["custom_scenario_input_snapshot"]
-    assert captured["matrix"] == "Enterprise"
-    assert captured["selected_techniques"] == ["PowerShell (T1059.001)"]
-    assert captured["identity"] == {
-        "page_id": "custom",
-        "trace_name": "Custom Scenario",
-        "trace_tags": ["custom_scenario", "ai_enhanced"],
-        "provider": "Anthropic API",
-        "model": "claude-sonnet-4-6",
-        "download_name": "AttackGen Custom Enterprise.md",
-    }
-    assert captured["captured_at"]
-    assert callback_snapshots[0]["matrix"] == "Enterprise"
+    captured = fake_session_state["custom_scenario_request"]
+    assert captured.scenario_type == "custom"
+    assert captured.matrix == "Enterprise"
+    assert captured.techniques == ("PowerShell (T1059.001)",)
+    assert captured.technique_count == 1
+    assert captured.identity == RequestIdentity(
+        page_id="custom",
+        trace_name="Custom Scenario",
+        trace_tags=("custom_scenario", "ai_enhanced"),
+        provider="Anthropic API",
+        model="claude-sonnet-4-6",
+        download_name="AttackGen Custom Enterprise.md",
+    )
+    assert captured.captured_at
+    # Every callback receives the one frozen request that was persisted.
+    assert callback_requests == [captured]
+    # The Assistant handoff carries the same request.
+    assert fake_session_state["last_scenario_meta"]["request"] == captured
     assert fake_session_state["custom_scenario_layer"] is not None
 
 
@@ -928,7 +948,7 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
 
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -1001,14 +1021,14 @@ def _run_page(**overrides) -> None:
     """Run the threat-group page with a defence report and narrative enabled."""
     kwargs: dict[str, Any] = {
         "page_id": "threat_group",
-        "build_messages": lambda _snapshot: [{"role": "user", "content": "x"}],
+        "build_messages": lambda _request: [{"role": "user", "content": "x"}],
         "download_name": "AttackGen APT29 Enterprise.md",
         "trace_name": "Threat Group Scenario",
         "trace_tags": ("threat_group_scenario",),
-        "build_layer": lambda _snapshot: '{"domain": "enterprise-attack"}',
-        "build_defense": lambda _snapshot: _DEFENSE_REPORT,
+        "build_layer": lambda _request: '{"domain": "enterprise-attack"}',
+        "build_defense": lambda _request: _DEFENSE_REPORT,
         "defense_narrative": True,
-        "capture_inputs": lambda: {"matrix": "Enterprise"},
+        "capture_inputs": lambda: ScenarioRequest(matrix="Enterprise"),
     }
     kwargs.update(overrides)
     run_scenario_page(**kwargs)
@@ -1405,12 +1425,15 @@ def test_base_retry_replays_the_captured_inputs(
     controllable_stream.scripts = [[RuntimeError("rate limited")]]
     source = {"matrix": "Enterprise"}
 
+    def capture_inputs():
+        return ScenarioRequest(matrix=source["matrix"])
+
     _run_page(
         defense_narrative=False,
-        build_messages=lambda snapshot: [
-            {"role": "user", "content": snapshot["matrix"]}
+        build_messages=lambda request: [
+            {"role": "user", "content": request.matrix}
         ],
-        capture_inputs=lambda: source,
+        capture_inputs=capture_inputs,
     )
 
     # The widgets move on after the failure; the retry must not follow them.
@@ -1422,10 +1445,10 @@ def test_base_retry_replays_the_captured_inputs(
     _run_page(
         requirements=_NOT_READY,
         defense_narrative=False,
-        build_messages=lambda snapshot: [
-            {"role": "user", "content": snapshot["matrix"]}
+        build_messages=lambda request: [
+            {"role": "user", "content": request.matrix}
         ],
-        capture_inputs=lambda: source,
+        capture_inputs=capture_inputs,
     )
 
     assert len(controllable_stream.calls) == 2
@@ -1513,7 +1536,7 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -1555,13 +1578,13 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_defense=lambda _snapshot: _DEFENSE_REPORT,
+        build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=True,
-        capture_inputs=lambda: {},
+        capture_inputs=lambda: ScenarioRequest(),
     )
 
     assert calls == 2
@@ -1610,7 +1633,7 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
 
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -1651,7 +1674,7 @@ def test_threaded_stream_error_surfaces_same_message_and_no_completion(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -1770,7 +1793,7 @@ def test_generate_is_disabled_and_every_blocker_is_listed(
 
     run_scenario_page(
         page_id=page_id,
-        build_messages=lambda: build_calls.append(None),
+        build_messages=lambda _request: build_calls.append(None),
         requirements=lambda: [page_blocker],
         setup=setup,
         download_name="scenario.md",
@@ -1806,21 +1829,21 @@ def test_generate_is_enabled_and_confirms_the_inputs_when_ready(
 
     run_scenario_page(
         page_id=page_id,
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="scenario.md",
         trace_name="Scenario",
         trace_tags=("scenario",),
-        capture_inputs=lambda: {
-            "matrix": "Enterprise",
-            "organisation": {
-                "industry": "Finance / Banking",
-                "company_size": "Medium (51-200 employees)",
-            },
-            "selected_entity": {"type": "threat actor group", "name": "APT29"},
-            "modifiers": {"purple_team_narrative": True},
-        },
+        capture_inputs=lambda: ScenarioRequest(
+            matrix="Enterprise",
+            organisation=Organisation(
+                industry="Finance / Banking",
+                company_size="Medium (51-200 employees)",
+            ),
+            selected_entity=SelectedEntity(type="threat actor group", name="APT29"),
+            modifiers=Modifiers(purple_team_narrative=True),
+        ),
     )
 
     generate = next(b for b in stub_streamlit["buttons"] if b.get("key") == f"{page_id}_generate")
@@ -1855,7 +1878,7 @@ def test_modifiers_are_rendered_before_the_generate_button(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="scenario.md",
@@ -1883,30 +1906,180 @@ def _generate_threat_group_result(
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: '{"domain": "enterprise-attack"}',
-        build_defense=lambda _s: _DEFENSE_REPORT,
-        capture_inputs=lambda: copy.deepcopy(inputs or _THREAT_GROUP_INPUTS),
+        build_layer=lambda _request: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _request: _DEFENSE_REPORT,
+        capture_inputs=lambda: inputs or _THREAT_GROUP_INPUTS,
     )
 
 
-_THREAT_GROUP_INPUTS = {
-    "scenario_type": "threat_group",
-    "matrix": "Enterprise",
-    "organisation": {
-        "industry": "Finance / Banking",
-        "company_size": "Medium (51-200 employees)",
-    },
-    "selected_entity": {"type": "threat actor group", "name": "APT29"},
-    "selected_techniques": ["T1566"],
-    "sampled_techniques": ["T1566"],
-    "modifiers": {"ai_uplift": False, "purple_team_narrative": False},
-}
+_THREAT_GROUP_INPUTS = ScenarioRequest(
+    scenario_type="threat_group",
+    matrix="Enterprise",
+    organisation=Organisation(
+        industry="Finance / Banking",
+        company_size="Medium (51-200 employees)",
+    ),
+    selected_entity=SelectedEntity(type="threat actor group", name="APT29"),
+    techniques=({"ATT&CK ID": "T1566", "Phase Name": "Initial Access"},),
+    modifiers=Modifiers(ai_uplift=False, purple_team_narrative=False),
+    payload=ThreatGroupPayload(
+        kill_chain_string="Initial Access: Phishing", technique_ids=("T1566",)
+    ),
+)
+
+
+# One request per page, built the way each page's `_capture_inputs` builds it,
+# with the facts the shared consumers should read back from it.
+_ORGANISATION = Organisation(
+    industry="Finance / Banking", company_size="Medium (51-200 employees)"
+)
+PAGE_REQUESTS = [
+    pytest.param(
+        "threat_group",
+        _THREAT_GROUP_INPUTS,
+        {
+            "Framework": "Enterprise ATT&CK",
+            "Threat group": "APT29",
+            "Techniques": "1 technique",
+            "Modifiers": "None",
+        },
+        id="threat_group",
+    ),
+    pytest.param(
+        "custom",
+        ScenarioRequest(
+            scenario_type="custom",
+            matrix="ICS",
+            organisation=_ORGANISATION,
+            selected_entity=SelectedEntity(type="template", name="Denial of Service"),
+            techniques=("Denial of Service (T0814)", "Brute Force I/O (T0806)"),
+            modifiers=Modifiers(ai_uplift=True, purple_team_narrative=False),
+            payload=CustomPayload(template_info="This is a 'Denial of Service' scenario."),
+        ),
+        {
+            "Framework": "ICS ATT&CK",
+            "Template": "Denial of Service",
+            "Techniques": "2 techniques",
+            "Modifiers": "AI-enhanced adversary",
+        },
+        id="custom",
+    ),
+    pytest.param(
+        "ai_insider",
+        ScenarioRequest(
+            scenario_type="ai_insider",
+            organisation=_ORGANISATION,
+            selected_entity=SelectedEntity(
+                type="deployment_archetype", name="Autonomous Agent"
+            ),
+            modifiers=Modifiers(template="Evaluation Environment Escape"),
+            payload=AIInsiderPayload(
+                selected_categories=("Data Exfiltration",),
+                selected_stride=("S5",),
+                selected_capabilities=("Tool use",),
+                scenario_seed="An overnight evaluation run.",
+                required_decisions=("Containment — who pulls the plug",),
+            ),
+        ),
+        {
+            "Deployment archetype": "Autonomous Agent",
+            "Threat categories": "Data Exfiltration",
+            "Required decisions": "Containment",
+            "Modifiers": "Template: Evaluation Environment Escape",
+        },
+        id="ai_insider",
+    ),
+]
+
+
+@pytest.mark.parametrize("page_id, request_, expected_facts", PAGE_REQUESTS)
+def test_every_pages_request_satisfies_the_shared_consumers(
+    stub_streamlit,
+    fake_session_state,
+    monkeypatch: pytest.MonkeyPatch,
+    page_id: str,
+    request_: ScenarioRequest,
+    expected_facts: dict[str, str],
+) -> None:
+    """The pre-flight summary, the persisted result and its metadata, the
+    stale-inputs comparison and the Assistant title all read the same typed
+    request, whichever page built it."""
+    from core.assistant import scenario_handoff
+    from core.summary import describe_inputs, summary_line
+
+    stub_streamlit["button_returns"] = True
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    received: list[ScenarioRequest] = []
+
+    def _stream(_config, _messages):
+        yield "# Scenario\n\nBody."
+
+    monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
+
+    def _run(**overrides) -> None:
+        kwargs: dict[str, Any] = {
+            "page_id": page_id,
+            "build_messages": lambda request: (
+                received.append(request) or [{"role": "user", "content": "x"}]
+            ),
+            "requirements": lambda: [],
+            "setup": _setup_state(),
+            "download_name": "scenario.md",
+            "trace_name": "Scenario",
+            "trace_tags": ("scenario",),
+            "build_layer": lambda request: received.append(request),
+            "build_defense": lambda request: received.append(request),
+            "capture_inputs": lambda: request_,
+        }
+        kwargs.update(overrides)
+        run_scenario_page(**kwargs)
+
+    _run()
+
+    persisted = fake_session_state[f"{page_id}_scenario_request"]
+    # The coordinator stamped the run onto the page's request, and nothing else.
+    assert persisted.scenario_type == request_.scenario_type
+    assert persisted.identity.page_id == page_id
+    assert persisted.captured_at
+    assert persisted.choices() == request_.choices()
+    # Every callback took that one persisted request.
+    assert received == [persisted, persisted, persisted]
+
+    # The pre-flight summary and the result metadata read it.
+    captions = "\n".join(stub_streamlit["captions"])
+    assert f"Ready to generate — {summary_line(request_)}" in captions
+    assert f"Generated from — {summary_line(persisted)}" in captions
+    facts = dict(describe_inputs(persisted))
+    for label, value in expected_facts.items():
+        assert facts[label] == value
+    assert facts["Industry"] == "Finance / Banking"
+
+    # The Assistant names the scenario from the request it was handed...
+    assert fake_session_state["last_scenario_meta"]["request"] == persisted
+    assert scenario_handoff().title == summary_line(persisted)
+
+    # ...a rerun with the same form is not stale...
+    stub_streamlit["button_returns"] = False
+    stub_streamlit["infos"].clear()
+    _run()
+    assert not any("selections have changed" in i for i in stub_streamlit["infos"])
+
+    # ...and navigating away and back to a page with no captured inputs keeps
+    # both the result's metadata and the Assistant's title.
+    stub_streamlit["captions"].clear()
+    _run(capture_inputs=None, requirements=lambda: ["Select something."])
+    assert any(
+        c == f"Generated from — {summary_line(persisted)}"
+        for c in stub_streamlit["captions"]
+    )
+    assert scenario_handoff().title == summary_line(persisted)
 
 
 def test_result_survives_visiting_the_assistant_and_returning(
@@ -1942,14 +2115,14 @@ def test_result_survives_visiting_the_assistant_and_returning(
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
 
     # Every artefact from that one generation is still offered, under the names
@@ -1980,13 +2153,13 @@ def test_each_page_keeps_its_own_latest_result(
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
-        capture_inputs=lambda: {"matrix": "Enterprise", "modifiers": {}},
+        capture_inputs=lambda: ScenarioRequest(matrix="Enterprise", modifiers=Modifiers()),
     )
 
     assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
@@ -2005,12 +2178,14 @@ def test_editing_the_form_keeps_the_result_and_says_it_is_out_of_date(
     stub_streamlit["infos"].clear()
     downloads = _capture_downloads(monkeypatch)
 
-    edited = copy.deepcopy(_THREAT_GROUP_INPUTS)
-    edited["selected_entity"]["name"] = "APT28"
+    edited = replace(
+        _THREAT_GROUP_INPUTS,
+        selected_entity=SelectedEntity(type="threat actor group", name="APT28"),
+    )
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
@@ -2038,8 +2213,10 @@ def test_regenerate_action_runs_again_with_the_current_inputs(
 
     # The rerun the click triggers: Generate itself is not pressed.
     stub_streamlit["button_returns"] = False
-    edited = copy.deepcopy(_THREAT_GROUP_INPUTS)
-    edited["selected_entity"]["name"] = "APT28"
+    edited = replace(
+        _THREAT_GROUP_INPUTS,
+        selected_entity=SelectedEntity(type="threat actor group", name="APT28"),
+    )
 
     def _stream(_config, _messages):
         yield "# APT28 Scenario"
@@ -2047,7 +2224,7 @@ def test_regenerate_action_runs_again_with_the_current_inputs(
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
@@ -2058,9 +2235,7 @@ def test_regenerate_action_runs_again_with_the_current_inputs(
 
     assert first_text.startswith("# APT29")
     assert fake_session_state["threat_group_scenario_text"] == "# APT28 Scenario"
-    assert fake_session_state["threat_group_scenario_input_snapshot"]["selected_entity"][
-        "name"
-    ] == "APT28"
+    assert fake_session_state["threat_group_scenario_request"].selected_entity.name == "APT28"
 
 
 def test_clear_result_removes_only_the_result(
@@ -2076,7 +2251,7 @@ def test_clear_result_removes_only_the_result(
     downloads = _capture_downloads(monkeypatch)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
@@ -2108,7 +2283,7 @@ def test_clearing_one_page_leaves_another_pages_result_alone(
     stub_streamlit["button_returns"] = False
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
@@ -2149,7 +2324,7 @@ def test_feedback_is_pinned_to_the_run_that_produced_the_result(
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
     run_scenario_page(
         page_id="custom",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
@@ -2170,7 +2345,7 @@ def test_a_restored_page_without_a_result_says_scenarios_do_not_survive_a_reload
 
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
@@ -2207,7 +2382,7 @@ def test_regenerate_says_why_nothing_happened_when_the_form_is_not_ready(
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _unexpected)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
@@ -2244,13 +2419,13 @@ def test_a_run_that_produces_no_scenario_still_shows_the_persisted_result(
     downloads = _capture_downloads(monkeypatch)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        capture_inputs=lambda: copy.deepcopy(_THREAT_GROUP_INPUTS),
+        capture_inputs=lambda: _THREAT_GROUP_INPUTS,
     )
 
     # The failure is recorded against the base phase...
@@ -2346,14 +2521,14 @@ def test_revert_button_and_caption_appear_after_an_apply(
     stub_streamlit["captions"].clear()
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
 
     assert any(
@@ -2376,14 +2551,14 @@ def test_layer_caption_notes_it_reflects_the_original_scenario_after_apply(
     stub_streamlit["captions"].clear()
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
 
     assert any(
@@ -2412,14 +2587,14 @@ def test_revert_restores_the_scenario_and_narrative_together(
     stub_streamlit["button_returns"] = False
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
     _click(stub_streamlit, "threat_group_revert_previous")
 
@@ -2428,14 +2603,14 @@ def test_revert_restores_the_scenario_and_narrative_together(
     downloads = _capture_downloads(monkeypatch)
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
 
     assert fake_session_state["threat_group_scenario_text"] == original_text
@@ -2465,14 +2640,14 @@ def test_revert_does_not_appear_when_nothing_was_ever_applied(
     stub_streamlit["button_returns"] = False
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: None,
-        build_defense=lambda _s: None,
+        build_layer=lambda _request: None,
+        build_defense=lambda _request: None,
     )
 
     assert fake_session_state["threat_group_scenario_text"].startswith("# APT29")
@@ -2488,7 +2663,7 @@ def test_clear_result_also_clears_apply_recovery_state(
     stub_streamlit["button_returns"] = False
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: None,
+        build_messages=lambda _request: None,
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
@@ -2523,15 +2698,15 @@ def test_regenerating_clears_the_previous_results_apply_state(
     stub_streamlit["captions"].clear()
     run_scenario_page(
         page_id="threat_group",
-        build_messages=lambda _s: [{"role": "user", "content": "x"}],
+        build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
-        build_layer=lambda _s: '{"domain": "enterprise-attack"}',
-        build_defense=lambda _s: _DEFENSE_REPORT,
-        capture_inputs=lambda: copy.deepcopy(_THREAT_GROUP_INPUTS),
+        build_layer=lambda _request: '{"domain": "enterprise-attack"}',
+        build_defense=lambda _request: _DEFENSE_REPORT,
+        capture_inputs=lambda: _THREAT_GROUP_INPUTS,
     )
 
     assert fake_session_state["threat_group_scenario_text"] == "# Brand new APT29 Scenario"

@@ -38,8 +38,6 @@ pressed.
 from __future__ import annotations
 
 import contextlib
-import copy
-import inspect
 import json
 import queue
 import re
@@ -69,6 +67,7 @@ from core.detections import (
 from core.feedback import render_feedback_widget
 from core.llm import call_llm_stream
 from core.navigator import layer_filename, navigator_for_domain
+from core.request import RequestIdentity, ScenarioRequest
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import LLMConfig
 from core.state import setup_was_restored_from_link
@@ -100,8 +99,6 @@ _SCRIPT_CONTROL = tuple(
 
 Message = dict
 """A single chat message: ``{"role": "...", "content": "..."}``."""
-
-Snapshot = dict[str, Any]
 
 Status = dict[str, str]
 """Why a phase produced no output: ``{"phase": ..., "reason": ..., "detail": ...}``."""
@@ -147,8 +144,9 @@ class _Keys:
         return f"{self.page_id}_scenario_defense_report"
 
     @property
-    def snapshot(self) -> str:
-        return f"{self.page_id}_scenario_input_snapshot"
+    def request(self) -> str:
+        """The :class:`ScenarioRequest` frozen when this result was generated."""
+        return f"{self.page_id}_scenario_request"
 
     @property
     def status(self) -> str:
@@ -208,7 +206,7 @@ class _Keys:
             self.filename,
             self.defense,
             self.defense_report,
-            self.snapshot,
+            self.request,
             self.status,
             self.run_id,
             self.pre_apply,
@@ -288,18 +286,10 @@ def _base_failure_message(status: Status) -> str:
     )
 
 
-def _invoke_with_snapshot(callback: Callable, snapshot: Snapshot):
-    """Call a generation callback with its snapshot when it accepts one.
-
-    The no-argument form remains supported for callers outside the three main
-    pages, but snapshot-aware callbacks are what prevent mutable widgets from
-    changing an in-flight generation's prompt or exports.
-    """
-    try:
-        inspect.signature(callback).bind(snapshot)
-    except (TypeError, ValueError):
-        return callback()
-    return callback(snapshot)
+def _request_download_name(request: ScenarioRequest | None) -> str | None:
+    """The download label stamped on a captured request, if any."""
+    identity = request.identity if request else None
+    return identity.download_name if identity else None
 
 
 # Bound once, module-locally, so a test can patch *this* name instead of
@@ -450,7 +440,7 @@ def _unique_filenames(download_name: str) -> tuple[str, str, str]:
 def run_scenario_page(
     *,
     page_id: str,
-    build_messages: Callable[..., list[Message] | None],
+    build_messages: Callable[[ScenarioRequest], list[Message] | None],
     download_name: str,
     trace_name: str,
     trace_tags: tuple[str, ...],
@@ -459,10 +449,10 @@ def run_scenario_page(
     render_modifiers: Callable[[], None] | None = None,
     requirements: Callable[[], Iterable[str]] | None = None,
     setup: Any | None = None,
-    build_layer: Callable[..., str | None] | None = None,
-    build_defense: Callable[..., dict | None] | None = None,
+    build_layer: Callable[[ScenarioRequest], str | None] | None = None,
+    build_defense: Callable[[ScenarioRequest], dict | None] | None = None,
     defense_narrative: bool = False,
-    capture_inputs: Callable[[], Snapshot] | None = None,
+    capture_inputs: Callable[[], ScenarioRequest] | None = None,
 ) -> None:
     """Render the generate-button + scenario lifecycle for one scenario page.
 
@@ -502,11 +492,15 @@ def run_scenario_page(
     That second call is optional enrichment — see the module docstring for how
     a failed, skipped or unfinished narrative degrades rather than blocks.
 
-    ``capture_inputs`` returns JSON-native metadata describing the inputs at
-    the instant Generate is pressed. Snapshot-aware build callbacks receive a
-    deep copy of that mapping; no-argument callbacks remain supported for
-    compatibility. The snapshot is persisted with the result, which is also
-    what lets a base-phase retry replay the run unchanged.
+    ``capture_inputs`` returns the page's :class:`core.request.ScenarioRequest`
+    for the current form. When Generate is pressed the coordinator stamps the
+    scenario type, capture time and identity onto it, and ``build_messages``,
+    ``build_layer`` and ``build_defense`` each receive that frozen request
+    rather than consulting live widgets. The request is persisted with the
+    result, which is also what lets a base-phase retry replay the run
+    unchanged. A page that supplies no ``capture_inputs`` has no current
+    request: nothing is summarised before generation, the shown result is never
+    reported stale, and Generate stamps an otherwise empty request.
 
     ``download_name`` is a human base label (e.g. ``"AttackGen APT29
     Enterprise.md"``); the markdown and layer downloads get a sanitised,
@@ -530,11 +524,13 @@ def run_scenario_page(
     if st.session_state.pop(keys.revert, False):
         _revert_to_original(keys)
 
-    # Capture the current form once. The same snapshot describes what *will* be
+    # Capture the current form once. The same request describes what *will* be
     # generated (the pre-flight summary), is frozen as the run's inputs when
     # Generate is pressed, and is compared with the shown result's inputs to
     # tell the user when the form has moved on.
-    current_inputs = copy.deepcopy(capture_inputs()) if capture_inputs else {}
+    current_request: ScenarioRequest | None = (
+        capture_inputs() if capture_inputs else None
+    )
 
     # Page blockers come first: the Setup fields are the same on every page and
     # already stated in the sidebar, whereas the missing selection is the thing
@@ -545,7 +541,7 @@ def run_scenario_page(
     if render_modifiers is not None:
         _render_modifier_controls(render_modifiers)
 
-    _render_readiness(blockers, snapshot=current_inputs)
+    _render_readiness(blockers, request=current_request)
 
     clicked = st.button(
         button_label,
@@ -573,11 +569,11 @@ def run_scenario_page(
     # once we know whether this run's phases produced everything they should.
     notice_slot = st.empty()
 
-    def run_generation(snapshot: Snapshot) -> bool:
-        """Run every phase for one snapshot; report whether it rendered."""
+    def run_generation(request: ScenarioRequest) -> bool:
+        """Run every phase for one request; report whether it rendered."""
         st.session_state.pop(keys.status, None)
         _generate_and_render(
-            snapshot=snapshot,
+            request=request,
             keys=keys,
             build_messages=build_messages,
             build_layer=build_layer,
@@ -590,27 +586,34 @@ def run_scenario_page(
         )
         return bool(st.session_state.get(keys.generated))
 
+    def freeze(request: ScenarioRequest | None) -> ScenarioRequest:
+        """Stamp the run's identity onto the captured request and persist it."""
+        frozen = (request or ScenarioRequest()).stamped(
+            scenario_type=page_id,
+            captured_at=datetime.now(timezone.utc).isoformat(),
+            identity=RequestIdentity(
+                page_id=page_id,
+                trace_name=trace_name,
+                trace_tags=tuple(trace_tags),
+                provider=st.session_state.get("chosen_model_provider"),
+                model=st.session_state.get("llm_model_name"),
+                download_name=download_name,
+            ),
+        )
+        st.session_state[keys.request] = frozen
+        return frozen
+
     rendered = False
     if (clicked or regenerate) and ready:
         # Freeze every user-controlled value before any slow work starts. Page
-        # callbacks receive this snapshot rather than consulting live widgets.
-        snapshot = copy.deepcopy(current_inputs)
-        snapshot.setdefault("scenario_type", page_id)
-        snapshot.setdefault("captured_at", datetime.now(timezone.utc).isoformat())
-        identity = snapshot.setdefault("identity", {})
-        identity.setdefault("page_id", page_id)
-        identity.setdefault("trace_name", trace_name)
-        identity.setdefault("trace_tags", list(trace_tags))
-        identity.setdefault("provider", st.session_state.get("chosen_model_provider"))
-        identity.setdefault("model", st.session_state.get("llm_model_name"))
-        identity.setdefault("download_name", download_name)
-        st.session_state[keys.snapshot] = snapshot
-        rendered = run_generation(snapshot)
+        # callbacks receive this request rather than consulting live widgets.
+        rendered = run_generation(freeze(current_request))
     elif retry_base:
-        # Replay the captured inputs rather than the live widgets, so a retry
+        # Replay the captured request rather than the live widgets, so a retry
         # regenerates the run the user actually asked for.
+        persisted = st.session_state.get(keys.request)
         rendered = run_generation(
-            copy.deepcopy(st.session_state.get(keys.snapshot) or {})
+            persisted if persisted is not None else freeze(None)
         )
     elif retry_narrative:
         rendered = _retry_narrative(
@@ -627,7 +630,7 @@ def run_scenario_page(
     if not rendered and has_result:
         st.markdown("---")
         _render_previous(
-            keys=keys, download_name=download_name, current_inputs=current_inputs
+            keys=keys, download_name=download_name, current_request=current_request
         )
     elif not rendered and not has_result:
         _render_no_result_note()
@@ -643,11 +646,11 @@ def run_scenario_page(
 
 def _generate_and_render(
     *,
-    snapshot: Snapshot,
+    request: ScenarioRequest,
     keys: _Keys,
-    build_messages: Callable[..., list[Message] | None],
-    build_layer: Callable[..., str | None] | None,
-    build_defense: Callable[..., dict | None] | None,
+    build_messages: Callable[[ScenarioRequest], list[Message] | None],
+    build_layer: Callable[[ScenarioRequest], str | None] | None,
+    build_defense: Callable[[ScenarioRequest], dict | None] | None,
     trace_name: str,
     trace_tags: tuple[str, ...],
     status_text: str,
@@ -666,8 +669,10 @@ def _generate_and_render(
         status.update(label=_elapsed_label(phase, started), state=state)
 
     try:
-        run_narrative = snapshot.get("modifiers", {}).get(
-            "purple_team_narrative", defense_narrative
+        run_narrative = (
+            request.modifiers.purple_team_narrative
+            if request.modifiers is not None
+            else defense_narrative
         )
         with st.status(_elapsed_label("Preparing inputs", started), expanded=True) as status:
             st.write(
@@ -682,7 +687,7 @@ def _generate_and_render(
                     else ""
                 )
             )
-            messages = _invoke_with_snapshot(build_messages, snapshot)
+            messages = build_messages(request)
             if messages is None:
                 status.update(label="No scenario inputs were available.", state="error")
                 st.session_state[keys.status] = _failure(
@@ -727,23 +732,17 @@ def _generate_and_render(
                 raise _PhaseAborted
 
             # Deterministic artifacts are built only after the base model has
-            # completed, and exclusively from the frozen input snapshot.
+            # completed, and exclusively from the frozen request.
             set_phase(status, "Building deterministic exports")
-            snapshot_human_name = (
-                snapshot.get("identity", {}).get("download_name") or human_name
-            )
-            md_name, layer_name, defense_name = _unique_filenames(snapshot_human_name)
-            layer_json = (
-                _invoke_with_snapshot(build_layer, snapshot) if build_layer else None
-            )
+            request_human_name = _request_download_name(request) or human_name
+            md_name, layer_name, defense_name = _unique_filenames(request_human_name)
+            layer_json = build_layer(request) if build_layer else None
             layer_payload = (layer_json, layer_name) if layer_json else None
-            defense_report = (
-                _invoke_with_snapshot(build_defense, snapshot) if build_defense else None
-            )
+            defense_report = build_defense(request) if build_defense else None
             defense_state = _build_defense_state(
                 report=defense_report,
                 defense_name=defense_name,
-                human_name=snapshot_human_name,
+                human_name=request_human_name,
             )
 
             # This is the key phase boundary: persist the base result, exports,
@@ -773,7 +772,7 @@ def _generate_and_render(
                     report=defense_report,
                     scenario_text=cleaned,
                     defense_state=defense_state,
-                    human_name=snapshot_human_name,
+                    human_name=request_human_name,
                     trace_name=trace_name,
                     on_progress=lambda: set_phase(
                         status, "Generating purple-team narrative"
@@ -791,7 +790,7 @@ def _generate_and_render(
                             layer_payload=layer_payload,
                             defense_state=enriched,
                             variant="current_enriched",
-                            snapshot=snapshot,
+                            request=request,
                         )
 
             # A missing optional phase is a degraded success, not a failed run:
@@ -1062,8 +1061,8 @@ def _retry_narrative(*, keys: _Keys, trace_name: str, download_name: str) -> boo
         st.session_state.pop(keys.status, None)
         return False
 
-    snapshot = st.session_state.get(keys.snapshot) or {}
-    human_name = snapshot.get("identity", {}).get("download_name") or download_name
+    request = st.session_state.get(keys.request)
+    human_name = _request_download_name(request) or download_name
     started = _monotonic()
     phase = "Retrying purple-team narrative"
     try:
@@ -1095,7 +1094,7 @@ def _retry_narrative(*, keys: _Keys, trace_name: str, download_name: str) -> boo
             layer_payload=st.session_state.get(keys.layer),
             defense_state=enriched,
             variant="retry_enriched",
-            snapshot=snapshot,
+            request=request,
         )
         return True
     except Exception as e:
@@ -1287,12 +1286,14 @@ def _setup_blockers(setup: Any | None) -> tuple[str, ...]:
     return tuple(getattr(setup, "blockers", ()) or ())
 
 
-def _render_readiness(blockers: Sequence[str], *, snapshot: Snapshot) -> None:
+def _render_readiness(
+    blockers: Sequence[str], *, request: ScenarioRequest | None
+) -> None:
     """Show every outstanding requirement, or confirm what is about to run.
 
     ``blockers`` arrives page-first (see ``run_scenario_page``) so the missing
     selection the user is looking at isn't reported behind the shared Setup
-    fields. When everything is satisfied, the same snapshot that will be frozen
+    fields. When everything is satisfied, the same request that will be frozen
     by Generate is summarised instead — a last chance to catch a wrong matrix or
     organisation profile before any provider usage begins.
     """
@@ -1302,7 +1303,7 @@ def _render_readiness(blockers: Sequence[str], *, snapshot: Snapshot) -> None:
             + "\n".join(f"- {blocker}" for blocker in blockers)
         )
         return
-    line = summary_line(snapshot)
+    line = summary_line(request)
     if not line:
         return
     st.caption(f"Ready to generate — {line}")
@@ -1354,7 +1355,7 @@ def _persist_and_render(
     # against a different run.
     st.session_state[keys.run_id] = st.session_state.get("run_id")
 
-    snapshot = st.session_state.get(keys.snapshot) or {}
+    request = st.session_state.get(keys.request)
     # Cross-page handoff for the AttackGen Assistant chat page. The defense
     # narrative rides along so the Assistant can refine it too; set it
     # unconditionally (None when there's no narrative) so a stale one from an
@@ -1369,8 +1370,8 @@ def _persist_and_render(
     st.session_state[SCENARIO_META_KEY] = {
         "page_id": keys.page_id,
         "filename": download_name,
-        "generated_at": snapshot.get("captured_at"),
-        "snapshot": copy.deepcopy(snapshot),
+        "generated_at": request.captured_at if request else None,
+        "request": request,
     }
 
     _render_result(
@@ -1380,18 +1381,21 @@ def _persist_and_render(
         layer_payload=layer_payload,
         defense_state=defense_state,
         variant="current",
-        snapshot=snapshot,
+        request=request,
     )
 
 
 def _render_previous(
-    *, keys: _Keys, download_name: str, current_inputs: Snapshot | None = None
+    *,
+    keys: _Keys,
+    download_name: str,
+    current_request: ScenarioRequest | None = None,
 ) -> None:
     text = st.session_state.get(keys.text, "")
     # Prefer the name fixed at generation time so it stays stable (and matches
     # the layer) across the reruns a download click triggers.
     file_name = st.session_state.get(keys.filename) or download_name
-    snapshot = st.session_state.get(keys.snapshot) or {}
+    request = st.session_state.get(keys.request)
     st.markdown("Displaying previously generated scenario:")
     _render_result(
         page_id=keys.page_id,
@@ -1400,8 +1404,8 @@ def _render_previous(
         layer_payload=st.session_state.get(keys.layer),
         defense_state=st.session_state.get(keys.defense),
         variant="previous",
-        snapshot=snapshot,
-        stale=inputs_changed(snapshot, current_inputs),
+        request=request,
+        stale=inputs_changed(request, current_request),
     )
 
 
@@ -1413,7 +1417,7 @@ def _render_result(
     layer_payload: tuple[str, str] | None,
     defense_state: dict | None,
     variant: str,
-    snapshot: Snapshot | None = None,
+    request: ScenarioRequest | None = None,
     stale: bool = False,
 ) -> None:
     """Render the finished scenario, its companion, and the result actions.
@@ -1425,7 +1429,7 @@ def _render_result(
     ``variant`` ("current" / "previous" / …) namespaces the widget keys so a
     generation run and a plain rerun can't collide on a Streamlit widget key.
     """
-    _render_result_meta(snapshot, stale=stale, page_id=page_id)
+    _render_result_meta(request, stale=stale, page_id=page_id)
     _render_summary_surface(cleaned)
     if defense_state:
         scenario_tab, defense_tab = st.tabs(["📄 Scenario", "🛡️ Detection & Response"])
@@ -1446,22 +1450,22 @@ def _render_result(
 
 
 def _render_result_meta(
-    snapshot: Snapshot | None, *, stale: bool, page_id: str | None = None
+    request: ScenarioRequest | None, *, stale: bool, page_id: str | None = None
 ) -> None:
     """Say what produced this result, and whether the form has moved on."""
     if page_id:
         caption = applied_caption(page_id)
         if caption:
             st.caption(caption)
-    if not snapshot:
+    if request is None:
         return
-    line = summary_line(snapshot)
+    line = summary_line(request)
     if line:
         st.caption(f"Generated from — {line}")
     if stale:
         st.info("Your selections have changed since this scenario was generated.")
     with st.expander("Full inputs"):
-        _render_fact_table(describe_inputs(snapshot))
+        _render_fact_table(describe_inputs(request))
 
 
 def _render_summary_surface(cleaned: str) -> None:
