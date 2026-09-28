@@ -74,14 +74,15 @@ for label, content in panels:
         with st.container(height=400, border=True):
             st.markdown(content)
 
-chat_container = st.empty()
-
 # The conversation belongs to this scenario and this editing target: a newly
 # generated scenario starts afresh, and switching mode doesn't feed one
 # artifact's chat into the other.
 conversation = Conversation(scenario, target)
 
-with chat_container:
+# One container, not an st.empty placeholder: a placeholder holds a single
+# element, so each message would replace the last and only the final turn
+# would show after a rerun.
+with st.container():
     for message in conversation.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -182,10 +183,7 @@ if download_specs:
 
 def clear_conversation():
     conversation.reset()
-    chat_container.empty()
-    with chat_container:
-        with st.chat_message("assistant"):
-            st.markdown(conversation.messages[0]["content"])
+    st.rerun()
 
 
 with st.container():
