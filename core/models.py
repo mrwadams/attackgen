@@ -1,7 +1,7 @@
 """Unified model registry — single source of truth for providers and models.
 
 To add or update a model, edit the MODELS list below. Nothing else needs to change.
-Model list last refreshed against provider docs 2026-09-10.
+Model list last refreshed against provider docs 2026-09-28.
 
 Provider model listing pages:
   - Anthropic: https://docs.anthropic.com/en/docs/about-claude/models
@@ -123,18 +123,18 @@ MODELS: list[ModelInfo] = [
         provider_key="OpenAI API",
         help_text="GPT-5.5 is an earlier flagship for coding and professional work, kept for continuity.",
     ),
-    # --- Anthropic (Opus 5 leads the list because the sidebar defaults to the
-    #     first entry and Anthropic recommends it as the starting point for most
-    #     workloads, at half Fable 5.1's per-token price. Every model from Claude
-    #     4.7 on has sampling parameters removed and returns a 400 for a custom
-    #     temperature, so each entry below sets supports_temperature=False;
-    #     Haiku 4.5 predates that change and still accepts one) ---
+    # --- Anthropic (Opus 5.5 leads the list because the sidebar defaults to the
+    #     first entry and it is the current Opus, at under half Fable 5.1's
+    #     per-token price. Every model from Claude 4.7 on has sampling parameters
+    #     removed and returns a 400 for a custom temperature, so each entry below
+    #     sets supports_temperature=False; Haiku 4.5 predates that change and
+    #     still accepts one) ---
     ModelInfo(
-        model_id="claude-opus-5",
+        model_id="claude-opus-5-5",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
-        help_text="Claude Opus 5 excels at complex agentic coding and enterprise work.",
+        help_text="Claude Opus 5.5 excels at complex agentic coding and enterprise work.",
     ),
     ModelInfo(
         model_id="claude-fable-5-1",
@@ -158,11 +158,11 @@ MODELS: list[ModelInfo] = [
         help_text="Claude Fable 5 is the previous-generation Fable, kept for continuity.",
     ),
     ModelInfo(
-        model_id="claude-opus-4-8",
+        model_id="claude-opus-5",
         provider_key="Anthropic API",
         supports_thinking=True,
         supports_temperature=False,
-        help_text="Claude Opus 4.8 is the previous-generation Opus, kept for continuity.",
+        help_text="Claude Opus 5 is the previous-generation Opus, kept for continuity.",
     ),
     ModelInfo(
         model_id="claude-haiku-4-5-20251001",
