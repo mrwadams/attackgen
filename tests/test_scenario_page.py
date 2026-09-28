@@ -1,7 +1,7 @@
 """Tests for `core.scenario_page.run_scenario_page`.
 
 The interface is the test surface: given a build_messages callback and a
-readiness predicate, we assert what reaches `call_llm_stream` and what lands
+page requirements, we assert what reaches `call_llm_stream` and what lands
 in session_state. Streamlit's UI calls are stubbed to no-ops; we don't render
 anything — we only care about the control flow at the seam.
 """
@@ -190,6 +190,10 @@ class _FakePlaceholder:
             _OPEN_PLACEHOLDERS.pop()
 
 
+_NOT_READY = lambda: ["Select a threat actor group."]  # noqa: E731
+"""A page's own requirements callable reporting one blocker: "not ready"."""
+
+
 _OPEN_PLACEHOLDERS: list[_FakePlaceholder] = []
 """The `st.empty()` containers currently open, innermost last."""
 
@@ -210,7 +214,6 @@ def test_does_nothing_when_button_not_pressed(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -234,7 +237,7 @@ def test_skips_llm_when_not_ready(
     run_scenario_page(
         page_id="threat_group",
         build_messages=build,
-        is_ready=lambda: False,
+        requirements=_NOT_READY,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -263,7 +266,6 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: messages,
-        is_ready=lambda: True,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -306,7 +308,6 @@ def test_page_id_namespaces_session_state(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -341,7 +342,6 @@ def test_trace_name_and_tags_reach_llm_config(
     run_scenario_page(
         page_id="ai_insider",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -382,7 +382,6 @@ def test_layer_persisted_and_offered_for_download(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -422,7 +421,6 @@ def _run_and_capture_caption(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen Group Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -472,7 +470,6 @@ def test_no_layer_download_when_build_layer_returns_none(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -507,7 +504,7 @@ def test_persisted_scenario_and_downloads_survive_rerun(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: None,
-        is_ready=lambda: False,
+        requirements=_NOT_READY,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -542,7 +539,6 @@ def test_no_layer_download_when_build_layer_absent(
     run_scenario_page(
         page_id="ai_insider",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -589,7 +585,6 @@ def test_defense_persisted_and_offered_for_download(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -632,7 +627,6 @@ def test_defense_narrative_makes_second_llm_call_and_persists(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -668,7 +662,6 @@ def test_no_defense_download_when_build_defense_returns_none(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="custom_scenario.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -703,7 +696,6 @@ def test_result_is_tabbed_when_defense_present(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -734,7 +726,6 @@ def test_result_not_tabbed_without_defense(
     run_scenario_page(
         page_id="ai_insider",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="ai_insider_threat_scenario.md",
         trace_name="AI Insider Threat Scenario",
         trace_tags=("ai_insider_scenario",),
@@ -766,7 +757,7 @@ def test_persisted_defense_survives_rerun(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: None,
-        is_ready=lambda: False,
+        requirements=_NOT_READY,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -821,7 +812,6 @@ def test_phase_sequence_and_base_is_persisted_before_optional_enrichment(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -885,7 +875,6 @@ def test_generate_captures_input_and_identity_metadata(
     run_scenario_page(
         page_id="custom",
         build_messages=build_messages,
-        is_ready=lambda: True,
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario", "ai_enhanced"),
@@ -935,7 +924,6 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="custom.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -1009,7 +997,6 @@ def _run_page(**overrides) -> None:
     kwargs: dict[str, Any] = {
         "page_id": "threat_group",
         "build_messages": lambda _snapshot: [{"role": "user", "content": "x"}],
-        "is_ready": lambda: True,
         "download_name": "AttackGen APT29 Enterprise.md",
         "trace_name": "Threat Group Scenario",
         "trace_tags": ("threat_group_scenario",),
@@ -1121,7 +1108,7 @@ def test_narrative_retry_reruns_only_the_narrative_and_merges_it(
     stub_streamlit["warnings"].clear()
     controllable_stream.scripts = [[], [], ["## Defender walkthrough"]]
     downloads = _capture_downloads(monkeypatch)
-    _run_page(is_ready=lambda: False)
+    _run_page(requirements=_NOT_READY)
 
     # Three model calls in total, and the retry's is the narrative — the base
     # scenario is never generated a second time.
@@ -1220,7 +1207,7 @@ def test_narrative_left_in_flight_by_a_torn_down_run_is_reported_next_run(
         }
     )
 
-    _run_page(is_ready=lambda: False)
+    _run_page(requirements=_NOT_READY)
 
     assert controllable_stream.calls == []  # nothing is regenerated
     assert fake_session_state["threat_group_generation_status"] == {
@@ -1256,7 +1243,7 @@ def test_degraded_state_renders_base_and_notice_on_a_plain_rerun(
     stub_streamlit["buttons"].clear()
     stub_streamlit["warnings"].clear()
     downloads = _capture_downloads(monkeypatch)
-    _run_page(is_ready=lambda: False)
+    _run_page(requirements=_NOT_READY)
 
     assert len(controllable_stream.calls) == 2  # no phase re-ran on this rerun
     assert any(d.get("label") == "Download Scenario" for d in downloads)
@@ -1428,7 +1415,7 @@ def test_base_retry_replays_the_captured_inputs(
     controllable_stream.scripts = [[], ["# Base scenario"]]
 
     _run_page(
-        is_ready=lambda: False,
+        requirements=_NOT_READY,
         defense_narrative=False,
         build_messages=lambda snapshot: [
             {"role": "user", "content": snapshot["matrix"]}
@@ -1522,7 +1509,6 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -1565,7 +1551,6 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _snapshot: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -1621,7 +1606,6 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="custom.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -1663,7 +1647,6 @@ def test_threaded_stream_error_surfaces_same_message_and_no_completion(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda: [{"role": "user", "content": "x"}],
-        is_ready=lambda: True,
         download_name="threat_group_scenario.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -1778,12 +1761,13 @@ def test_generate_is_disabled_and_every_blocker_is_listed(
     one is listed first, and Generate can't be spent finding out."""
     stub_streamlit["button_returns"] = True  # a click on a disabled button
     build_calls: list[None] = []
+    setup = _setup_state(industry=None, company_size=None)
 
     run_scenario_page(
         page_id=page_id,
         build_messages=lambda: build_calls.append(None),
-        requirements=[page_blocker],
-        setup=_setup_state(industry=None, company_size=None),
+        requirements=lambda: [page_blocker],
+        setup=setup,
         download_name="scenario.md",
         trace_name="Scenario",
         trace_tags=("scenario",),
@@ -1793,6 +1777,12 @@ def test_generate_is_disabled_and_every_blocker_is_listed(
     assert build_calls == []
     generate = next(b for b in stub_streamlit["buttons"] if b.get("key") == f"{page_id}_generate")
     assert generate["disabled"] is True
+
+    # The page's own blocker leads, then every Setup blocker in Setup's order.
+    expected = "Complete these before generating:\n\n" + "\n".join(
+        f"- {blocker}" for blocker in (page_blocker, *setup.blockers)
+    )
+    assert stub_streamlit["infos"][0] == expected
 
     summary = "\n".join(stub_streamlit["infos"])
     assert summary.index(page_blocker) < summary.index("industry")
@@ -1812,7 +1802,7 @@ def test_generate_is_enabled_and_confirms_the_inputs_when_ready(
     run_scenario_page(
         page_id=page_id,
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="scenario.md",
         trace_name="Scenario",
@@ -1861,7 +1851,7 @@ def test_modifiers_are_rendered_before_the_generate_button(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="scenario.md",
         trace_name="Scenario",
@@ -1889,7 +1879,7 @@ def _generate_threat_group_result(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -1948,7 +1938,7 @@ def test_result_survives_visiting_the_assistant_and_returning(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=["Select a threat actor group for the scenario."],
+        requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -1986,7 +1976,7 @@ def test_each_page_keeps_its_own_latest_result(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
@@ -2016,7 +2006,7 @@ def test_editing_the_form_keeps_the_result_and_says_it_is_out_of_date(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2053,7 +2043,7 @@ def test_regenerate_action_runs_again_with_the_current_inputs(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2082,7 +2072,7 @@ def test_clear_result_removes_only_the_result(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2114,7 +2104,7 @@ def test_clearing_one_page_leaves_another_pages_result_alone(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2155,7 +2145,7 @@ def test_feedback_is_pinned_to_the_run_that_produced_the_result(
     run_scenario_page(
         page_id="custom",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
@@ -2176,7 +2166,7 @@ def test_a_restored_page_without_a_result_says_scenarios_do_not_survive_a_reload
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: None,
-        requirements=["Select a threat actor group for the scenario."],
+        requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2213,7 +2203,7 @@ def test_regenerate_says_why_nothing_happened_when_the_form_is_not_ready(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=["Select a threat actor group for the scenario."],
+        requirements=lambda: ["Select a threat actor group for the scenario."],
         setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2250,7 +2240,7 @@ def test_a_run_that_produces_no_scenario_still_shows_the_persisted_result(
     run_scenario_page(
         page_id="threat_group",
         build_messages=lambda _s: [{"role": "user", "content": "x"}],
-        requirements=[],
+        requirements=lambda: [],
         setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
@@ -2295,7 +2285,7 @@ def test_narrative_retry_leaves_another_pages_assistant_handoff_alone(
     fake_session_state.pop("last_defense_narrative", None)
 
     controllable_stream.scripts = [[], [], ["## Defender walkthrough"]]
-    _run_page(is_ready=lambda: False)
+    _run_page(requirements=_NOT_READY)
 
     # The retry enriched its own page's result...
     defense = fake_session_state["threat_group_scenario_defense"]
