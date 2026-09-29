@@ -1584,7 +1584,7 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
         trace_tags=("threat_group_scenario",),
         build_defense=lambda _request: _DEFENSE_REPORT,
         defense_narrative=True,
-        capture_inputs=lambda: ScenarioRequest(),
+        capture_inputs=ScenarioRequest,
     )
 
     assert calls == 2
