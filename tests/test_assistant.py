@@ -43,6 +43,7 @@ from core.assistant import (
     scenario_handoff,
     stream_assistant_reply,
 )
+from core.request import Modifiers, Organisation, ScenarioRequest, SelectedEntity
 from core.routes import SCENARIO_PAGES, THREAT_GROUP_PAGE
 
 
@@ -85,12 +86,12 @@ def _handoff(state: dict[str, Any]) -> None:
         "page_id": "threat_group",
         "filename": "AttackGen_APT29_Enterprise_20260908-093000.md",
         "generated_at": "2026-09-08T09:30:00+00:00",
-        "snapshot": {
-            "matrix": "Enterprise",
-            "organisation": {"industry": "Finance / Banking", "company_size": "Medium"},
-            "selected_entity": {"type": "threat actor group", "name": "APT29"},
-            "modifiers": {"purple_team_narrative": True},
-        },
+        "request": ScenarioRequest(
+            matrix="Enterprise",
+            organisation=Organisation(industry="Finance / Banking", company_size="Medium"),
+            selected_entity=SelectedEntity(type="threat actor group", name="APT29"),
+            modifiers=Modifiers(purple_team_narrative=True),
+        ),
     }
 
 
@@ -125,7 +126,7 @@ def _second_handoff(state: dict[str, Any], *, page_id: str = "custom") -> None:
         "page_id": page_id,
         "filename": "AttackGen_Custom_Enterprise_20260908-101500.md",
         "generated_at": "2026-09-08T10:15:00+00:00",
-        "snapshot": {"matrix": "Enterprise"},
+        "request": ScenarioRequest(matrix="Enterprise"),
     }
 
 

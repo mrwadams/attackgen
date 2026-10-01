@@ -100,7 +100,12 @@ TARGETS: dict[str, dict[str, Any]] = {
 
 @dataclass(frozen=True)
 class AssistantScenario:
-    """The scenario the Assistant is working on, and where it came from."""
+    """The scenario the Assistant is working on, and where it came from.
+
+    ``meta`` is the handoff metadata the coordinator writes: the originating
+    ``page_id``, the ``filename`` and ``generated_at`` of the result, and the
+    :class:`core.request.ScenarioRequest` that produced it under ``request``.
+    """
 
     text: str
     defense_narrative: str | None = None
@@ -131,7 +136,7 @@ class AssistantScenario:
     def title(self) -> str:
         """A short human identity for the result, e.g. ``APT29 · Enterprise ATT&CK``."""
         meta = self.meta or {}
-        line = summary_line(meta.get("snapshot"))
+        line = summary_line(meta.get("request"))
         if line:
             return line
         origin = self.origin

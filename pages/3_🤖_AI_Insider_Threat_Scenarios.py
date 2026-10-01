@@ -28,6 +28,13 @@ AI Agents" by Matt Adams (https://ai-insider-threat.matt-adams.co.uk).
 import streamlit as st
 
 from core.prompts import build_ai_insider_messages
+from core.request import (
+    AIInsiderPayload,
+    Modifiers,
+    Organisation,
+    ScenarioRequest,
+    SelectedEntity,
+)
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
@@ -56,17 +63,18 @@ company_size = setup.company_size
 # only threads its own inputs into the shared builder.
 
 
-def build_messages(snapshot):
-    """Build messages exclusively from the Generate-time input snapshot."""
+def build_messages(request: ScenarioRequest):
+    """Build messages exclusively from the Generate-time scenario request."""
+    payload = request.payload
     return build_ai_insider_messages(
-        archetype_name=snapshot["selected_entity"]["name"],
-        selected_categories=snapshot["selected_categories"],
-        selected_stride=snapshot["selected_stride"],
-        selected_capabilities=snapshot["selected_capabilities"],
-        industry=snapshot["organisation"]["industry"],
-        company_size=snapshot["organisation"]["company_size"],
-        scenario_seed=snapshot["scenario_seed"],
-        required_decisions=snapshot["required_decisions"],
+        archetype_name=request.selected_entity.name,
+        selected_categories=list(payload.selected_categories),
+        selected_stride=list(payload.selected_stride),
+        selected_capabilities=list(payload.selected_capabilities),
+        industry=request.organisation.industry,
+        company_size=request.organisation.company_size,
+        scenario_seed=payload.scenario_seed,
+        required_decisions=list(payload.required_decisions),
     )
 
 
@@ -209,24 +217,22 @@ def _requirements() -> list[str]:
     return []
 
 
-def _capture_inputs():
-    return {
-        "scenario_type": "ai_insider",
-        "matrix": None,
-        "organisation": {"industry": industry, "company_size": company_size},
-        "selected_entity": {
-            "type": "deployment_archetype",
-            "name": selected_archetype,
-        },
-        "selected_techniques": [],
-        "sampled_techniques": [],
-        "selected_categories": list(selected_categories),
-        "selected_stride": list(selected_stride),
-        "selected_capabilities": list(selected_capabilities),
-        "scenario_seed": scenario_seed,
-        "required_decisions": list(required_decisions),
-        "modifiers": {"template": selected_template or None},
-    }
+def _capture_inputs() -> ScenarioRequest:
+    return ScenarioRequest(
+        scenario_type="ai_insider",
+        organisation=Organisation(industry=industry, company_size=company_size),
+        selected_entity=SelectedEntity(
+            type="deployment_archetype", name=selected_archetype
+        ),
+        modifiers=Modifiers(template=selected_template or None),
+        payload=AIInsiderPayload(
+            selected_categories=tuple(selected_categories),
+            selected_stride=tuple(selected_stride),
+            selected_capabilities=tuple(selected_capabilities),
+            scenario_seed=scenario_seed,
+            required_decisions=tuple(required_decisions),
+        ),
+    )
 
 
 run_scenario_page(

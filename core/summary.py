@@ -8,15 +8,15 @@ without rendering anything:
   criteria, metrics, artefacts, rules of engagement). A finished exercise runs
   to a dozen-plus sections, so the coordinator renders this above the result
   rather than truncating or rewriting the Markdown itself.
-* :func:`describe_inputs` / :func:`summary_line` render the Generate-time input
-  snapshot as human-readable facts. The same helpers describe what *will* be
+* :func:`describe_inputs` / :func:`summary_line` render the Generate-time
+  :class:`~core.request.ScenarioRequest` as human-readable facts. The same helpers describe what *will* be
   generated before the click and what *did* produce the result afterwards, so
   the two can never disagree about what a field means.
 
 :func:`inputs_changed` answers "does the result on screen still match the form?"
-It deliberately ignores the fields a page re-derives on every rerun — page 1
-resamples one technique per phase each time it runs, so comparing those would
-report every rerun as an edit.
+It compares only the request's user choices, which deliberately ignore the
+fields a page re-derives on every rerun — page 1 resamples one technique per
+phase each time it runs, so comparing those would report every rerun as an edit.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
+
+from core.request import ScenarioRequest
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE = re.compile(r"^\s*(```|~~~)")
@@ -160,7 +162,7 @@ def summarise_scenario(markdown: str) -> ScenarioSummary:
     )
 
 
-# --- The Generate-time input snapshot ----------------------------------------
+# --- The Generate-time scenario request -------------------------------------
 
 _ENTITY_LABELS = {
     "threat actor group": "Threat group",
@@ -181,26 +183,25 @@ _MATRIX_LABELS = {
 }
 
 
-def modifier_labels(snapshot: dict) -> tuple[str, ...]:
+def modifier_labels(request: ScenarioRequest | None) -> tuple[str, ...]:
     """Human labels for the modifiers that were on when Generate was pressed."""
-    modifiers = snapshot.get("modifiers") or {}
-    labels: list[str] = []
-    for key, value in modifiers.items():
-        if not value:
-            continue
-        if key in _MODIFIER_LABELS:
-            labels.append(_MODIFIER_LABELS[key])
-        elif isinstance(value, str):
-            labels.append(f"{key.replace('_', ' ').capitalize()}: {value}")
+    modifiers = request.modifiers if request else None
+    if modifiers is None:
+        return ()
+    labels = [
+        label for name, label in _MODIFIER_LABELS.items() if getattr(modifiers, name)
+    ]
+    if modifiers.template:
+        labels.append(f"Template: {modifiers.template}")
     return tuple(labels)
 
 
-def _entity(snapshot: dict) -> tuple[str, str] | None:
-    entity = snapshot.get("selected_entity") or None
-    if not entity or not entity.get("name"):
+def _entity(request: ScenarioRequest) -> tuple[str, str] | None:
+    entity = request.selected_entity
+    if not entity or not entity.name:
         return None
-    label = _ENTITY_LABELS.get(str(entity.get("type", "")).lower(), "Selection")
-    return label, str(entity["name"])
+    label = _ENTITY_LABELS.get(str(entity.type).lower(), "Selection")
+    return label, str(entity.name)
 
 
 def _format_timestamp(value: str) -> str:
@@ -211,115 +212,69 @@ def _format_timestamp(value: str) -> str:
     return parsed.strftime("%Y-%m-%d %H:%M UTC" if parsed.tzinfo else "%Y-%m-%d %H:%M")
 
 
-def describe_inputs(snapshot: dict | None) -> tuple[tuple[str, str], ...]:
-    """Describe a snapshot as ordered ``(label, value)`` facts.
+def describe_inputs(request: ScenarioRequest | None) -> tuple[tuple[str, str], ...]:
+    """Describe a request as ordered ``(label, value)`` facts.
 
     Used both before generation ("this is what will be sent") and with a
     finished result ("this is what produced it"), so the two always agree.
     """
-    if not snapshot:
+    if request is None:
         return ()
     facts: list[tuple[str, str]] = []
 
-    matrix = snapshot.get("matrix")
-    if matrix:
-        facts.append(("Framework", _MATRIX_LABELS.get(matrix, str(matrix))))
+    if request.matrix:
+        facts.append(("Framework", _MATRIX_LABELS.get(request.matrix, str(request.matrix))))
 
-    organisation = snapshot.get("organisation") or {}
-    if organisation.get("industry"):
-        facts.append(("Industry", str(organisation["industry"])))
-    if organisation.get("company_size"):
-        facts.append(("Company size", str(organisation["company_size"])))
+    organisation = request.organisation
+    if organisation and organisation.industry:
+        facts.append(("Industry", str(organisation.industry)))
+    if organisation and organisation.company_size:
+        facts.append(("Company size", str(organisation.company_size)))
 
-    entity = _entity(snapshot)
+    entity = _entity(request)
     if entity:
         facts.append(entity)
 
-    selected = snapshot.get("selected_techniques") or []
-    sampled = snapshot.get("sampled_techniques") or []
-    if selected or sampled:
-        count = len(sampled) if sampled else len(selected)
+    count = request.technique_count
+    if count:
         noun = "technique" if count == 1 else "techniques"
         facts.append(("Techniques", f"{count} {noun}"))
 
-    for key, label in (
-        ("selected_categories", "Threat categories"),
-        ("selected_stride", "STRIDE threats"),
-        ("selected_capabilities", "Agent capabilities"),
-    ):
-        values = snapshot.get(key) or []
-        if values:
-            facts.append((label, ", ".join(str(v) for v in values)))
+    if request.payload:
+        facts.extend(request.payload.facts())
 
-    if snapshot.get("scenario_seed"):
-        facts.append(("Scenario seed", "Provided"))
-    if snapshot.get("required_decisions"):
-        facts.append(
-            (
-                "Required decisions",
-                "; ".join(
-                    str(d).split(" — ", 1)[0] for d in snapshot["required_decisions"]
-                ),
-            )
-        )
-
-    modifiers = modifier_labels(snapshot)
+    modifiers = modifier_labels(request)
     facts.append(("Modifiers", ", ".join(modifiers) if modifiers else "None"))
 
-    identity = snapshot.get("identity") or {}
-    model = identity.get("model")
-    provider = identity.get("provider")
-    if model:
+    identity = request.identity
+    if identity and identity.model:
+        model, provider = identity.model, identity.provider
         facts.append(("Model", f"{model} ({provider})" if provider else str(model)))
-    if snapshot.get("captured_at"):
-        facts.append(("Generated", _format_timestamp(snapshot["captured_at"])))
+    if request.captured_at:
+        facts.append(("Generated", _format_timestamp(request.captured_at)))
 
     return tuple(facts)
 
 
-def summary_line(snapshot: dict | None) -> str:
-    """A single mobile-friendly line describing a snapshot's key choices."""
-    facts = describe_inputs(snapshot)
+def summary_line(request: ScenarioRequest | None) -> str:
+    """A single mobile-friendly line describing a request's key choices."""
+    facts = describe_inputs(request)
     skip = {"Modifiers", "Model", "Generated", "Agent capabilities", "STRIDE threats"}
     parts = [value for label, value in facts if label not in skip]
-    modifiers = modifier_labels(snapshot or {})
+    modifiers = modifier_labels(request)
     if modifiers:
         parts.append(" + ".join(modifiers))
     return " · ".join(parts)
 
 
-# Fields that identify the *user's choices*. Anything a page re-derives on each
-# rerun (the per-phase technique sample, the resolved kill-chain string) is left
-# out, or every rerun would look like an edit.
-_COMPARABLE_FIELDS = (
-    "scenario_type",
-    "matrix",
-    "organisation",
-    "selected_entity",
-    "selected_techniques",
-    "selected_categories",
-    "selected_stride",
-    "selected_capabilities",
-    "scenario_seed",
-    "required_decisions",
-    "template_info",
-    "modifiers",
-)
+def inputs_changed(
+    persisted: ScenarioRequest | None, current: ScenarioRequest | None
+) -> bool:
+    """Has the form moved on from the inputs that produced the shown result?
 
-
-def comparable_inputs(snapshot: dict | None) -> dict:
-    """The user-chosen subset of a snapshot, for equality comparisons."""
-    if not snapshot:
-        return {}
-    return {
-        field_name: snapshot[field_name]
-        for field_name in _COMPARABLE_FIELDS
-        if field_name in snapshot
-    }
-
-
-def inputs_changed(persisted: dict | None, current: dict | None) -> bool:
-    """Has the form moved on from the inputs that produced the shown result?"""
-    if not persisted or not current:
+    Compares only the user's choices (:meth:`ScenarioRequest.choices`), so what
+    a page re-derives on each rerun never reads as an edit.
+    """
+    if persisted is None or current is None:
         return False
-    return comparable_inputs(persisted) != comparable_inputs(current)
+    return persisted.choices() != current.choices()

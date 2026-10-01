@@ -12,6 +12,13 @@ from core.detections import (
     resolve_defense_report,
 )
 from core.navigator import build_layer, dumps, normalise_technique_ids
+from core.request import (
+    CustomPayload,
+    Modifiers,
+    Organisation,
+    ScenarioRequest,
+    SelectedEntity,
+)
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
@@ -94,28 +101,28 @@ techniques_df, techniques_load_error = load_techniques()
 # only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
-def build_messages(snapshot):
+def build_messages(request: ScenarioRequest):
     return build_custom_messages(
-        matrix=snapshot["matrix"],
-        selected_techniques_string="\n".join(snapshot["selected_techniques"]),
-        template_info=snapshot["template_info"],
-        industry=snapshot["organisation"]["industry"],
-        company_size=snapshot["organisation"]["company_size"],
-        ai_uplift=snapshot["modifiers"]["ai_uplift"],
+        matrix=request.matrix,
+        selected_techniques_string="\n".join(request.techniques),
+        template_info=request.payload.template_info,
+        industry=request.organisation.industry,
+        company_size=request.organisation.company_size,
+        ai_uplift=request.modifiers.ai_uplift,
     )
 
 
-def build_layer_payload(snapshot):
+def build_layer_payload(request: ScenarioRequest):
     """Serialise the chosen techniques as an ATT&CK Navigator layer.
 
     The multiselect carries no phase information, so techniques are emitted
     without a tactic (valid — Navigator places them by ID). Returns the layer
     JSON, or ``None`` when the matrix has no Navigator.
     """
-    technique_ids = normalise_technique_ids(snapshot["selected_techniques"])
+    technique_ids = normalise_technique_ids(request.techniques)
     if not technique_ids:
         return None
-    matrix = snapshot["matrix"]
+    matrix = request.matrix
     layer = build_layer(
         name=f"AttackGen: Custom Scenario ({matrix})",
         matrix=matrix,
@@ -127,16 +134,16 @@ def build_layer_payload(snapshot):
     return dumps(layer)
 
 
-def build_defense_payload(snapshot):
+def build_defense_payload(request: ScenarioRequest):
     """Join the selected techniques to their detection strategies + mitigations.
 
     Normalises the same multiselect the prompt and layer were built from.
     Returns ``None`` when nothing is selected or there's no defensive data.
     """
-    technique_ids = normalise_technique_ids(snapshot["selected_techniques"])
+    technique_ids = normalise_technique_ids(request.techniques)
     if not technique_ids:
         return None
-    return resolve_defense_report(snapshot["matrix"], technique_ids)
+    return resolve_defense_report(request.matrix, technique_ids)
 
 
 def _modifiers():
@@ -247,26 +254,27 @@ def _requirements() -> list[str]:
     return []
 
 
-def _capture_inputs():
-    return {
-        "scenario_type": "custom",
-        "matrix": matrix,
-        "organisation": {"industry": industry, "company_size": company_size},
-        "selected_entity": (
-            {"type": "template", "name": selected_template}
+def _capture_inputs() -> ScenarioRequest:
+    return ScenarioRequest(
+        scenario_type="custom",
+        matrix=matrix,
+        organisation=Organisation(industry=industry, company_size=company_size),
+        selected_entity=(
+            SelectedEntity(type="template", name=selected_template)
             if selected_template
             else None
         ),
-        "selected_techniques": list(selected_techniques),
-        "sampled_techniques": list(selected_techniques),
-        "template_info": (
-            f"This is a '{selected_template}' scenario." if selected_template else ""
+        techniques=tuple(selected_techniques),
+        modifiers=Modifiers(
+            ai_uplift=is_ai_uplift_on("custom"),
+            purple_team_narrative=is_defense_narrative_on("custom"),
         ),
-        "modifiers": {
-            "ai_uplift": is_ai_uplift_on("custom"),
-            "purple_team_narrative": is_defense_narrative_on("custom"),
-        },
-    }
+        payload=CustomPayload(
+            template_info=(
+                f"This is a '{selected_template}' scenario." if selected_template else ""
+            ),
+        ),
+    )
 
 
 run_scenario_page(

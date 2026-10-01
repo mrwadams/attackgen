@@ -10,6 +10,13 @@ from core.detections import (
     resolve_defense_report,
 )
 from core.navigator import build_layer, dumps, tactic_shortname
+from core.request import (
+    Modifiers,
+    Organisation,
+    ScenarioRequest,
+    SelectedEntity,
+    ThreatGroupPayload,
+)
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
@@ -43,34 +50,33 @@ def load_groups(matrix):
 # only threads its own inputs + the AI-uplift toggle into the shared builder.
 
 
-def build_messages(snapshot):
+def build_messages(request: ScenarioRequest):
     return build_threat_group_messages(
-        matrix=snapshot["matrix"],
-        selected_group_alias=snapshot["selected_entity"]["name"],
-        kill_chain_string=snapshot["kill_chain_string"],
-        industry=snapshot["organisation"]["industry"],
-        company_size=snapshot["organisation"]["company_size"],
-        ai_uplift=snapshot["modifiers"]["ai_uplift"],
+        matrix=request.matrix,
+        selected_group_alias=request.selected_entity.name,
+        kill_chain_string=request.payload.kill_chain_string,
+        industry=request.organisation.industry,
+        company_size=request.organisation.company_size,
+        ai_uplift=request.modifiers.ai_uplift,
     )
 
 
-def build_layer_payload(snapshot):
+def build_layer_payload(request: ScenarioRequest):
     """Serialise the scenario's kill chain as an ATT&CK Navigator layer.
 
-    Reads the same ``selected_techniques_df`` the prompt was built from, so the
+    Reads the same sampled techniques the prompt was built from, so the
     exported layer matches the techniques the model was given (this page samples
     one technique per phase, so the set differs run to run). Returns the layer
     JSON, or ``None`` when the matrix has no Navigator.
     """
-    sampled_techniques = snapshot["sampled_techniques"]
-    if not sampled_techniques:
+    if not request.techniques:
         return None
     techniques = [
         (row["ATT&CK ID"], tactic_shortname(str(row["Phase Name"])))
-        for row in sampled_techniques
+        for row in request.techniques
     ]
-    matrix = snapshot["matrix"]
-    selected_group_alias = snapshot["selected_entity"]["name"]
+    matrix = request.matrix
+    selected_group_alias = request.selected_entity.name
     layer = build_layer(
         name=f"AttackGen: {selected_group_alias} ({matrix})",
         matrix=matrix,
@@ -85,17 +91,17 @@ def build_layer_payload(snapshot):
     return dumps(layer)
 
 
-def build_defense_payload(snapshot):
+def build_defense_payload(request: ScenarioRequest):
     """Join the scenario's techniques to their detection strategies + mitigations.
 
     Uses the same technique IDs the prompt and layer were built from, so the
     Detection & Response companion matches the scenario's kill chain. Returns
     ``None`` when there's no defensive data.
     """
-    technique_ids = snapshot["technique_ids"]
+    technique_ids = list(request.payload.technique_ids)
     if not technique_ids:
         return None
-    return resolve_defense_report(snapshot["matrix"], technique_ids)
+    return resolve_defense_report(request.matrix, technique_ids)
 
 
 def _modifiers():
@@ -235,21 +241,22 @@ def _requirements() -> list[str]:
     return []
 
 
-def _capture_inputs():
-    return {
-        "scenario_type": "case_study" if matrix == "ATLAS" else "threat_group",
-        "matrix": matrix,
-        "organisation": {"industry": industry, "company_size": company_size},
-        "selected_entity": {"type": entity_label, "name": selected_group_alias},
-        "selected_techniques": techniques_df.to_dict(orient="records"),
-        "sampled_techniques": selected_techniques_df.to_dict(orient="records"),
-        "technique_ids": technique_ids,
-        "kill_chain_string": kill_chain_string,
-        "modifiers": {
-            "ai_uplift": is_ai_uplift_on("threat_group"),
-            "purple_team_narrative": is_defense_narrative_on("threat_group"),
-        },
-    }
+def _capture_inputs() -> ScenarioRequest:
+    return ScenarioRequest(
+        scenario_type="case_study" if matrix == "ATLAS" else "threat_group",
+        matrix=matrix,
+        organisation=Organisation(industry=industry, company_size=company_size),
+        selected_entity=SelectedEntity(type=entity_label, name=selected_group_alias),
+        techniques=tuple(selected_techniques_df.to_dict(orient="records")),
+        modifiers=Modifiers(
+            ai_uplift=is_ai_uplift_on("threat_group"),
+            purple_team_narrative=is_defense_narrative_on("threat_group"),
+        ),
+        payload=ThreatGroupPayload(
+            kill_chain_string=kill_chain_string,
+            technique_ids=tuple(technique_ids),
+        ),
+    )
 
 
 run_scenario_page(

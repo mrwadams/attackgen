@@ -2,14 +2,25 @@
 
 These are pure functions, so the assertions are about the externally visible
 facts a reader relies on: which sections a long scenario exposes for
-navigation, which facilitator shortcuts are found, how a snapshot reads back,
-and whether the form has moved on from the result on screen.
+navigation, which facilitator shortcuts are found, how a scenario request reads
+back, and whether the form has moved on from the result on screen.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from core.request import (
+    AIInsiderPayload,
+    CustomPayload,
+    Modifiers,
+    Organisation,
+    RequestIdentity,
+    ScenarioRequest,
+    SelectedEntity,
+    ThreatGroupPayload,
+)
 from core.summary import (
-    comparable_inputs,
     describe_inputs,
     extract_sections,
     inputs_changed,
@@ -102,23 +113,31 @@ class TestScenarioSummary:
         assert summary.is_useful is False
 
 
-SNAPSHOT = {
-    "scenario_type": "threat_group",
-    "matrix": "Enterprise",
-    "organisation": {"industry": "Finance / Banking", "company_size": "Medium (51-200 employees)"},
-    "selected_entity": {"type": "threat actor group", "name": "APT29"},
-    "selected_techniques": [{"ATT&CK ID": "T1566"}, {"ATT&CK ID": "T1059"}],
-    "sampled_techniques": [{"ATT&CK ID": "T1566"}],
-    "kill_chain_string": "Initial Access: Phishing",
-    "modifiers": {"ai_uplift": False, "purple_team_narrative": True},
-    "identity": {"model": "gpt-5.6-sol", "provider": "OpenAI API"},
-    "captured_at": "2026-09-08T09:30:00+00:00",
-}
+REQUEST = ScenarioRequest(
+    scenario_type="threat_group",
+    matrix="Enterprise",
+    organisation=Organisation(
+        industry="Finance / Banking", company_size="Medium (51-200 employees)"
+    ),
+    selected_entity=SelectedEntity(type="threat actor group", name="APT29"),
+    techniques=({"ATT&CK ID": "T1566", "Phase Name": "Initial Access"},),
+    modifiers=Modifiers(ai_uplift=False, purple_team_narrative=True),
+    payload=ThreatGroupPayload(
+        kill_chain_string="Initial Access: Phishing", technique_ids=("T1566",)
+    ),
+    identity=RequestIdentity(
+        page_id="threat_group",
+        trace_name="Threat Group Scenario",
+        model="gpt-5.6-sol",
+        provider="OpenAI API",
+    ),
+    captured_at="2026-09-08T09:30:00+00:00",
+)
 
 
 class TestInputDescription:
-    def test_snapshot_reads_back_as_human_facts(self) -> None:
-        facts = dict(describe_inputs(SNAPSHOT))
+    def test_request_reads_back_as_human_facts(self) -> None:
+        facts = dict(describe_inputs(REQUEST))
 
         assert facts["Framework"] == "Enterprise ATT&CK"
         assert facts["Industry"] == "Finance / Banking"
@@ -130,7 +149,7 @@ class TestInputDescription:
         assert facts["Generated"].startswith("2026-09-08")
 
     def test_summary_line_covers_the_pre_flight_confirmation(self) -> None:
-        line = summary_line(SNAPSHOT)
+        line = summary_line(REQUEST)
 
         assert "Enterprise ATT&CK" in line
         assert "Finance / Banking" in line
@@ -138,36 +157,53 @@ class TestInputDescription:
         assert "Purple-team narrative" in line
 
     def test_only_enabled_modifiers_are_named(self) -> None:
-        assert modifier_labels(SNAPSHOT) == ("Purple-team narrative",)
-        assert modifier_labels({"modifiers": {}}) == ()
-        assert modifier_labels({"modifiers": {"template": "Evaluation Escape"}}) == (
-            "Template: Evaluation Escape",
+        assert modifier_labels(REQUEST) == ("Purple-team narrative",)
+        assert modifier_labels(ScenarioRequest(modifiers=Modifiers())) == ()
+        assert modifier_labels(ScenarioRequest()) == ()
+        assert modifier_labels(
+            ScenarioRequest(modifiers=Modifiers(template="Evaluation Escape"))
+        ) == ("Template: Evaluation Escape",)
+
+    def test_technique_count_comes_from_the_one_techniques_field(self) -> None:
+        custom = ScenarioRequest(
+            scenario_type="custom",
+            matrix="Enterprise",
+            techniques=("Phishing (T1566)", "PowerShell (T1059.001)"),
+            payload=CustomPayload(),
         )
+
+        assert custom.technique_count == 2
+        assert dict(describe_inputs(custom))["Techniques"] == "2 techniques"
 
     def test_ai_insider_selections_are_described(self) -> None:
         facts = dict(
             describe_inputs(
-                {
-                    "scenario_type": "ai_insider",
-                    "selected_entity": {
-                        "type": "deployment_archetype",
-                        "name": "Autonomous Agent",
-                    },
-                    "selected_categories": ["Data Exfiltration"],
-                    "selected_stride": ["S1"],
-                    "scenario_seed": "An overnight evaluation run.",
-                    "required_decisions": ["Containment — who pulls the plug"],
-                    "modifiers": {},
-                }
+                ScenarioRequest(
+                    scenario_type="ai_insider",
+                    selected_entity=SelectedEntity(
+                        type="deployment_archetype", name="Autonomous Agent"
+                    ),
+                    modifiers=Modifiers(),
+                    payload=AIInsiderPayload(
+                        selected_categories=("Data Exfiltration",),
+                        selected_stride=("S1",),
+                        scenario_seed="An overnight evaluation run.",
+                        required_decisions=("Containment — who pulls the plug",),
+                    ),
+                )
             )
         )
 
         assert facts["Deployment archetype"] == "Autonomous Agent"
         assert facts["Threat categories"] == "Data Exfiltration"
+        assert facts["STRIDE threats"] == "S1"
         assert facts["Scenario seed"] == "Provided"
         assert facts["Required decisions"] == "Containment"
+        # No framework and no techniques: nothing is invented for them.
+        assert "Framework" not in facts
+        assert "Techniques" not in facts
 
-    def test_empty_snapshot_describes_nothing(self) -> None:
+    def test_absent_request_describes_nothing(self) -> None:
         assert describe_inputs(None) == ()
         assert summary_line(None) == ""
 
@@ -175,30 +211,58 @@ class TestInputDescription:
 class TestInputsChanged:
     def test_resampled_techniques_are_not_an_edit(self) -> None:
         """Page 1 resamples one technique per phase on every rerun."""
-        rerun = dict(SNAPSHOT, sampled_techniques=[{"ATT&CK ID": "T1059"}])
-        rerun["kill_chain_string"] = "Execution: Command and Scripting Interpreter"
+        rerun = replace(
+            REQUEST,
+            techniques=({"ATT&CK ID": "T1059", "Phase Name": "Execution"},),
+            payload=ThreatGroupPayload(
+                kill_chain_string="Execution: Command and Scripting Interpreter",
+                technique_ids=("T1059",),
+            ),
+        )
 
-        assert inputs_changed(SNAPSHOT, rerun) is False
+        assert inputs_changed(REQUEST, rerun) is False
 
     def test_changing_a_selection_is_an_edit(self) -> None:
-        edited = dict(SNAPSHOT, selected_entity={"type": "threat actor group", "name": "APT28"})
+        edited = replace(
+            REQUEST, selected_entity=SelectedEntity(type="threat actor group", name="APT28")
+        )
 
-        assert inputs_changed(SNAPSHOT, edited) is True
+        assert inputs_changed(REQUEST, edited) is True
 
     def test_changing_a_modifier_is_an_edit(self) -> None:
-        edited = dict(SNAPSHOT, modifiers={"ai_uplift": True, "purple_team_narrative": True})
+        edited = replace(
+            REQUEST, modifiers=Modifiers(ai_uplift=True, purple_team_narrative=True)
+        )
 
-        assert inputs_changed(SNAPSHOT, edited) is True
+        assert inputs_changed(REQUEST, edited) is True
+
+    def test_changing_custom_techniques_is_an_edit(self) -> None:
+        """Only page 1 re-derives its techniques; page 2's are the user's pick."""
+        custom = ScenarioRequest(
+            scenario_type="custom", techniques=("Phishing (T1566)",), payload=CustomPayload()
+        )
+        edited = replace(custom, techniques=("PowerShell (T1059.001)",))
+
+        assert inputs_changed(custom, edited) is True
+
+    def test_changing_an_ai_insider_payload_field_is_an_edit(self) -> None:
+        request = ScenarioRequest(
+            scenario_type="ai_insider",
+            payload=AIInsiderPayload(selected_categories=("Data Exfiltration",)),
+        )
+        edited = replace(request, payload=AIInsiderPayload(scenario_seed="New seed"))
+
+        assert inputs_changed(request, edited) is True
 
     def test_nothing_to_compare_is_never_stale(self) -> None:
-        assert inputs_changed(SNAPSHOT, None) is False
-        assert inputs_changed(None, SNAPSHOT) is False
+        assert inputs_changed(REQUEST, None) is False
+        assert inputs_changed(None, REQUEST) is False
 
-    def test_comparable_inputs_drop_the_run_specific_fields(self) -> None:
-        comparable = comparable_inputs(SNAPSHOT)
+    def test_choices_drop_the_run_specific_fields(self) -> None:
+        choices = REQUEST.choices()
 
-        assert "sampled_techniques" not in comparable
-        assert "kill_chain_string" not in comparable
-        assert "captured_at" not in comparable
-        assert "identity" not in comparable
-        assert comparable["matrix"] == "Enterprise"
+        assert "techniques" not in choices
+        assert choices["payload"] == {}
+        assert "captured_at" not in choices
+        assert "identity" not in choices
+        assert choices["matrix"] == "Enterprise"
