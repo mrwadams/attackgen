@@ -104,10 +104,10 @@ The `verify` job **fails fast if the tag does not match `pyproject.toml`'s `vers
 - **langsmith**: Optional tracing (`@traceable`) and feedback logging
 
 ### LLM Provider Support
-All providers go through `core/llm.py:call_llm`. Currently supported:
-- OpenAI API (GPT-5.x family)
-- Anthropic API (Claude 4.x family)
-- Google AI API (Gemini 3.x family)
+All providers go through `core/llm.py:call_llm`. Currently supported (the model list lives in `core/models.py`):
+- OpenAI API
+- Anthropic API
+- Google AI API
 - Mistral API
 - Groq API
 - Custom (any OpenAI-compatible endpoint — e.g. `http://localhost:11434/v1` for Ollama, `http://localhost:1234/v1` for LM Studio, OpenRouter, an Azure OpenAI deployment, etc.)
