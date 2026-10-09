@@ -144,6 +144,30 @@ class TestDataTools:
         # Categories weren't overridden, so the template's still apply.
         assert "Containment & Third-Party Impact" in user
 
+    def test_advertised_stride_values_round_trip_into_the_prompt(self):
+        """Every `stride` value `list_ai_insider_options` returns, passed back, must
+        produce its threat in the prompt rather than being dropped."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        for option in s.list_ai_insider_options()["stride"]:
+            out = s.get_ai_insider_prompt(
+                archetype, stride=[option], industry="Healthcare", company_size="Large",
+            )
+            assert option in out["messages"][1]["content"]
+
+    def test_bare_stride_codes_are_still_accepted(self):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        out = s.get_ai_insider_prompt(
+            archetype, stride=["S1"], industry="Healthcare", company_size="Large",
+        )
+        assert "S1 — Credential Harvesting" in out["messages"][1]["content"]
+
+    def test_unknown_stride_value_raises(self):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        with pytest.raises(ValueError, match="Unknown STRIDE threat"):
+            s.get_ai_insider_prompt(
+                archetype, stride=["Z9 — Nope"], industry="Healthcare", company_size="Large",
+            )
+
     def test_unknown_template_raises(self):
         with pytest.raises(ValueError, match="Unknown template"):
             s.get_ai_insider_prompt(template="Nope", industry="Tech", company_size="Large")

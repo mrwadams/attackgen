@@ -223,6 +223,22 @@ def list_ai_insider_options() -> dict:
     }
 
 
+def _stride_codes(values: list[str]) -> list[str]:
+    """Normalise STRIDE selections to bare codes (``"S1"``).
+
+    ``list_ai_insider_options`` advertises display labels (``"S1 — Credential ..."``)
+    while templates carry codes, and the prompt builder only understands codes, so
+    accept either form here. Raises ``ValueError`` for a value that is neither,
+    rather than letting the builder drop it silently.
+    """
+    codes = [aip.stride_code_from_option(value) for value in values]
+    unknown = [value for value, code in zip(values, codes) if code not in aip.STRIDE_THREATS]
+    if unknown:
+        valid = ", ".join(aip.stride_options())
+        raise ValueError(f"Unknown STRIDE threat {unknown}. Valid values: {valid}.")
+    return codes
+
+
 def _resolve_ai_insider_inputs(
     template: str | None,
     archetype: str,
@@ -256,7 +272,7 @@ def _resolve_ai_insider_inputs(
     return {
         "archetype_name": resolved_archetype,
         "selected_categories": categories or preset.get("categories", []),
-        "selected_stride": stride or preset.get("stride", []),
+        "selected_stride": _stride_codes(stride or preset.get("stride", [])),
         "selected_capabilities": capabilities,
         "industry": industry,
         "company_size": company_size,
