@@ -168,6 +168,24 @@ class TestDataTools:
                 archetype, stride=["Z9 — Nope"], industry="Healthcare", company_size="Large",
             )
 
+    def test_stride_label_with_the_wrong_name_raises(self):
+        """A known code in front of a name that isn't its own is not that threat."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        with pytest.raises(ValueError, match="Unknown STRIDE threat"):
+            s.get_ai_insider_prompt(
+                archetype, stride=["S1 — Not The Real Name"],
+                industry="Healthcare", company_size="Large",
+            )
+
+    def test_stride_code_and_its_label_together_appear_once(self):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        label = s.list_ai_insider_options()["stride"][0]
+        code = label.split(" — ", 1)[0]
+        out = s.get_ai_insider_prompt(
+            archetype, stride=[code, label], industry="Healthcare", company_size="Large",
+        )
+        assert out["messages"][1]["content"].count(f"- **{label}**") == 1
+
     def test_unknown_template_raises(self):
         with pytest.raises(ValueError, match="Unknown template"):
             s.get_ai_insider_prompt(template="Nope", industry="Tech", company_size="Large")

@@ -228,15 +228,19 @@ def _stride_codes(values: list[str]) -> list[str]:
 
     ``list_ai_insider_options`` advertises display labels (``"S1 — Credential ..."``)
     while templates carry codes, and the prompt builder only understands codes, so
-    accept either form here. Raises ``ValueError`` for a value that is neither,
-    rather than letting the builder drop it silently.
+    accept either form here. A value must match a code or an advertised label
+    exactly — a known code followed by the wrong name is rejected, not read as
+    that code. Raises ``ValueError`` for anything else, rather than letting the
+    builder drop it silently. A threat named twice (as a code and as its label)
+    is kept once, in first-seen order.
     """
-    codes = [aip.stride_code_from_option(value) for value in values]
-    unknown = [value for value, code in zip(values, codes) if code not in aip.STRIDE_THREATS]
+    by_value = {code: code for code in aip.STRIDE_THREATS}
+    by_value.update({option: aip.stride_code_from_option(option) for option in aip.stride_options()})
+    unknown = [value for value in values if value not in by_value]
     if unknown:
         valid = ", ".join(aip.stride_options())
         raise ValueError(f"Unknown STRIDE threat {unknown}. Valid values: {valid}.")
-    return codes
+    return list(dict.fromkeys(by_value[value] for value in values))
 
 
 def _resolve_ai_insider_inputs(
