@@ -197,9 +197,10 @@ def get_detection_report(matrix: Matrix, technique_ids: list[str]) -> dict:
     Joins the techniques to MITRE's detection strategies/analytics (Enterprise/
     ICS, ATT&CK v18+) and mitigations — no LLM call. ``technique_ids`` may be bare
     IDs (``"T1059"``, ``"AML.T0051"``) or ``"Name (ID)"`` labels. Returns
-    ``{"matrix", "markdown"}``; ``markdown`` is ``None`` when there's no defensive
-    data (e.g. ATLAS, which has mitigations only). Raises ``ValueError`` for an
-    ID the matrix's bundle does not contain.
+    ``{"matrix", "markdown"}``. For ATLAS, ``markdown`` lists mitigations only,
+    because ATLAS publishes no detection strategies. ``markdown`` is ``None``
+    only when ``technique_ids`` is empty. Raises ``ValueError`` for an ID the
+    matrix's bundle does not contain.
     """
     ids = _known_technique_ids(matrix, technique_ids)
     report = resolve_defense_report(matrix, ids)
@@ -239,9 +240,10 @@ def list_ai_insider_options() -> dict:
     ``stride`` threats, agent ``capabilities`` and quick-start ``templates``.
 
     Each entry in ``templates`` carries its ``name`` plus the selections it
-    applies (``archetype``, ``categories``, ``stride``) and its narrative
-    ``brief`` where it has one, so a template can be chosen on merit and passed
-    straight to ``template=``.
+    applies (``archetype``, ``categories``, ``stride``), its narrative ``brief``
+    (an empty string when it has none) and the ``required_decisions`` its
+    Discussion Questions must force, so a template can be chosen on merit and
+    passed straight to ``template=``.
     """
     return {
         "archetypes": list(aip.DEPLOYMENT_ARCHETYPES.keys()),
