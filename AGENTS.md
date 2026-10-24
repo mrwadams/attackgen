@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to coding agents (e.g. OpenAI Codex) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## Project Overview
 
@@ -40,6 +40,17 @@ pytest
 In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.11–3.14 for every push and pull request to `main`. `release.yml` keeps its own copy of that job so a release gates on its own tag rather than on whatever last ran against `main`.
 
 `tests/test_console_smoke.py` and `tests/test_accessibility_smoke.py` are real-browser checks (Playwright + a headless `streamlit run`) for console hygiene and keyboard/focus/label accessibility on the Welcome and Threat Group Scenarios pages — both `@pytest.mark.browser`. They skip themselves (not fail) when Playwright or its Chromium binary is missing, so `pytest` alone stays green on a machine without a browser. The separate **`browser`** job in `tests.yml` (mirrored in `release.yml`, where `docker` gates on it) installs Chromium and runs `pytest -m browser` with `ATTACKGEN_REQUIRE_BROWSER=1`, which flips those skips to failures — without it the job would report success having run nothing. To run them locally, set the same flag so a failed Chromium install or a `streamlit run` that cannot bind reports red rather than `7 skipped`: `pip install -r requirements-dev.txt && playwright install chromium && ATTACKGEN_REQUIRE_BROWSER=1 pytest -m browser`.
+
+### Cutting a Release
+Releases are automated by `.github/workflows/release.yml`, which fires on **3-component semver tags** (`v*.*.*`, e.g. `v0.14.0`). Pushing such a tag runs the whole pipeline: **verify** the tag matches the packaged version → **test** (pytest on Python 3.11–3.14) → **build & push** a multi-arch (`linux/amd64,linux/arm64`) image to Docker Hub as `mrwadams/attackgen` (tagged `{version}`, `{major}.{minor}`, and `latest`) → **cut a GitHub Release** with generated notes. The image builds from the existing `Dockerfile` (its pinned base is a multi-arch OCI index, so arm64 works unchanged).
+
+To cut a release:
+```bash
+# 1. Bump the version in pyproject.toml (e.g. 0.14.0 -> 0.15.0) and land it on main via PR.
+# 2. Tag the merged commit on main and push the tag:
+git tag v0.15.0 && git push origin v0.15.0
+```
+The `verify` job **fails fast if the tag does not match `pyproject.toml`'s `version`**, so always bump the version first — never tag ahead of the packaged version. Use strict `X.Y.Z` tags (the `type=semver` Docker tagging needs three components; older two-component tags like `v0.13` predate this pipeline). The pipeline needs repo secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` (already configured). The emulated arm64 build is the long pole (~9 min); the run is otherwise fast.
 
 ## Architecture
 
