@@ -13,7 +13,9 @@ Two tiers of tools, one MCP server:
   server-side via ``core.llm.call_llm`` and return a finished Markdown scenario.
   The provider/model/key are passed as tool arguments; when ``api_key`` is
   omitted, LiteLLM falls back to the provider's env var (``OPENAI_API_KEY`` etc.)
-  — i.e. the *caller's own* key. Keep these on local stdio; do not expose them on
+  — i.e. the *caller's own* key. For Custom, omitted ``model``/``api_key``/
+  ``api_base`` fall back to ``CUSTOM_MODEL_NAME``/``CUSTOM_API_KEY``/
+  ``CUSTOM_BASE_URL``, as in the Streamlit sidebar. Keep these on local stdio; do not expose them on
   a shared host, since they read credentials from the process environment.
 
 Run locally over stdio (default). Register in Claude Code with:
@@ -73,12 +75,22 @@ def _make_config(
     Validates the provider (and, except for Custom, the model) against the
     registry in ``core/models.py`` so a typo fails loudly instead of producing a
     confusing LiteLLM error. ``api_key=None`` leaves LiteLLM to read the
-    provider's env var — the caller's own key.
+    provider's env var — the caller's own key. Custom is the exception: core.llm
+    forces LiteLLM's OpenAI path for it, so the sidebar's fallbacks are applied
+    here instead — ``CUSTOM_MODEL_NAME``, ``CUSTOM_API_KEY``, and
+    ``CUSTOM_BASE_URL`` then the registry default.
     """
-    if get_provider(provider) is None:
+    provider_info = get_provider(provider)
+    if provider_info is None:
         raise ValueError(f"Unknown provider '{provider}'. Valid: {sorted(PROVIDERS)}")
+    if provider == "Custom":
+        model = model or os.getenv("CUSTOM_MODEL_NAME", "")
+        api_key = api_key or os.getenv("CUSTOM_API_KEY")
+        api_base = api_base or os.getenv("CUSTOM_BASE_URL") or provider_info.default_api_base
     if not model:
-        raise ValueError("A model name is required (or set ATTACKGEN_MODEL).")
+        raise ValueError(
+            "A model name is required (or set ATTACKGEN_MODEL, or CUSTOM_MODEL_NAME for Custom)."
+        )
     if provider != "Custom":
         valid = {m.model_id for m in get_models_for_provider(provider)}
         if model not in valid:
