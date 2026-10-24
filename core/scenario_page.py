@@ -69,7 +69,7 @@ from core.llm import call_llm_stream
 from core.navigator import layer_filename, navigator_for_domain
 from core.request import RequestIdentity, ScenarioRequest
 from core.response import clean_model_response, stream_filter_thinking
-from core.schemas import LLMConfig
+from core.schemas import MODEL_KEY, PROVIDER_KEY, LLMConfig
 from core.state import setup_was_restored_from_link
 from core.summary import (
     describe_inputs,
@@ -595,8 +595,8 @@ def run_scenario_page(
                 page_id=page_id,
                 trace_name=trace_name,
                 trace_tags=tuple(trace_tags),
-                provider=st.session_state.get("chosen_model_provider"),
-                model=st.session_state.get("llm_model_name"),
+                provider=st.session_state.get(PROVIDER_KEY),
+                model=st.session_state.get(MODEL_KEY),
                 download_name=download_name,
             ),
         )

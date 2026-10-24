@@ -18,15 +18,16 @@ from __future__ import annotations
 import streamlit as st
 
 from core.models import PROVIDERS
+from core.schemas import API_BASE_KEY, MODEL_KEY, PROVIDER_KEY
 
 # Mapping: session_state key → short query-param name.
 # These are *shadow* keys (not widget `key=` values). Streamlit clears
 # widget-key entries from session_state when navigating to a page that doesn't
 # host the widget; shadow keys persist across navigation regardless.
 PERSISTED: dict[str, str] = {
-    "chosen_model_provider": "p",
-    "llm_model_name": "m",
-    "llm_api_base": "b",
+    PROVIDER_KEY: "p",
+    MODEL_KEY: "m",
+    API_BASE_KEY: "b",
     "matrix": "x",
     "industry": "i",
     "company_size": "s",
@@ -59,7 +60,7 @@ def restore_from_query_params() -> None:
         value = qp[qp_key]
         # Drop values that no longer correspond to a known provider/matrix —
         # otherwise a stale URL could put us in an invalid state.
-        if ss_key == "chosen_model_provider" and value not in PROVIDERS:
+        if ss_key == PROVIDER_KEY and value not in PROVIDERS:
             continue
         if ss_key == "matrix" and value not in _VALID_MATRICES:
             continue
