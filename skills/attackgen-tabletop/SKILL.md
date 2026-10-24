@@ -84,8 +84,9 @@ variant (`references/exercise-format.md`) rather than switching paths.
 
 3. **Pull detection data:** call `get_detection_report` with `matrix` and the
    `ATT&CK ID`s from step 2; use its `markdown` as the Detection & Response
-   section. When it is `null` (ATLAS has mitigations only), say so and keep
-   detection guidance light.
+   section. For ATLAS the report lists mitigations only, because ATLAS publishes
+   no detection strategies. Say so, use those mitigations, and leave out the DET
+   ids, analytics and log sources rather than inventing them.
 
 4. **(Optional) Coverage layer:** for a visual, call `get_navigator_layer` with
    the same IDs and offer the `layer_json` as a downloadable Navigator layer.
