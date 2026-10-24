@@ -25,3 +25,6 @@ test-optimization.html
 
 # Doc review report (local only)
 doc-review.html
+
+# Created by the editable install in requirements.txt
+*.egg-info/

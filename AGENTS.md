@@ -81,7 +81,7 @@ In CI, `.github/workflows/tests.yml` runs the same suite on Python 3.11–3.14 f
 ### Configuration
 - **.env**: API keys and secrets (not tracked in git)
 - **.streamlit/secrets.toml**: Streamlit secrets for LangSmith integration
-- **requirements.txt**: Python dependencies — `litellm`, `mcp`, `openai`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`, `python-dotenv`
+- **pyproject.toml** `[project].dependencies`: the one runtime dependency list (Dependabot updates it); `requirements.txt` is `-e .` and installs from it — `litellm`, `mcp`, `openai`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`, `python-dotenv`
 - **requirements-dev.txt**: Development dependencies (`pytest`); installs `requirements.txt` plus test tooling
 
 ### Key Libraries
