@@ -54,7 +54,17 @@ jobs:
           # suppress it here with `--ignore-vuln GHSA-xxxx` and a reason, so
           # the exception lands in a reviewable diff rather than being blanket
           # ignored by continue-on-error.
-          pip-audit --desc
+          #
+          # filelock CVE-2026-112940, CVE-2026-112913, CVE-2026-112907: fixed in
+          # filelock 4.2.1, but every litellm release (1.106.2, 1.107.0rc2) pins
+          # filelock<4.0. Forcing 4.x backtracks litellm to 1.103.8. The first two
+          # are in ReadWriteLock/AsyncReadWriteLock, which no installed package
+          # uses. The third affects soft locks on Windows only. Remove these once
+          # litellm allows filelock 4.x.
+          pip-audit --desc \
+            --ignore-vuln CVE-2026-112940 \
+            --ignore-vuln CVE-2026-112913 \
+            --ignore-vuln CVE-2026-112907
 
       - name: Upload security reports
         uses: actions/upload-artifact@v7
