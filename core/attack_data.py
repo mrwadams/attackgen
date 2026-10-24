@@ -84,6 +84,23 @@ def mitre_data_for_matrix(matrix: str) -> MitreAttackData:
     raise ValueError(f"No MitreAttackData bundle for matrix '{matrix}' (use atlas_data() for ATLAS).")
 
 
+def unknown_technique_ids(matrix: str, technique_ids: list[str]) -> list[str]:
+    """Return the technique IDs the matrix's bundle does not contain.
+
+    ``technique_ids`` are bare external IDs (``"T1059"``, ``"T1059.001"``,
+    ``"AML.T0051"``). An ID counts as known when the bundle has it, including
+    deprecated and revoked techniques. The result keeps input order with
+    duplicates removed, and is empty when every ID resolves. Raises
+    ``ValueError`` for an unknown matrix.
+    """
+    ids = list(dict.fromkeys(technique_ids))
+    if matrix == "ATLAS":
+        bundle = atlas_data()
+        return [tid for tid in ids if not bundle.get_technique_by_id(tid)]
+    bundle = mitre_data_for_matrix(matrix)
+    return [tid for tid in ids if bundle.get_object_by_attack_id(tid, "attack-pattern") is None]
+
+
 def load_attack_data() -> dict:
     """The ``{"enterprise","ics","atlas"}`` bundle dict the pages expect.
 

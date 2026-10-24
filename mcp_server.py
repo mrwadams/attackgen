@@ -172,6 +172,24 @@ def get_kill_chain(
     return result
 
 
+def _known_technique_ids(matrix: Matrix, techniques: list[str]) -> list[str]:
+    """Normalise techniques to bare IDs and require each one to be in the bundle.
+
+    Accepts bare IDs or ``"Name (ID)"`` labels. Raises ``ValueError`` naming
+    every ID the matrix's bundle does not contain, rather than letting the
+    scenario, layer and detection report disagree about which techniques they
+    cover.
+    """
+    ids = normalise_technique_ids(techniques)
+    unknown = ad.unknown_technique_ids(matrix, ids)
+    if unknown:
+        raise ValueError(
+            f"Unknown {matrix} technique ID(s) {unknown}. "
+            "Check for typos, or whether they belong to a different matrix."
+        )
+    return ids
+
+
 @mcp.tool()
 def get_detection_report(matrix: Matrix, technique_ids: list[str]) -> dict:
     """Get the purple-team Detection & Response join for a set of techniques.
@@ -180,9 +198,10 @@ def get_detection_report(matrix: Matrix, technique_ids: list[str]) -> dict:
     ICS, ATT&CK v18+) and mitigations — no LLM call. ``technique_ids`` may be bare
     IDs (``"T1059"``, ``"AML.T0051"``) or ``"Name (ID)"`` labels. Returns
     ``{"matrix", "markdown"}``; ``markdown`` is ``None`` when there's no defensive
-    data (e.g. ATLAS, which has mitigations only).
+    data (e.g. ATLAS, which has mitigations only). Raises ``ValueError`` for an
+    ID the matrix's bundle does not contain.
     """
-    ids = normalise_technique_ids(technique_ids)
+    ids = _known_technique_ids(matrix, technique_ids)
     report = resolve_defense_report(matrix, ids)
     return {"matrix": matrix, "markdown": defense_to_markdown(report) if report else None}
 
@@ -198,9 +217,10 @@ def get_navigator_layer(
 
     ``technique_ids`` may be bare IDs or ``"Name (ID)"`` labels. Returns
     ``{"layer_json"}`` (a JSON string ready to upload to the Navigator), or
-    ``layer_json=None`` for a matrix with no Navigator domain.
+    ``layer_json=None`` for a matrix with no Navigator domain. Raises
+    ``ValueError`` for an ID the matrix's bundle does not contain.
     """
-    ids = normalise_technique_ids(technique_ids)
+    ids = _known_technique_ids(matrix, technique_ids)
     layer = build_layer(
         name=name,
         matrix=matrix,
@@ -398,10 +418,12 @@ def generate_custom_scenario(
 
     ``techniques`` may be bare IDs or ``"Name (ID)"`` labels. Calls the model
     (BYO-key) and returns finished Markdown. ``include_detection`` appends the
-    purple-team Detection & Response section.
+    purple-team Detection & Response section. Raises ``ValueError`` for an ID
+    the matrix's bundle does not contain, before any model call.
     """
     if not techniques:
         raise ValueError("At least one technique is required.")
+    ids = _known_technique_ids(matrix, techniques)
     selected_techniques_string = "\n".join(techniques)
     messages = build_custom_messages(
         matrix=matrix,
@@ -417,7 +439,7 @@ def generate_custom_scenario(
     )
     scenario = _generate(config, messages)
     if include_detection:
-        report = resolve_defense_report(matrix, normalise_technique_ids(techniques))
+        report = resolve_defense_report(matrix, ids)
         detection = defense_to_markdown(report) if report else None
         if detection:
             scenario = f"{scenario}\n\n---\n\n{detection}"
