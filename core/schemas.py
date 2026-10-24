@@ -6,6 +6,12 @@ from dataclasses import dataclass
 
 import streamlit as st
 
+# Session-state keys the shared Setup sidebar writes and LLMConfig reads.
+PROVIDER_KEY = "chosen_model_provider"
+MODEL_KEY = "llm_model_name"
+API_BASE_KEY = "llm_api_base"
+API_KEY_KEY = "llm_api_key"
+
 
 @dataclass
 class LLMConfig:
@@ -32,10 +38,10 @@ class LLMConfig:
     ) -> "LLMConfig":
         """Build an LLMConfig from the keys the shared Setup sidebar populates."""
         return cls(
-            provider=st.session_state.get("chosen_model_provider", "OpenAI API"),
-            model_name=st.session_state.get("llm_model_name", ""),
-            api_key=st.session_state.get("llm_api_key") or None,
-            api_base=st.session_state.get("llm_api_base") or None,
+            provider=st.session_state.get(PROVIDER_KEY, "OpenAI API"),
+            model_name=st.session_state.get(MODEL_KEY, ""),
+            api_key=st.session_state.get(API_KEY_KEY) or None,
+            api_base=st.session_state.get(API_BASE_KEY) or None,
             trace_name=trace_name,
             trace_tags=trace_tags,
         )

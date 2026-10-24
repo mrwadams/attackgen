@@ -16,6 +16,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from core.models import PROVIDERS, get_models_for_provider
+from core.schemas import API_BASE_KEY, API_KEY_KEY, MODEL_KEY, PROVIDER_KEY
 from core.state import restore_from_query_params, sync_to_query_params
 
 MATRIX_OPTIONS = ["Enterprise", "ICS", "ATLAS"]
@@ -84,15 +85,15 @@ def get_setup_state(
     state = st.session_state if session_state is None else session_state
     env = os.environ if environ is None else environ
 
-    provider = state.get("chosen_model_provider")
+    provider = state.get(PROVIDER_KEY)
     provider_info = PROVIDERS.get(provider) if provider else None
-    api_key = state.get("llm_api_key") or (
+    api_key = state.get(API_KEY_KEY) or (
         env.get(provider_info.env_var) if provider_info and provider_info.env_var else None
     )
-    api_base = state.get("llm_api_base") or (
+    api_base = state.get(API_BASE_KEY) or (
         env.get("CUSTOM_BASE_URL") if provider_info and provider_info.needs_api_base else None
     )
-    model_name = state.get("llm_model_name") or (
+    model_name = state.get(MODEL_KEY) or (
         env.get("CUSTOM_MODEL_NAME") if provider == "Custom" else None
     )
     matrix = state.get("matrix")
@@ -150,7 +151,7 @@ def render_setup_sidebar() -> SetupState:
         # rather than using the shadow session keys as widget keys. The shadows
         # therefore survive page navigation and can also be mirrored to the URL.
         provider_options = list(PROVIDERS.keys())
-        persisted_provider = st.session_state.get("chosen_model_provider")
+        persisted_provider = st.session_state.get(PROVIDER_KEY)
         provider_idx = (
             provider_options.index(persisted_provider)
             if persisted_provider in provider_options
@@ -162,20 +163,20 @@ def render_setup_sidebar() -> SetupState:
             index=provider_idx,
             help="Determines which models are available below.",
         )
-        st.session_state["chosen_model_provider"] = provider
+        st.session_state[PROVIDER_KEY] = provider
         provider_info = PROVIDERS[provider]
 
         # A key entered for one provider must not silently become another
         # provider's credential. The owner marker itself is session-only.
         previous_key_provider = st.session_state.get("_llm_api_key_provider")
         if previous_key_provider and previous_key_provider != provider:
-            st.session_state.pop("llm_api_key", None)
+            st.session_state.pop(API_KEY_KEY, None)
         st.session_state["_llm_api_key_provider"] = provider
 
         env_key = os.getenv(provider_info.env_var) if provider_info.env_var else None
-        existing_key = env_key or st.session_state.get("llm_api_key") or ""
+        existing_key = env_key or st.session_state.get(API_KEY_KEY) or ""
         if provider_info.needs_api_key and env_key:
-            st.session_state["llm_api_key"] = env_key
+            st.session_state[API_KEY_KEY] = env_key
             st.success("API key loaded from .env")
         else:
             api_key_help = (
@@ -188,7 +189,7 @@ def render_setup_sidebar() -> SetupState:
                 api_key_help = (
                     "Optional. Leave blank if your endpoint doesn't require authentication."
                 )
-            st.session_state["llm_api_key"] = st.text_input(
+            st.session_state[API_KEY_KEY] = st.text_input(
                 (
                     f"{provider_info.name} API key"
                     if provider_info.needs_api_key
@@ -201,12 +202,12 @@ def render_setup_sidebar() -> SetupState:
 
         if provider_info.needs_api_base:
             initial_base = (
-                st.session_state.get("llm_api_base")
+                st.session_state.get(API_BASE_KEY)
                 or os.getenv("CUSTOM_BASE_URL")
                 or provider_info.default_api_base
                 or ""
             )
-            st.session_state["llm_api_base"] = st.text_input(
+            st.session_state[API_BASE_KEY] = st.text_input(
                 "Base URL",
                 value=initial_base,
                 help=(
@@ -216,15 +217,15 @@ def render_setup_sidebar() -> SetupState:
                 ),
             )
         else:
-            st.session_state["llm_api_base"] = None
+            st.session_state[API_BASE_KEY] = None
 
         models = get_models_for_provider(provider)
-        persisted_model = st.session_state.get("llm_model_name")
+        persisted_model = st.session_state.get(MODEL_KEY)
         if models:
             labels = [model.model_id for model in models]
             help_map = {model.model_id: model.help_text for model in models}
             model_idx = labels.index(persisted_model) if persisted_model in labels else 0
-            st.session_state["llm_model_name"] = st.selectbox(
+            st.session_state[MODEL_KEY] = st.selectbox(
                 "Model",
                 labels,
                 index=model_idx,
@@ -235,7 +236,7 @@ def render_setup_sidebar() -> SetupState:
             )
         else:
             initial_model = persisted_model or os.getenv("CUSTOM_MODEL_NAME") or ""
-            st.session_state["llm_model_name"] = st.text_input(
+            st.session_state[MODEL_KEY] = st.text_input(
                 "Model name",
                 value=initial_model,
                 help=(
