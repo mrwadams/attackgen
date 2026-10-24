@@ -304,6 +304,46 @@ class TestGenerateTools:
         )
         assert out == "ok"
 
+    def test_custom_provider_falls_back_to_env(
+        self, monkeypatch, no_langsmith, mock_litellm_completion
+    ):
+        monkeypatch.setenv("CUSTOM_MODEL_NAME", "env-model")
+        monkeypatch.setenv("CUSTOM_API_KEY", "env-key")
+        monkeypatch.setenv("CUSTOM_BASE_URL", "http://localhost:11434/v1")
+        s.generate_custom_scenario("Enterprise", ["T1059"], "F", "L", provider="Custom", model="")
+        _args, kwargs = mock_litellm_completion.calls[0]
+        assert kwargs["model"] == "env-model"
+        assert kwargs["api_key"] == "env-key"
+        assert kwargs["api_base"] == "http://localhost:11434/v1"
+
+    def test_custom_provider_arguments_beat_env(
+        self, monkeypatch, no_langsmith, mock_litellm_completion
+    ):
+        monkeypatch.setenv("CUSTOM_MODEL_NAME", "env-model")
+        monkeypatch.setenv("CUSTOM_API_KEY", "env-key")
+        monkeypatch.setenv("CUSTOM_BASE_URL", "http://localhost:11434/v1")
+        s.generate_custom_scenario(
+            "Enterprise", ["T1059"], "F", "L", provider="Custom", model="arg-model",
+            api_key="arg-key", api_base="http://example.test/v1",
+        )
+        _args, kwargs = mock_litellm_completion.calls[0]
+        assert kwargs["model"] == "arg-model"
+        assert kwargs["api_key"] == "arg-key"
+        assert kwargs["api_base"] == "http://example.test/v1"
+
+    def test_custom_provider_without_key_or_base(
+        self, monkeypatch, no_langsmith, mock_litellm_completion
+    ):
+        # A blank CUSTOM_API_KEY= counts as no key.
+        monkeypatch.setenv("CUSTOM_API_KEY", "")
+        monkeypatch.delenv("CUSTOM_BASE_URL", raising=False)
+        s.generate_custom_scenario(
+            "Enterprise", ["T1059"], "F", "L", provider="Custom", model="m"
+        )
+        _args, kwargs = mock_litellm_completion.calls[0]
+        assert kwargs["api_key"] == "not-required"
+        assert kwargs["api_base"] == s.PROVIDERS["Custom"].default_api_base
+
     def test_missing_model_raises(self, canned_kill_chain):
         with pytest.raises(ValueError):
             s.generate_threat_group_scenario(
