@@ -1,5 +1,7 @@
 -r requirements.txt
 pytest>=9.1.1
+# Parses ATLAS data in scripts/generate_atlas_case_studies.py.
+PyYAML>=6.0.3
 # Powers the browser-based smoke checks in tests/test_console_smoke.py and
 # tests/test_accessibility_smoke.py. Installing this package is not enough on
 # its own — a browser binary is also required (`playwright install chromium`);
