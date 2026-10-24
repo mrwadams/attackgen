@@ -36,7 +36,11 @@ If you find AttackGen useful, please consider starring the repository on GitHub.
 - Results persist for the session: each scenario page keeps its own latest result, its captured inputs and its downloads across reruns and navigation, and only an explicit **Regenerate** or **Clear result** replaces or removes it.
 - Long scenarios come with a compact summary and section navigation, including shortcuts to the injects, success criteria, metrics, artefacts and rules of engagement a facilitator runs the exercise from.
 - Capture user feedback on the quality of the generated scenarios.
-- Downloadable scenarios in Markdown format.
+- Detection & Response companion: for the scenario's techniques, AttackGen lists the matching ATT&CK detection strategies, analytics, log sources and mitigations, downloadable as a separate `_detection.md` file.
+- ATT&CK Navigator layer download for Threat Group and Custom scenarios, so you can view the scenario's techniques in the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/).
+- Optional toggles on the Threat Group and Custom pages: **AI-enhanced adversary** reframes the same kill chain as AI-accelerated, and **Purple-team narrative** adds a stage-by-stage defender's walkthrough built from the supplied detections and mitigations.
+- Downloadable scenarios in Markdown format, plus the detection report and Navigator layer.
+- MCP server (`attackgen-mcp`) that exposes kill chains, detection reports, Navigator layers and scenario generation to agentic clients, plus the `attackgen-tabletop` Agent Skill for turning that output into a facilitator-ready tabletop exercise.
 - Use the OpenAI API, Anthropic API (Claude models), Google AI API, Mistral API, Groq API, or any custom OpenAI-compatible endpoint (Ollama, LM Studio, Azure OpenAI, OpenRouter, etc.) to generate incident response scenarios. All providers are routed through [LiteLLM](https://github.com/BerriAI/litellm) behind a single internal wrapper, so adding a new model is a one-line change.
 - Available as a Docker container image for easy deployment.
 - Optional integration with [LangSmith](https://docs.smith.langchain.com/) for powerful debugging, testing, and monitoring of model performance.
@@ -381,9 +385,9 @@ This command will start the container and map port 8501 (default for Streamlit a
 3. Select your organisation's industry and size from the dropdown menus.
 4. Navigate to the `AI Insider Threat Scenarios` page.
 5. (Optional) Pick a template to pre-populate the deployment archetype, threat categories and STRIDE threats for a common scenario.
-6. Choose the **deployment archetype** that reflects how autonomously the AI agent operates inside your organisation (e.g. supervised assistant, autonomous agent, fully autonomous fleet). This is the primary driver of the agent's threat surface.
-7. Select one or more **threat categories** (Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, Deception & Evasion).
-8. (Optional) Narrow the scenario to specific **STRIDE threats**. If left empty, the STRIDE threats associated with your selected categories are used automatically. These are the 23 STRIDE threats from the underlying paper.
+6. Choose the **deployment archetype** that reflects how autonomously the AI agent operates inside your organisation (Human-as-Operator (L1), Human-as-Collaborator (L2), Human-as-Supervisor (L3) or Human-as-Auditor (L4)). This is the primary driver of the agent's threat surface.
+7. Select one or more **threat categories** (Credential Compromise, Supply Chain Sabotage, Data Exfiltration, Infrastructure Sabotage, Deception & Evasion, Containment & Third-Party Impact).
+8. (Optional) Narrow the scenario to specific **STRIDE threats**. If left empty, the STRIDE threats associated with your selected categories are used automatically. AttackGen offers 27 STRIDE threats: the 23 from the underlying paper plus four of its own (S5, R4, I5, E5).
 9. (Optional) Adjust the **frontier agent capabilities** highlighted in the prompt.
 10. Click 'Generate Scenario'. The output includes an attack narrative mapped to STRIDE identifiers, detection opportunities, and recommended controls aligned to the NIST CSF.
 11. Use the 👍 or 👎 buttons to provide feedback (requires LANGCHAIN_API_KEY).
@@ -434,7 +438,6 @@ If deploying AttackGen for multiple users (not the default use case):
 - Add authentication/authorization (not included by default)
 - Use a secrets management service for API keys
 - Deploy behind VPN or internal network
-- Review this threat model document for additional considerations
 - Consider data residency and compliance requirements
 
 ### Dependency Security
