@@ -337,6 +337,36 @@ class TestMitreDataForMatrix:
             ad.mitre_data_for_matrix("Mobile")
 
 
+
+class FakeLookupData:
+    """Stand-in for `MitreAttackData.get_object_by_attack_id` over a fixed ID set."""
+
+    _IDS = {"T1059", "T1059.001"}
+
+    def get_object_by_attack_id(self, external_id, obj_type):
+        return SimpleNamespace(id=external_id) if external_id in self._IDS else None
+
+
+class TestUnknownTechniqueIds:
+    def test_enterprise_returns_only_missing_ids(self, monkeypatch):
+        monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeLookupData())
+        ids = ["T1059", "T9999", "T1059.001", "T8888"]
+        assert ad.unknown_technique_ids("Enterprise", ids) == ["T9999", "T8888"]
+
+    def test_duplicates_reported_once_in_input_order(self, monkeypatch):
+        monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeLookupData())
+        ids = ["T8888", "T9999", "T8888"]
+        assert ad.unknown_technique_ids("ICS", ids) == ["T8888", "T9999"]
+
+    def test_atlas_against_real_bundle(self):
+        # An ATT&CK ID passed to ATLAS is the wrong-matrix case.
+        assert ad.unknown_technique_ids("ATLAS", ["AML.T0051", "T1059"]) == ["T1059"]
+
+    def test_unknown_matrix_raises(self):
+        with pytest.raises(ValueError):
+            ad.unknown_technique_ids("Mobile", ["T1059"])
+
+
 class TestListTechniqueOptions:
     def test_attack_branch_builds_display_names(self, monkeypatch):
         monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeTechniqueData())

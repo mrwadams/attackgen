@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -51,6 +52,28 @@ def canned_kill_chain(monkeypatch):
     return kc
 
 
+class KnownTechniques:
+    """Bundle stand-in for technique-ID validation: knows a fixed set of IDs."""
+
+    def __init__(self, ids):
+        self._ids = set(ids)
+
+    def get_object_by_attack_id(self, external_id, obj_type):
+        return SimpleNamespace(id=external_id) if external_id in self._ids else None
+
+    def get_technique_by_id(self, external_id):
+        return {"id": external_id} if external_id in self._ids else None
+
+
+@pytest.fixture
+def known_techniques(monkeypatch):
+    """Validate technique IDs against a fixed set so no real bundle loads."""
+    bundle = KnownTechniques({"T1059", "T1566", "AML.T0051"})
+    monkeypatch.setattr(s.ad, "mitre_data_for_matrix", lambda matrix: bundle)
+    monkeypatch.setattr(s.ad, "atlas_data", lambda: bundle)
+    return bundle
+
+
 EXPECTED_TOOLS = {
     "list_threat_groups", "list_case_studies", "get_kill_chain", "get_detection_report",
     "get_navigator_layer", "list_ai_insider_options", "get_ai_insider_prompt",
@@ -68,7 +91,7 @@ def test_all_tools_registered_with_schemas():
 
 
 class TestDataTools:
-    def test_get_navigator_layer_enterprise(self):
+    def test_get_navigator_layer_enterprise(self, known_techniques):
         out = s.get_navigator_layer("Enterprise", ["T1059", "Phishing (T1566)"])
         assert out["layer_json"] is not None
         layer = json.loads(out["layer_json"])
@@ -79,6 +102,20 @@ class TestDataTools:
         out = s.get_detection_report("Enterprise", ["T1059"])
         assert out["matrix"] == "Enterprise"
         assert out["markdown"] and "Analytic 1428" in out["markdown"]
+
+    def test_get_detection_report_rejects_unknown_ids(self, known_techniques):
+        with pytest.raises(ValueError, match="T9999"):
+            s.get_detection_report("Enterprise", ["T1059", "T9999"])
+
+    def test_get_navigator_layer_rejects_unknown_ids(self, known_techniques):
+        with pytest.raises(ValueError, match="T9999"):
+            s.get_navigator_layer("Enterprise", ["T1059", "Made Up (T9999)"])
+
+    def test_wrong_matrix_id_is_rejected(self, monkeypatch):
+        # ATLAS knows AML.T0051 but not the ATT&CK ID T1059.
+        monkeypatch.setattr(s.ad, "atlas_data", lambda: KnownTechniques({"AML.T0051"}))
+        with pytest.raises(ValueError, match=r"Unknown ATLAS technique ID\(s\) \['T1059'\]"):
+            s.get_navigator_layer("ATLAS", ["AML.T0051", "T1059"])
 
     def test_list_ai_insider_options_keys(self):
         opts = s.list_ai_insider_options()
@@ -274,7 +311,7 @@ class TestGenerateTools:
         assert kwargs["model"] == "anthropic/claude-sonnet-5"
         assert kwargs["api_key"] == "k"
 
-    def test_generate_custom_scenario(self, no_langsmith, mock_litellm_completion):
+    def test_generate_custom_scenario(self, no_langsmith, known_techniques, mock_litellm_completion):
         mock_litellm_completion.content = "custom scenario"
         out = s.generate_custom_scenario(
             "Enterprise", ["Phishing (T1566)", "T1059"], "Finance", "Large",
@@ -296,7 +333,9 @@ class TestGenerateTools:
                 "Enterprise", "APT29", "F", "L", provider="Anthropic API", model="not-a-model"
             )
 
-    def test_custom_provider_skips_model_validation(self, no_langsmith, mock_litellm_completion):
+    def test_custom_provider_skips_model_validation(
+        self, no_langsmith, known_techniques, mock_litellm_completion
+    ):
         mock_litellm_completion.content = "ok"
         out = s.generate_custom_scenario(
             "Enterprise", ["T1059"], "F", "L",
@@ -305,7 +344,7 @@ class TestGenerateTools:
         assert out == "ok"
 
     def test_custom_provider_falls_back_to_env(
-        self, monkeypatch, no_langsmith, mock_litellm_completion
+        self, monkeypatch, no_langsmith, known_techniques, mock_litellm_completion
     ):
         monkeypatch.setenv("CUSTOM_MODEL_NAME", "env-model")
         monkeypatch.setenv("CUSTOM_API_KEY", "env-key")
@@ -317,7 +356,7 @@ class TestGenerateTools:
         assert kwargs["api_base"] == "http://localhost:11434/v1"
 
     def test_custom_provider_arguments_beat_env(
-        self, monkeypatch, no_langsmith, mock_litellm_completion
+        self, monkeypatch, no_langsmith, known_techniques, mock_litellm_completion
     ):
         monkeypatch.setenv("CUSTOM_MODEL_NAME", "env-model")
         monkeypatch.setenv("CUSTOM_API_KEY", "env-key")
@@ -332,7 +371,7 @@ class TestGenerateTools:
         assert kwargs["api_base"] == "http://example.test/v1"
 
     def test_custom_provider_without_key_or_base(
-        self, monkeypatch, no_langsmith, mock_litellm_completion
+        self, monkeypatch, no_langsmith, known_techniques, mock_litellm_completion
     ):
         # A blank CUSTOM_API_KEY= counts as no key.
         monkeypatch.setenv("CUSTOM_API_KEY", "")
@@ -400,6 +439,16 @@ class TestGenerateTools:
                 "Enterprise", [], "Finance", "Large",
                 provider="Anthropic API", model="claude-sonnet-5", api_key="k",
             )
+
+    def test_custom_scenario_rejects_unknown_ids_before_calling_the_model(
+        self, no_langsmith, known_techniques, mock_litellm_completion
+    ):
+        with pytest.raises(ValueError, match="T9999"):
+            s.generate_custom_scenario(
+                "Enterprise", ["T1059", "T9999"], "Finance", "Large",
+                provider="OpenAI API", model="gpt-5.5", api_key="k",
+            )
+        assert mock_litellm_completion.calls == []
 
     def test_threat_group_include_detection_appends_report(
         self, no_langsmith, mock_litellm_completion, monkeypatch
