@@ -76,7 +76,7 @@ When deploying AttackGen:
 
 1. **Dependency Management**
    - Regularly update dependencies to patch security vulnerabilities
-   - Review `requirements.txt` for outdated or vulnerable packages
+   - Review `pyproject.toml` dependencies for outdated or vulnerable packages
    - Automated scanning with `pip-audit` runs on every commit and fails the build on a known vulnerability (see Automated Security Scanning section)
 
 2. **Input Validation**

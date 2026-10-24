@@ -5,7 +5,7 @@ if the app logs an unexpected console warning or error — most notably the
 repeated ``Invalid color passed for <key> in theme.sidebar: ""`` warning that
 Streamlit's frontend logged on every rerun for any app with a ``[theme]``
 section. No ``config.toml`` key can set the three deprecated fields behind it;
-Streamlit 1.55 removed them, which is why ``requirements.txt`` floors the
+Streamlit 1.55 removed them, which is why ``pyproject.toml`` floors the
 version there. This test fails against anything older.
 
 Requires Playwright with its Chromium browser installed

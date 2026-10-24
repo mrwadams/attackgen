@@ -92,7 +92,7 @@ The `verify` job **fails fast if the tag does not match `pyproject.toml`'s `vers
 ### Configuration
 - **.env**: API keys and secrets (not tracked in git)
 - **.streamlit/secrets.toml**: Streamlit secrets for LangSmith integration
-- **requirements.txt**: Python dependencies — `litellm`, `mcp`, `openai`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`, `python-dotenv`
+- **pyproject.toml** `[project].dependencies`: the one runtime dependency list (Dependabot updates it); `requirements.txt` is `-e .` and installs from it — `litellm`, `mcp`, `openai`, `streamlit`, `mitreattack-python`, `pandas`, `langsmith`, `python-dotenv`
 - **requirements-dev.txt**: Development dependencies (`pytest`); installs `requirements.txt` plus test tooling
 
 ### Key Libraries

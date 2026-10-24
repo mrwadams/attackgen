@@ -26,11 +26,11 @@ def test_tenacity_is_installed_for_litellms_retry_path() -> None:
     "tenacity import failed please run `pip install tenacity`" — replacing the
     provider's real error with a bogus instruction. litellm does not declare
     tenacity, and Streamlit declared it through 1.61 and dropped it in 1.62, so
-    `requirements.txt` names it and this pins that it is actually resolvable.
+    `pyproject.toml` names it and this pins that it is actually resolvable.
     """
     assert importlib.util.find_spec("tenacity") is not None, (
         "tenacity is missing: litellm's retry path will mask every provider "
-        "error. It is listed in requirements.txt — check the resolve."
+        "error. It is listed in pyproject.toml — check the resolve."
     )
 
 

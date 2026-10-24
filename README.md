@@ -218,7 +218,7 @@ Initial release.
 ## Requirements
 
 - Recent version of Python.
-- Python packages: `streamlit`, `litellm`, `mitreattack-python`, `pandas` (see `requirements.txt` for the full list).
+- Python packages: `streamlit`, `litellm`, `mitreattack-python`, `pandas` (see `pyproject.toml` for the full list).
 - OpenAI API key (or API key for your chosen model provider).
 - LangChain API key (optional) - see [LangSmith Setup](#langsmith-setup) section below for further details.
 - MITRE ATT&CK and ATLAS data files. These ship with the repository (in `./data/`), so no manual download is required (see [Data Setup](#data-setup)).
@@ -284,12 +284,10 @@ AttackGen ships an [MCP](https://modelcontextprotocol.io/) server so agentic wor
 
 ### Install and run
 
-The `mcp` dependency is included in `requirements.txt`. Install the project (an editable install also gives you the `attackgen-mcp` console script):
+The `mcp` dependency is included in `pyproject.toml`. Installing the requirements is an editable install of the project, which also gives you the `attackgen-mcp` console script:
 
 ```
 pip install -r requirements.txt
-# optional, for the console script:
-pip install -e .
 ```
 
 Launch the server (stdio):

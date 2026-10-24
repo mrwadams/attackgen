@@ -8,9 +8,12 @@ RUN groupadd -r attackgen && \
 # Set working directory
 WORKDIR /app
 
-# Copy and install dependencies as root (better layer caching)
+# Copy application files with proper ownership
+COPY --chown=attackgen:attackgen . .
+
+# Install dependencies as root. requirements.txt is `-e .`, which needs the
+# package sources above in place, so this layer follows the full copy.
 # Upgrade pip first to pick up fixes for CVE-2025-8869 (symlink extraction)
-COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip check
@@ -18,9 +21,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Set up Streamlit cache directory with proper permissions
 RUN mkdir -p /home/attackgen/.streamlit && \
     chown -R attackgen:attackgen /home/attackgen
-
-# Copy application files with proper ownership
-COPY --chown=attackgen:attackgen . .
 
 # Switch to non-root user
 USER attackgen

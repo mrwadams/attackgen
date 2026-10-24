@@ -10,21 +10,40 @@ description = "Generate tailored incident-response scenarios from MITRE ATT&CK /
 # stdlib `typing` on the `import litellm` path, which is 3.11+ only. See the
 # matrix comment in .github/workflows/tests.yml.
 requires-python = ">=3.11"
+# The one runtime dependency list. requirements.txt is `-e .`, so Docker, CI
+# and `pip install -r requirements.txt` all resolve from here.
 dependencies = [
     "langsmith",
     "litellm>=1.83.7",
-    # Floor is 2.0, not 1.2: mcp_server.py imports mcp.server.mcpserver — see requirements.txt.
+    # Floor is 2.0, not 1.2: mcp_server.py imports mcp.server.mcpserver, which
+    # does not exist on 1.x. A 1.x resolve would fail at import, not at runtime.
     "mcp>=2.0.0,<3",
     "mitreattack-python",
     "openai",
     "pandas",
     "python-dotenv",
-    "streamlit",
-    # Undeclared by litellm, which imports it lazily in its retry helper and
-    # turns a missing install into a bogus "pip install tenacity" instruction
-    # in place of the provider's real error. core/llm.py always sets
-    # num_retries=3, so `pip install .` needs it as much as requirements.txt
-    # does — the console script drives the same call path.
+    # Floor kept as a guard so a future resolve cannot land on a version below
+    # the CVE-2025-47273 (78.1.1) and CVE-2026-59890 (83.0.0) fixes. It is not
+    # what cleared those alerts — they were never about the installed
+    # setuptools, which already resolved to 84.0.0. See the skip-files note in
+    # security.yml.
+    "setuptools>=83.0.0",
+    # Floor is 1.55, not unpinned: every earlier version's frontend
+    # colour-parses three deprecated CustomThemeConfig fields
+    # (widgetBackgroundColor, widgetBorderColor, skeletonBackgroundColor) that
+    # no config.toml key can set, so any [theme] section made the browser log
+    # 'Invalid color passed for <key> in theme.sidebar: ""' on every rerun.
+    # 1.55 removed those fields. tests/test_console_smoke.py fails below this
+    # floor.
+    "streamlit>=1.66.0",
+    # litellm imports tenacity lazily inside its retry helper (litellm/main.py)
+    # and raises "tenacity import failed please run `pip install tenacity`"
+    # when it is missing, but does not declare it. core/llm.py always sets
+    # num_retries=3, so that path is reached on every failed call — without
+    # this, a provider error reaches the user as a bogus install instruction
+    # instead of the real message. Streamlit declared tenacity through 1.61 and
+    # dropped it in 1.62, so the floor above still resolves to a Streamlit that
+    # does not supply it for free.
     "tenacity",
 ]
 
