@@ -25,7 +25,7 @@ from core.detections import assemble_defense_document, defense_title
 from core.llm import call_llm, call_llm_stream
 from core.response import clean_model_response, stream_filter_thinking
 from core.routes import ASSISTANT_PAGE, SCENARIO_PAGES, PageInfo, page_info
-from core.schemas import LLMConfig
+from core.schemas import LLMConfig, ResultKeys
 from core.summary import summary_line
 
 # Session-state keys of the cross-page handoff.
@@ -420,27 +420,28 @@ def apply_write_back(
 ) -> None:
     """Write one revised artifact back to its page state and the Assistant handoff.
 
-    Mirrors the keys ``core.scenario_page`` persists: ``{page_id}_scenario_text``
-    for the scenario; ``{page_id}_scenario_defense`` for the Detection &
-    Response companion, whose ``narrative_md`` is replaced and whose
-    ``download_md`` is rebuilt from it — the deterministic STIX reference
+    Writes through :class:`core.schemas.ResultKeys`, the keys
+    ``core.scenario_page`` persists: ``text`` for the scenario; ``defense`` for
+    the Detection & Response companion, whose ``narrative_md`` is replaced and
+    whose ``download_md`` is rebuilt from it — the deterministic STIX reference
     (``deterministic_md``) is carried over byte-for-byte, never regenerated.
     The cross-page handoff keys are updated too, so the Assistant's own panels
     and a later chat turn's base move with the artifact.
     """
     state = st.session_state if session_state is None else session_state
+    keys = ResultKeys(page_id)
     if artifact == "scenario":
-        state[f"{page_id}_scenario_text"] = revised_text
+        state[keys.text] = revised_text
         state[SCENARIO_TEXT_KEY] = revised_text
     elif artifact == "defense":
-        defense_state = dict(state.get(f"{page_id}_scenario_defense") or {})
+        defense_state = dict(state.get(keys.defense) or {})
         title = defense_title(defense_state.get("download_md", ""))
         deterministic_md = defense_state.get("deterministic_md", "")
         defense_state["narrative_md"] = revised_text
         defense_state["download_md"] = assemble_defense_document(
             deterministic_md, revised_text, title=title
         )
-        state[f"{page_id}_scenario_defense"] = defense_state
+        state[keys.defense] = defense_state
         state[DEFENSE_NARRATIVE_KEY] = revised_text
     else:
         raise ValueError(f"unknown artifact: {artifact!r}")
@@ -498,12 +499,13 @@ def resolve_download_artifacts(
     if not page_id:
         return artifacts
 
-    filename = state.get(f"{page_id}_scenario_filename")
-    text = state.get(f"{page_id}_scenario_text")
+    keys = ResultKeys(page_id)
+    filename = state.get(keys.filename)
+    text = state.get(keys.text)
     if filename and text:
         artifacts["scenario"] = (filename, text)
 
-    defense_state = state.get(f"{page_id}_scenario_defense")
+    defense_state = state.get(keys.defense)
     if defense_state and defense_state.get("download_md"):
         artifacts["defense"] = (defense_state["filename"], defense_state["download_md"])
 
