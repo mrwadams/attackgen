@@ -32,7 +32,6 @@ class ProviderInfo:
 class ModelInfo:
     model_id: str
     provider_key: str
-    supports_thinking: bool = False            # Claude/Gemini extended thinking
     supports_temperature: bool = True          # False → model rejects a custom temperature
     help_text: str = ""
 
@@ -132,35 +131,30 @@ MODELS: list[ModelInfo] = [
     ModelInfo(
         model_id="claude-opus-5-5",
         provider_key="Anthropic API",
-        supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Opus 5.5 excels at complex agentic coding and enterprise work.",
     ),
     ModelInfo(
         model_id="claude-fable-5-1",
         provider_key="Anthropic API",
-        supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Fable 5.1 is Anthropic's most capable model for long-running agents and hard reasoning.",
     ),
     ModelInfo(
         model_id="claude-sonnet-5",
         provider_key="Anthropic API",
-        supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Sonnet 5 offers the best balance of speed and near-Opus intelligence.",
     ),
     ModelInfo(
         model_id="claude-fable-5",
         provider_key="Anthropic API",
-        supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Fable 5 is the previous-generation Fable, kept for continuity.",
     ),
     ModelInfo(
         model_id="claude-opus-5",
         provider_key="Anthropic API",
-        supports_thinking=True,
         supports_temperature=False,
         help_text="Claude Opus 5 is the previous-generation Opus, kept for continuity.",
     ),
@@ -169,29 +163,25 @@ MODELS: list[ModelInfo] = [
         provider_key="Anthropic API",
         help_text="Claude Haiku 4.5 is the fastest and most cost-effective Claude model.",
     ),
-    # --- Google AI (all Gemini 3.x support extended thinking) ---
+    # --- Google AI ---
     ModelInfo(
         model_id="gemini-3.1-pro-preview",
         provider_key="Google AI API",
-        supports_thinking=True,
         help_text="Gemini 3.1 Pro is Google's highest-reasoning model with 1M context.",
     ),
     ModelInfo(
         model_id="gemini-3.8-flash",
         provider_key="Google AI API",
-        supports_thinking=True,
         help_text="Gemini 3.8 Flash is Google's GA flagship fast model with 1M context.",
     ),
     ModelInfo(
         model_id="gemini-3.7-flash",
         provider_key="Google AI API",
-        supports_thinking=True,
         help_text="Gemini 3.7 Flash is the previous-generation Flash, kept for continuity.",
     ),
     ModelInfo(
         model_id="gemini-3.5-flash-lite",
         provider_key="Google AI API",
-        supports_thinking=True,
         help_text="Gemini 3.5 Flash Lite is the most cost-efficient option with 1M context.",
     ),
     # --- Mistral ---
