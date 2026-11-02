@@ -217,12 +217,12 @@ Initial release.
 
 ## Requirements
 
-- Recent version of Python.
+- Python 3.11 or later.
 - Python packages: `streamlit`, `litellm`, `mitreattack-python`, `pandas` (see `pyproject.toml` for the full list).
 - OpenAI API key (or API key for your chosen model provider).
 - LangChain API key (optional) - see [LangSmith Setup](#langsmith-setup) section below for further details.
 - MITRE ATT&CK and ATLAS data files. These ship with the repository (in `./data/`), so no manual download is required (see [Data Setup](#data-setup)).
-- `.env` file for storing API keys and secrets (see [Installation](#installation) section for details).
+- `.env` file (optional). API keys can be typed into the sidebar instead. To load them from a file, copy `.env.example` to `.env` and fill in the keys you use.
 
 ## Installation
 
@@ -255,15 +255,19 @@ docker pull mrwadams/attackgen
 
 ## LangSmith Setup
 
-If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account and create a `.streamlit/secrets.toml` file that contains your LangChain API key. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key. You'll find a `secrets.toml-example` file in the `.streamlit/` directory that you can use as a template for your own secrets.toml file.
+If you would like to use LangSmith for debugging, testing, and monitoring of model performance, you will need to set up a LangSmith account. Please follow the instructions [here](https://docs.smith.langchain.com/) to set up your account and obtain your API key. Tracing reads the key from the `LANGCHAIN_API_KEY` environment variable.
 
-If you do not wish to use LangSmith, you must still have a `.streamlit/secrets.toml` file in place, but you can leave the `LANGCHAIN_API_KEY` field empty.
+A `.streamlit/secrets.toml` file is needed only for LangSmith feedback (the 👍 and 👎 buttons on generated scenarios), and AttackGen runs without it. To enable feedback, use the `secrets.toml-example` file in the `.streamlit/` directory as a template for your own secrets.toml file.
 
 ## Data Setup
 
 The MITRE ATT&CK (Enterprise + ICS) and ATLAS datasets that AttackGen needs are committed to the repository under `./data/`, so a fresh clone is ready to run with no extra download step. These include `enterprise-attack.json`, `ics-attack.json`, `stix-atlas.json`, `groups.json`, `groups_ics.json`, and `atlas-case-studies.json`.
 
-If you want to refresh them to the latest upstream release, you can re-download the STIX bundles from the [MITRE ATT&CK STIX data repository](https://github.com/mitre-attack/attack-stix-data) (and the [ATLAS data repository](https://github.com/mitre-atlas/atlas-data)) and replace the files in `./data/`.
+If you want to refresh them to the latest upstream release, you can re-download the STIX bundles from the [MITRE ATT&CK STIX data repository](https://github.com/mitre-attack/attack-stix-data) (and the [ATLAS data repository](https://github.com/mitre-atlas/atlas-data)) and replace the files in `./data/`. Then:
+
+1. Run `python scripts/generate_groups.py` to rebuild `groups.json` and `groups_ics.json`, so the threat group dropdowns match the new bundles.
+2. Run `python scripts/generate_atlas_case_studies.py` to rewrite `atlas-case-studies.json`. This script needs `PyYAML`, which is in `requirements-dev.txt`.
+3. Bump `ATTACK_VERSION` in `core/navigator.py` to match the new ATT&CK release.
 
 ## Running AttackGen
 
