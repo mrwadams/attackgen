@@ -1,5 +1,5 @@
 -r requirements.txt
-pytest>=9.1.1
+pytest>=9.2.0
 # Parses ATLAS data in scripts/generate_atlas_case_studies.py.
 PyYAML>=6.0.3
 # Powers the browser-based smoke checks in tests/test_console_smoke.py and
