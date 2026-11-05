@@ -122,6 +122,61 @@ class TestBuildLayer:
         # ATLAS is not an ATT&CK version — the field must not be present.
         assert "attack" not in layer["versions"]
         assert layer["versions"]["layer"]
+        assert layer["techniques"] == [
+            {
+                "techniqueID": "AML.T0051",
+                "tactic": "initial-access",
+                "score": 1,
+                "color": HIGHLIGHT_COLOR,
+                "enabled": True,
+            }
+        ]
+
+    @pytest.mark.parametrize("tactic", ["impact", None])
+    def test_atlas_subtechnique_expands_real_parent(self, tactic):
+        layer = build_layer(
+            name="Test",
+            matrix="ATLAS",
+            techniques=[("AML.T0051", tactic), ("AML.T0043.001", tactic)],
+        )
+        by_id = {t["techniqueID"]: t for t in layer["techniques"]}
+        assert set(by_id) == {"AML.T0051", "AML.T0043.001", "AML.T0043"}
+        for technique_id in ("AML.T0051", "AML.T0043.001"):
+            assert by_id[technique_id]["score"] == 1
+            assert by_id[technique_id]["color"] == HIGHLIGHT_COLOR
+            assert by_id[technique_id]["enabled"] is True
+        parent = {"techniqueID": "AML.T0043", "showSubtechniques": True}
+        if tactic:
+            parent["tactic"] = tactic
+        assert by_id["AML.T0043"] == parent
+
+    @pytest.mark.parametrize("parent_first", [True, False])
+    def test_atlas_scored_parent_expanded_without_duplicate(self, parent_first):
+        techniques = [("AML.T0043", None), ("AML.T0043.001", None)]
+        layer = build_layer(
+            name="Test",
+            matrix="ATLAS",
+            techniques=techniques if parent_first else techniques[::-1],
+        )
+        assert len(layer["techniques"]) == 2
+        parent = next(t for t in layer["techniques"] if t["techniqueID"] == "AML.T0043")
+        assert parent == {
+            "techniqueID": "AML.T0043",
+            "score": 1,
+            "color": HIGHLIGHT_COLOR,
+            "enabled": True,
+            "showSubtechniques": True,
+        }
+
+    def test_atlas_sibling_subtechniques_share_expand_only_parent(self):
+        layer = build_layer(
+            name="Test",
+            matrix="ATLAS",
+            techniques=[("AML.T0043.001", None), ("AML.T0043.002", None)],
+        )
+        assert [t["techniqueID"] for t in layer["techniques"]] == [
+            "AML.T0043.001", "AML.T0043.002", "AML.T0043"
+        ]
 
     def test_unknown_matrix_returns_none(self):
         assert build_layer(name="x", matrix="Mobile", techniques=[("T1", None)]) is None
