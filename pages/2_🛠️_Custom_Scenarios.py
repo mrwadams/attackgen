@@ -22,6 +22,11 @@ from core.request import (
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
 from core.styles import inject_emoji_fonts
+from data.rmm_platform_compromise import (
+    RMM_PLATFORM_COMPROMISE,
+    RMM_PLATFORM_COMPROMISE_TECHNIQUES,
+    rmm_platform_compromise_template_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +53,7 @@ incident_response_templates = {
         "Cross-Site Scripting (XSS) Attack": ["Exploit Public-Facing Application (T1190)", "User Execution (T1204)", "Input Capture (T1056)", "Exfiltration Over Web Service (T1567)"],
         "SQL Injection Attack": ["Exploit Public-Facing Application (T1190)", "Exploitation for Credential Access (T1212)", "Exfiltration Over Web Service (T1567)"],
         "API Compromise": ["Active Scanning (T1595)", "Exploit Public-Facing Application (T1190)", "Exploitation for Client Execution (T1203)", "Valid Accounts (T1078)", "Application Layer Protocol (T1071)", "Data Manipulation (T1565)"],
+        RMM_PLATFORM_COMPROMISE: list(RMM_PLATFORM_COMPROMISE_TECHNIQUES),
     },
     "ICS": {
         "Remote Access Exploitation": ["External Remote Services (T0822)", "Exploit Public-Facing Application (T0819)", "Remote Services (T0886)", "Wireless Compromise (T0860)"],
@@ -255,6 +261,12 @@ def _requirements() -> list[str]:
 
 
 def _capture_inputs() -> ScenarioRequest:
+    template_info = ""
+    if selected_template == RMM_PLATFORM_COMPROMISE:
+        template_info = rmm_platform_compromise_template_info()
+    elif selected_template:
+        template_info = f"This is a '{selected_template}' scenario."
+
     return ScenarioRequest(
         scenario_type="custom",
         matrix=matrix,
@@ -269,11 +281,7 @@ def _capture_inputs() -> ScenarioRequest:
             ai_uplift=is_ai_uplift_on("custom"),
             purple_team_narrative=is_defense_narrative_on("custom"),
         ),
-        payload=CustomPayload(
-            template_info=(
-                f"This is a '{selected_template}' scenario." if selected_template else ""
-            ),
-        ),
+        payload=CustomPayload(template_info=template_info),
     )
 
 
