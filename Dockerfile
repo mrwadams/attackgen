@@ -1,5 +1,12 @@
 # Use specific version with SHA256 for reproducibility and security
-FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d
+FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
+
+# The base image ships zlib1g 1:1.3.dfsg+really1.3.1-1+b1, which carries
+# CVE-2026-85091, CVE-2026-76844 and CVE-2026-27171. trixie-security has the
+# fix (+deb13u1). Drop this once the pinned digest includes it.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --only-upgrade zlib1g && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -r attackgen && \
