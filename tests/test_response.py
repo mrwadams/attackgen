@@ -53,6 +53,37 @@ def test_handles_think_block_and_fences_together() -> None:
     assert cleaned.startswith("# Title")
 
 
+def test_keeps_code_blocks_inside_the_text() -> None:
+    # Issue #167: inner fences used to be removed while their content stayed.
+    text = (
+        "# Scenario\n\nIntro\n\n```powershell\nGet-Thing -x 1\n```\n\n"
+        "More text\n\n```\nlog line\n```"
+    )
+    _, cleaned = clean_model_response(text)
+    assert cleaned == text
+
+
+def test_keeps_separate_bare_blocks_at_both_ends() -> None:
+    # Opens and closes with a fence, but they belong to two different blocks.
+    text = "```\nfirst log\n```\n\nProse between.\n\n```\nsecond log\n```"
+    _, cleaned = clean_model_response(text)
+    assert cleaned == text
+
+
+def test_keeps_a_reply_that_is_one_labelled_code_block() -> None:
+    # An Assistant reply that is only a query is meant to stay a code block.
+    text = "```powershell\nGet-WinEvent -LogName Security\n```"
+    _, cleaned = clean_model_response(text)
+    assert cleaned == text
+
+
+def test_strips_markdown_wrapper_and_keeps_its_code_blocks() -> None:
+    inner = "# Scenario\n\n```powershell\nGet-Thing -x 1\n```\n\nMore text."
+    for label in ("markdown", "md"):
+        _, cleaned = clean_model_response(f"```{label}\n{inner}\n```")
+        assert cleaned == inner
+
+
 def test_returns_empty_cleaned_for_only_think_block() -> None:
     text = "<think>only thinking, no answer</think>"
     thinking, cleaned = clean_model_response(text)
