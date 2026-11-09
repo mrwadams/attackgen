@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from core.ai_uplift import is_ai_uplift_on, render_ai_uplift_toggle, uplift_trace_tags
-from core.attack_data import list_technique_options, load_attack_data
+from core.attack_data import list_technique_options
 from core.custom_templates import INCIDENT_RESPONSE_TEMPLATES, resolve_incident_template
 from core.prompts import build_custom_messages
 from core.detections import (
@@ -40,9 +40,7 @@ matrix = setup.matrix or "Enterprise"
 
 # ------------------ Data Loading ------------------ #
 # Loaders + technique listing live in core/attack_data.py (shared with the MCP
-# server). load_attack_data() is lazily cached there.
-
-attack_data = load_attack_data()
+# server). The bundles are lazily cached there.
 
 
 def load_techniques():
@@ -162,14 +160,7 @@ st.markdown("")
 
 selected_techniques = []
 if techniques_load_error is None:
-    if matrix == "ATLAS":
-        technique_options = techniques_df['Display Name'].tolist()
-    else:
-        techniques = attack_data[matrix.lower()].get_techniques()
-        technique_options = [
-            f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})"
-            for technique in techniques
-        ]
+    technique_options = techniques_df['Display Name'].tolist()
 
     select_label = "Select ATLAS Techniques" if matrix == "ATLAS" else "Select ATT&CK Techniques"
     selected_techniques = st.multiselect(
