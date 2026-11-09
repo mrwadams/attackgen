@@ -11,12 +11,15 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-_PAGE = str(Path(__file__).resolve().parent.parent / "pages" / "2_🛠️_Custom_Scenarios.py")
+from core.routes import CUSTOM_PAGE
+from core.state import PERSISTED
+
+_PAGE = str(Path(__file__).resolve().parent.parent / CUSTOM_PAGE.path)
 
 
 def _page(matrix: str) -> AppTest:
     at = AppTest.from_file(_PAGE, default_timeout=120)
-    at.query_params["x"] = matrix
+    at.query_params[PERSISTED["matrix"]] = matrix
     at.run()
     return at
 
@@ -27,6 +30,10 @@ def _pick_template(at: AppTest, name: str) -> None:
 
 def _switch_matrix(at: AppTest, matrix: str) -> None:
     next(r for r in at.radio if matrix in r.options).set_value(matrix).run()
+
+
+def _picked_techniques(at: AppTest) -> list[str]:
+    return list(next(m for m in at.multiselect if m.label.endswith("Techniques")).value)
 
 
 @pytest.mark.parametrize(
@@ -40,9 +47,9 @@ def _switch_matrix(at: AppTest, matrix: str) -> None:
 def test_switching_matrix_after_a_template_drops_its_techniques(start, template, switch_to):
     at = _page(start)
     _pick_template(at, template)
-    assert at.multiselect[0].value
+    assert _picked_techniques(at)
 
     _switch_matrix(at, switch_to)
 
     assert not at.exception
-    assert at.multiselect[0].value == []
+    assert _picked_techniques(at) == []
