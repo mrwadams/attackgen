@@ -121,15 +121,6 @@ def active_technique_labels(matrix: str) -> frozenset[str]:
     )
 
 
-def load_attack_data() -> dict:
-    """The ``{"enterprise","ics","atlas"}`` bundle dict the pages expect.
-
-    Kept for the pages, which index it by ``matrix.lower()``. Backed by the same
-    cached singletons, so importing/using it never loads a bundle twice.
-    """
-    return {"enterprise": enterprise_data(), "ics": ics_data(), "atlas": atlas_data()}
-
-
 # ---------------------------------------------------------------------------
 # Group / case-study / technique listings
 # ---------------------------------------------------------------------------
