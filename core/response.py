@@ -12,6 +12,7 @@ _OUTER_FENCE = re.compile(
     r"```(?P<lang>markdown|md)?[ \t]*\n(?P<body>.*?)\n?```", re.DOTALL | re.IGNORECASE
 )
 _FENCE_LINE = re.compile(r"^\s*```", re.MULTILINE)
+_MARKDOWN_OPENER = re.compile(r"^\s*```(markdown|md)[ \t]*$", re.MULTILINE | re.IGNORECASE)
 
 
 def stream_filter_thinking(deltas: Iterable[str]) -> Iterator[str]:
@@ -61,8 +62,8 @@ def clean_model_response(text: str) -> tuple[str | None, str]:
     the main scenario clean.
 
     A fence is removed only when it wraps the whole reply. A ```` ```markdown ````
-    or ```` ```md ```` wrapper is always removed, keeping any code blocks inside
-    it. A bare ```` ``` ```` wrapper is removed only when no other fence line is
+    or ```` ```md ```` wrapper is removed, keeping any code blocks inside it,
+    unless another Markdown fence opens inside it. A bare ```` ``` ```` wrapper is removed only when no other fence line is
     inside it, since a reply that opens and closes with separate code blocks
     looks the same at its ends. A wrapper with any other language, such as
     ```` ```powershell ````, is a deliberate code block and stays. Fences inside
@@ -74,6 +75,9 @@ def clean_model_response(text: str) -> tuple[str | None, str]:
     thinking = match.group(1).strip() if match else None
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
     outer = _OUTER_FENCE.fullmatch(cleaned)
-    if outer and (outer["lang"] or not _FENCE_LINE.search(outer["body"])):
+    if outer and (
+        not _FENCE_LINE.search(outer["body"])
+        or (outer["lang"] and not _MARKDOWN_OPENER.search(outer["body"]))
+    ):
         cleaned = outer["body"].strip()
     return thinking, cleaned

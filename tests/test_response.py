@@ -84,6 +84,12 @@ def test_strips_markdown_wrapper_and_keeps_its_code_blocks() -> None:
         assert cleaned == inner
 
 
+def test_keeps_separate_markdown_blocks_at_both_ends() -> None:
+    text = "```markdown\nv1 inject\n```\n\nOr:\n\n```markdown\nv2 inject\n```"
+    _, cleaned = clean_model_response(text)
+    assert cleaned == text
+
+
 def test_returns_empty_cleaned_for_only_think_block() -> None:
     text = "<think>only thinking, no answer</think>"
     thinking, cleaned = clean_model_response(text)
