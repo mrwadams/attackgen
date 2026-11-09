@@ -104,7 +104,7 @@ def unknown_technique_ids(matrix: str, technique_ids: list[str]) -> list[str]:
 @lru_cache(maxsize=3)
 def active_technique_labels(matrix: str) -> frozenset[str]:
     """``"Name (ID)"`` labels of the matrix's techniques that are neither revoked
-    nor deprecated, in the form the Custom page's picker shows.
+    nor deprecated, in the same label format as the Custom page's picker.
 
     Raises ``ValueError`` for an unknown matrix.
     """

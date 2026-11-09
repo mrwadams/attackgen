@@ -8,6 +8,9 @@ costs a few seconds, once per session.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 import core.attack_data as ad
@@ -79,5 +82,15 @@ class TestResolveIncidentTemplate:
 
 
 def test_module_is_streamlit_free():
-    source = (ad._DATA_DIR.parent / "core" / "custom_templates.py").read_text()
-    assert "streamlit" not in source
+    tree = ast.parse(Path(ct.__file__).read_text())
+    imported = {
+        alias.name.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    } | {
+        node.module.split(".")[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    }
+    assert "streamlit" not in imported
