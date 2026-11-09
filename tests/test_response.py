@@ -42,7 +42,7 @@ def test_strips_outer_markdown_code_fence() -> None:
 def test_strips_bare_code_fence() -> None:
     text = "```\n# Scenario\n```"
     _, cleaned = clean_model_response(text)
-    assert "```" not in cleaned
+    assert cleaned == "# Scenario"
 
 
 def test_handles_think_block_and_fences_together() -> None:
@@ -79,7 +79,7 @@ def test_keeps_a_reply_that_is_one_labelled_code_block() -> None:
 
 def test_strips_markdown_wrapper_and_keeps_its_code_blocks() -> None:
     inner = "# Scenario\n\n```powershell\nGet-Thing -x 1\n```\n\nMore text."
-    for label in ("markdown", "md"):
+    for label in ("markdown", "md", "Markdown"):
         _, cleaned = clean_model_response(f"```{label}\n{inner}\n```")
         assert cleaned == inner
 

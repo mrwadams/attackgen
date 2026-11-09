@@ -8,7 +8,9 @@ from collections.abc import Iterable, Iterator
 _OPEN_TAG = "<think>"
 _CLOSE_TAG = "</think>"
 _MAX_PARTIAL = max(len(_OPEN_TAG), len(_CLOSE_TAG)) - 1
-_WRAPPER = re.compile(r"```(markdown|md)?[ \t]*\n(.*?)\n?```", re.DOTALL)
+_OUTER_FENCE = re.compile(
+    r"```(?P<lang>markdown|md)?[ \t]*\n(?P<body>.*?)\n?```", re.DOTALL | re.IGNORECASE
+)
 _FENCE_LINE = re.compile(r"^\s*```", re.MULTILINE)
 
 
@@ -71,7 +73,7 @@ def clean_model_response(text: str) -> tuple[str | None, str]:
     match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
     thinking = match.group(1).strip() if match else None
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    wrapper = _WRAPPER.fullmatch(cleaned)
-    if wrapper and (wrapper.group(1) or not _FENCE_LINE.search(wrapper.group(2))):
-        cleaned = wrapper.group(2).strip()
+    outer = _OUTER_FENCE.fullmatch(cleaned)
+    if outer and (outer["lang"] or not _FENCE_LINE.search(outer["body"])):
+        cleaned = outer["body"].strip()
     return thinking, cleaned
