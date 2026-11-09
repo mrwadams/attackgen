@@ -134,8 +134,10 @@ def build_layer(
         }
         if tactic:
             entry["tactic"] = tactic
-        if "." in technique_id:
-            parent_id = technique_id.split(".", 1)[0]
+        # Remove only the numeric sub-technique suffix: T1059.001 -> T1059,
+        # AML.T0043.001 -> AML.T0043. The ATLAS namespace dot is not a suffix.
+        if re.search(r"\.[0-9]{3}$", technique_id):
+            parent_id = technique_id[:-4]
             parents_to_expand.setdefault(parent_id, tactic)
         layer_techniques.append(entry)
 
