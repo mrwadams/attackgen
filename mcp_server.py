@@ -277,6 +277,19 @@ def _stride_codes(values: list[str]) -> list[str]:
     return list(dict.fromkeys(by_value[value] for value in values))
 
 
+def _known_names(kind: str, values: list[str], valid) -> list[str]:
+    """Return ``values`` unchanged when every one is in ``valid``.
+
+    Raises ``ValueError`` naming the unknown values and listing the valid ones,
+    rather than letting the builder drop an unknown name silently or fail on
+    it with a bare ``KeyError``.
+    """
+    unknown = [value for value in values if value not in valid]
+    if unknown:
+        raise ValueError(f"Unknown {kind} {unknown}. Valid values: {', '.join(valid)}.")
+    return values
+
+
 def _resolve_ai_insider_inputs(
     template: str | None,
     archetype: str,
@@ -292,7 +305,9 @@ def _resolve_ai_insider_inputs(
     A template fills gaps; any explicitly-supplied value wins over it. Raises
     ``ValueError`` when neither a template nor an archetype is given, or when
     the organisation context is missing — ``template`` gives those arguments
-    defaults, so they are no longer required by the tool schema.
+    defaults, so they are no longer required by the tool schema. Also raises
+    for an unknown archetype, category, STRIDE threat or capability, and when
+    the merged selection has no category and no STRIDE threat.
 
     No template supplies ``capabilities``, so it passes through unresolved
     (``None`` when the caller omits it too) — ``build_ai_insider_messages``
@@ -304,13 +319,25 @@ def _resolve_ai_insider_inputs(
     resolved_archetype = archetype or preset.get("archetype", "")
     if not resolved_archetype:
         raise ValueError("Supply either 'template' or 'archetype'.")
+    _known_names("deployment archetype", [resolved_archetype], aip.DEPLOYMENT_ARCHETYPES)
+    if capabilities is not None:
+        _known_names("capability", capabilities, aip.AGENT_CAPABILITIES)
     if not industry or not company_size:
         raise ValueError("Both 'industry' and 'company_size' are required.")
+    selected_categories = _known_names(
+        "threat category", categories or preset.get("categories", []), aip.THREAT_CATEGORIES,
+    )
+    selected_stride = _stride_codes(stride or preset.get("stride", []))
+    if not selected_categories and not selected_stride:
+        raise ValueError(
+            "Select at least one threat category (or a specific STRIDE threat) "
+            "for the scenario."
+        )
     seed = scenario_seed if scenario_seed is not None else preset.get("brief", "")
     return {
         "archetype_name": resolved_archetype,
-        "selected_categories": categories or preset.get("categories", []),
-        "selected_stride": _stride_codes(stride or preset.get("stride", [])),
+        "selected_categories": selected_categories,
+        "selected_stride": selected_stride,
         "selected_capabilities": capabilities,
         "industry": industry,
         "company_size": company_size,
@@ -342,6 +369,10 @@ def get_ai_insider_prompt(
 
     ``capabilities`` defaults to the full set (no template supplies it); pass
     ``[]`` to leave the agent's capabilities unspecified.
+
+    Raises ``ValueError`` listing the valid values for an unknown archetype,
+    category, STRIDE threat or capability, and when the resolved selection has
+    no category and no STRIDE threat (page 3 blocks the same state).
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
@@ -476,6 +507,10 @@ def generate_ai_insider_scenario(
 
     ``capabilities`` defaults to the full set (no template supplies it); pass
     ``[]`` to leave the agent's capabilities unspecified.
+
+    Raises ``ValueError`` listing the valid values for an unknown archetype,
+    category, STRIDE threat or capability, and when the resolved selection has
+    no category and no STRIDE threat (page 3 blocks the same state).
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
