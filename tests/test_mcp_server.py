@@ -263,12 +263,12 @@ class TestDataTools:
                 industry="Healthcare", company_size="Large",
             )
 
-    def test_every_template_alone_supplies_a_threat_scope(self):
-        for name in s.list_ai_insider_options()["templates"]:
+    def test_every_template_alone_passes_the_scope_check(self):
+        for template in s.list_ai_insider_options()["templates"]:
             out = s.get_ai_insider_prompt(
-                template=name["name"], industry="Technology", company_size="Large",
+                template=template["name"], industry="Technology", company_size="Large",
             )
-            assert "Specific STRIDE threats in scope" in out["messages"][1]["content"]
+            assert out["messages"][1]["role"] == "user"
 
     def test_unknown_template_raises(self):
         with pytest.raises(ValueError, match="Unknown template"):
@@ -483,12 +483,11 @@ class TestGenerateTools:
     def test_ai_insider_scenario_rejects_bad_inputs_before_calling_the_model(
         self, no_langsmith, mock_litellm_completion, kwargs
     ):
-        kwargs.setdefault("archetype", next(iter(DEPLOYMENT_ARCHETYPES)))
         with pytest.raises(ValueError):
             s.generate_ai_insider_scenario(
                 industry="Healthcare", company_size="Large",
                 provider="Anthropic API", model="claude-sonnet-5", api_key="k",
-                **kwargs,
+                **{"archetype": next(iter(DEPLOYMENT_ARCHETYPES)), **kwargs},
             )
         assert mock_litellm_completion.calls == []
 

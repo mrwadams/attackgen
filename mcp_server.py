@@ -28,6 +28,7 @@ The heavy STIX bundles load lazily on first data-tool call (see
 from __future__ import annotations
 
 import os
+from collections.abc import Collection
 from dataclasses import asdict
 from typing import Literal
 
@@ -277,17 +278,16 @@ def _stride_codes(values: list[str]) -> list[str]:
     return list(dict.fromkeys(by_value[value] for value in values))
 
 
-def _known_names(kind: str, values: list[str], valid) -> list[str]:
-    """Return ``values`` unchanged when every one is in ``valid``.
+def _reject_unknown(kind: str, values: list[str], valid: Collection[str]) -> None:
+    """Raise ``ValueError`` when any of ``values`` is not in ``valid``.
 
-    Raises ``ValueError`` naming the unknown values and listing the valid ones,
-    rather than letting the builder drop an unknown name silently or fail on
-    it with a bare ``KeyError``.
+    The message names the unknown values and lists the valid ones, rather than
+    letting the builder drop an unknown name silently or fail on it with a bare
+    ``KeyError``.
     """
     unknown = [value for value in values if value not in valid]
     if unknown:
         raise ValueError(f"Unknown {kind} {unknown}. Valid values: {', '.join(valid)}.")
-    return values
 
 
 def _resolve_ai_insider_inputs(
@@ -319,14 +319,13 @@ def _resolve_ai_insider_inputs(
     resolved_archetype = archetype or preset.get("archetype", "")
     if not resolved_archetype:
         raise ValueError("Supply either 'template' or 'archetype'.")
-    _known_names("deployment archetype", [resolved_archetype], aip.DEPLOYMENT_ARCHETYPES)
+    _reject_unknown("deployment archetype", [resolved_archetype], aip.DEPLOYMENT_ARCHETYPES)
     if capabilities is not None:
-        _known_names("capability", capabilities, aip.AGENT_CAPABILITIES)
+        _reject_unknown("capability", capabilities, aip.AGENT_CAPABILITIES)
     if not industry or not company_size:
         raise ValueError("Both 'industry' and 'company_size' are required.")
-    selected_categories = _known_names(
-        "threat category", categories or preset.get("categories", []), aip.THREAT_CATEGORIES,
-    )
+    selected_categories = categories or preset.get("categories", [])
+    _reject_unknown("threat category", selected_categories, aip.THREAT_CATEGORIES)
     selected_stride = _stride_codes(stride or preset.get("stride", []))
     if not selected_categories and not selected_stride:
         raise ValueError(
