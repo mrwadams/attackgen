@@ -101,6 +101,26 @@ def unknown_technique_ids(matrix: str, technique_ids: list[str]) -> list[str]:
     return [tid for tid in ids if bundle.get_object_by_attack_id(tid, "attack-pattern") is None]
 
 
+@lru_cache(maxsize=3)
+def active_technique_labels(matrix: str) -> frozenset[str]:
+    """``"Name (ID)"`` labels of the matrix's techniques that are neither revoked
+    nor deprecated, in the form the Custom page's picker shows.
+
+    Raises ``ValueError`` for an unknown matrix.
+    """
+    if matrix == "ATLAS":
+        return frozenset(
+            f"{obj['name']} ({external_id})"
+            for external_id, obj in atlas_data().techniques.items()
+            if not obj.get("revoked") and not obj.get("x_mitre_deprecated")
+        )
+    bundle = mitre_data_for_matrix(matrix)
+    return frozenset(
+        f"{technique.name} ({bundle.get_attack_id(technique.id)})"
+        for technique in bundle.get_techniques(remove_revoked_deprecated=True)
+    )
+
+
 def load_attack_data() -> dict:
     """The ``{"enterprise","ics","atlas"}`` bundle dict the pages expect.
 
