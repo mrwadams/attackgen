@@ -130,6 +130,7 @@ def template_selection(template, current_matrix):
         st.error(f"An error occurred in template_selection: {str(e)}")
         return
     st.session_state['selected_techniques'] = kept
+    st.session_state['selected_techniques_matrix'] = current_matrix
     if dropped:
         st.warning(
             f"The {template} template left out techniques that are not active in the {current_matrix} "
@@ -170,6 +171,11 @@ if techniques_load_error is None:
             f"{technique['name']} ({attack_data[matrix.lower()].get_attack_id(technique['id'])})"
             for technique in techniques
         ]
+
+    # A template's techniques belong to the matrix it was picked on. After a
+    # matrix switch they are not options in the new picker, so drop them.
+    if st.session_state.get('selected_techniques_matrix') != matrix:
+        st.session_state['selected_techniques'] = []
 
     select_label = "Select ATLAS Techniques" if matrix == "ATLAS" else "Select ATT&CK Techniques"
     selected_techniques = st.multiselect(
