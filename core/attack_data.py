@@ -28,6 +28,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 import pandas as pd
 from mitreattack.stix20 import MitreAttackData
@@ -36,13 +37,8 @@ from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
-# Kill-chain phase order, lifted verbatim from page 1. Techniques are sorted into
-# this order before the kill chain is assembled.
-PHASE_ORDER_ATTACK = [
-    "Reconnaissance", "Resource Development", "Initial Access", "Execution", "Persistence",
-    "Privilege Escalation", "Defense Evasion", "Credential Access", "Discovery", "Lateral Movement",
-    "Collection", "Command and Control", "Exfiltration", "Impact",
-]
+# ATLAS kill-chain phase order. Enterprise and ICS read theirs from the bundle
+# (see ``_tactic_names``).
 PHASE_ORDER_ATLAS = [
     "Reconnaissance", "Resource Development", "Initial Access", "AI Model Access",
     "Execution", "Persistence", "Privilege Escalation", "Defense Evasion",
@@ -309,17 +305,33 @@ def _records(df: pd.DataFrame) -> list[dict]:
     ]
 
 
+@lru_cache(maxsize=2)
+def _tactic_names(mitre: MitreAttackData) -> MappingProxyType[str, str]:
+    """The bundle's tactics in matrix order, as ``{shortname: display name}``.
+
+    Each Enterprise/ICS bundle holds one matrix, whose ``tactic_refs`` give the
+    kill-chain phase order a technique's ``phase_name`` (a tactic shortname) is
+    sorted by. Read-only, because every caller shares the cached mapping.
+    """
+    return MappingProxyType({
+        tactic["x_mitre_shortname"]: tactic["name"]
+        for tactics in mitre.get_tactics_by_matrix().values()
+        for tactic in tactics
+    })
+
+
 def resolve_threat_group_kill_chain(
     matrix: str, group_alias: str, *, seed: int | None = None
 ) -> KillChain:
     """Resolve an Enterprise/ICS threat group to a sampled kill chain.
 
-    Replicates the page-1 logic exactly: resolve the group's techniques, derive
-    name/ID/phase, dedupe for display, normalise phase names, order by
-    ``PHASE_ORDER_ATTACK``, then sample one technique per phase from the
-    *non-deduplicated* set. ``seed`` makes the sampling deterministic; ``None``
-    reproduces the UI's per-call randomness. Returns a ``KillChain`` with empty
-    technique lists when the group has no associated techniques.
+    Resolve the group's techniques, derive name/ID/phase (each technique's first
+    tactic), dedupe for display, name and order the phases by the matrix's
+    tactics, then sample one technique per phase from the *non-deduplicated*
+    set. ``seed`` makes the sampling deterministic; ``None`` reproduces the UI's
+    per-call randomness. Returns a ``KillChain`` with empty technique lists when
+    the group has no associated techniques. Raises ``ValueError`` when a
+    technique's phase is not one of the matrix's tactics.
     """
     mitre = mitre_data_for_matrix(matrix)
     group = mitre.get_groups_by_alias(group_alias)
@@ -330,18 +342,25 @@ def resolve_threat_group_kill_chain(
     if not techniques:
         return KillChain(matrix, group_alias, [], "", [])
 
+    tactic_names = _tactic_names(mitre)
+
+    def phase_name(technique: dict) -> str:
+        phase = technique["kill_chain_phases"][0]["phase_name"]
+        if phase not in tactic_names:
+            raise ValueError(
+                f"Technique '{technique['name']}' has phase '{phase}', which is not "
+                f"a tactic of the {matrix} matrix."
+            )
+        return tactic_names[phase]
+
     techniques_df = pd.DataFrame(techniques)
     techniques_df_llm = techniques_df.copy()
     techniques_df["Technique Name"] = techniques_df_llm["Technique Name"] = techniques_df["object"].apply(lambda x: x["name"])
     techniques_df["ATT&CK ID"] = techniques_df_llm["ATT&CK ID"] = techniques_df["object"].apply(lambda x: mitre.get_attack_id(x["id"]))
-    techniques_df["Phase Name"] = techniques_df_llm["Phase Name"] = techniques_df["object"].apply(lambda x: x["kill_chain_phases"][0]["phase_name"])
+    techniques_df["Phase Name"] = techniques_df_llm["Phase Name"] = techniques_df["object"].apply(phase_name)
     techniques_df = techniques_df.drop_duplicates(["Phase Name", "Technique Name", "ATT&CK ID"])
 
-    for df in (techniques_df, techniques_df_llm):
-        df["Phase Name"] = df["Phase Name"].str.replace("-", " ").str.title()
-        df["Phase Name"] = df["Phase Name"].replace("Command And Control", "Command and Control")
-
-    phase_dtype = pd.CategoricalDtype(categories=PHASE_ORDER_ATTACK, ordered=True)
+    phase_dtype = pd.CategoricalDtype(categories=list(tactic_names.values()), ordered=True)
     techniques_df["Phase Name"] = techniques_df["Phase Name"].astype(phase_dtype)
     techniques_df_llm["Phase Name"] = techniques_df_llm["Phase Name"].astype(phase_dtype)
     techniques_df = techniques_df.sort_values("Phase Name")
