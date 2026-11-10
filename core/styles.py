@@ -26,3 +26,16 @@ _EMOJI_FONT_CSS = """
 def inject_emoji_fonts() -> None:
     """Append color-emoji fonts to widget-label and sidebar-nav font stacks."""
     st.markdown(_EMOJI_FONT_CSS, unsafe_allow_html=True)
+
+
+def page_heading(title: str) -> None:
+    """Render a page's title in the app's green."""
+    st.markdown(f"# <span style='color: #1DB954;'>{title}</span>", unsafe_allow_html=True)
+
+
+def back_link() -> None:
+    """Render the link back to the Welcome page."""
+    st.markdown(
+        '<a href="/" style="display: inline-block; padding: 5px 20px; color: white; text-align: center; text-decoration: none; font-size: 16px; border-radius: 4px;">⬅️ Back</a>',
+        unsafe_allow_html=True,
+    )

@@ -37,7 +37,7 @@ from core.request import (
 )
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
-from core.styles import inject_emoji_fonts
+from core.styles import back_link, inject_emoji_fonts, page_heading
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     AI_INSIDER_TEMPLATES,
@@ -80,7 +80,7 @@ def build_messages(request: ScenarioRequest):
 
 # ------------------ Streamlit UI ------------------ #
 
-st.markdown("# <span style='color: #1DB954;'>AI Insider Threat Scenarios🤖</span>", unsafe_allow_html=True)
+page_heading("AI Insider Threat Scenarios🤖")
 
 st.markdown(
     "Generate incident response testing scenarios in which a **frontier AI agent deployed inside "
@@ -247,8 +247,4 @@ run_scenario_page(
 )
 
 
-# Back button
-st.markdown(
-    '<a href="/" style="display: inline-block; padding: 5px 20px; color: white; text-align: center; text-decoration: none; font-size: 16px; border-radius: 4px;">⬅️ Back</a>',
-    unsafe_allow_html=True,
-)
+back_link()
