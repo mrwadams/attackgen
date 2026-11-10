@@ -121,15 +121,6 @@ def active_technique_labels(matrix: str) -> frozenset[str]:
     )
 
 
-def load_attack_data() -> dict:
-    """The ``{"enterprise","ics","atlas"}`` bundle dict the pages expect.
-
-    Kept for the pages, which index it by ``matrix.lower()``. Backed by the same
-    cached singletons, so importing/using it never loads a bundle twice.
-    """
-    return {"enterprise": enterprise_data(), "ics": ics_data(), "atlas": atlas_data()}
-
-
 # ---------------------------------------------------------------------------
 # Group / case-study / technique listings
 # ---------------------------------------------------------------------------
@@ -239,34 +230,36 @@ def list_usable_scenario_options(matrix: str) -> tuple[dict, ...]:
 
 
 def list_technique_options(matrix: str) -> list[dict]:
-    """All selectable techniques for a matrix, for the Custom page multiselect.
+    """The Custom page multiselect's options: one row per technique that is
+    neither revoked nor deprecated.
 
     Each entry: ``{"id","Technique Name","External ID","Display Name"}`` where
-    ``Display Name`` is ``"Name (ID)"``. Mirrors the page-2 ``load_techniques``.
+    ``Display Name`` is ``"Name (ID)"``, the label ``active_technique_labels``
+    and the templates use. The ID is the technique's ATT&CK (or ATLAS) ID, never
+    a CAPEC or other reference's.
     """
     if matrix == "ATLAS":
-        techniques = atlas_data().get_techniques()
         return [
             {
-                "id": tech["id"],
-                "Technique Name": tech["name"],
-                "External ID": tech["external_id"],
-                "Display Name": f"{tech['name']} ({tech['external_id']})",
+                "id": obj["id"],
+                "Technique Name": obj["name"],
+                "External ID": external_id,
+                "Display Name": f"{obj['name']} ({external_id})",
             }
-            for tech in techniques
+            for external_id, obj in atlas_data().techniques.items()
+            if not obj.get("revoked") and not obj.get("x_mitre_deprecated")
         ]
 
-    techniques = mitre_data_for_matrix(matrix).get_techniques()
+    bundle = mitre_data_for_matrix(matrix)
     rows: list[dict] = []
-    for technique in techniques:
-        for reference in technique.external_references:
-            if "external_id" in reference:
-                rows.append({
-                    "id": technique.id,
-                    "Technique Name": technique.name,
-                    "External ID": reference["external_id"],
-                    "Display Name": f"{technique.name} ({reference['external_id']})",
-                })
+    for technique in bundle.get_techniques(remove_revoked_deprecated=True):
+        attack_id = bundle.get_attack_id(technique.id)
+        rows.append({
+            "id": technique.id,
+            "Technique Name": technique.name,
+            "External ID": attack_id,
+            "Display Name": f"{technique.name} ({attack_id})",
+        })
     return rows
 
 

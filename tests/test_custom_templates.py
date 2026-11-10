@@ -40,6 +40,15 @@ def test_every_template_resolves_in_full(matrix):
         assert kept == labels
 
 
+@pytest.mark.parametrize("matrix", ["Enterprise", "ICS", "ATLAS"])
+def test_every_template_entry_is_a_picker_option(matrix):
+    """Page 2 seeds the multiselect's default from a template, and Streamlit
+    rejects a default that is not one of the options."""
+    options = {o["Display Name"] for o in ad.list_technique_options(matrix)}
+    for template, labels in ct.INCIDENT_RESPONSE_TEMPLATES[matrix].items():
+        assert not set(labels) - options, template
+
+
 def test_retired_entries_are_replaced():
     templates = ct.INCIDENT_RESPONSE_TEMPLATES
     phishing = templates["Enterprise"]["Phishing Attack"]
