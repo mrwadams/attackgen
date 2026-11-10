@@ -14,13 +14,13 @@ from core.assistant import (
 )
 from core.scenario_page import applied_caption, mark_applied, stash_pre_apply
 from core.sidebar import render_setup_blockers, render_setup_sidebar
-from core.styles import inject_emoji_fonts
+from core.styles import inject_emoji_fonts, page_heading
 
 st.set_page_config(page_title="AttackGen Assistant", page_icon=":speech_balloon:")
 inject_emoji_fonts()
 setup = render_setup_sidebar()
 
-st.markdown("# <span style='color: #1DB954;'>AttackGen Assistant💬</span>", unsafe_allow_html=True)
+page_heading("AttackGen Assistant💬")
 
 
 # The scenario, its optional purple-team narrative and the metadata naming both
