@@ -294,6 +294,10 @@ def test_every_shipped_group_resolves_to_its_matrix_tactics(matrix):
             kc = ad.resolve_threat_group_kill_chain(matrix, candidate["group"], seed=0)
             for row in kc.all_techniques + kc.techniques:
                 assert row["Phase Name"] in tactics, (candidate["group"], row)
+            # No phase is missing: every phase the group uses gets a sampled step.
+            assert {t["Phase Name"] for t in kc.techniques} == {
+                t["Phase Name"] for t in kc.all_techniques
+            }, candidate["group"]
 
 
 @pytest.mark.parametrize(
