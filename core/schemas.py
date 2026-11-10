@@ -1,4 +1,4 @@
-"""Data models for LLM configuration."""
+"""Data models for LLM configuration, plus the session-state keys for setup and per-page results."""
 
 from __future__ import annotations
 
@@ -52,11 +52,12 @@ class ResultKeys:
     """The session-state keys one scenario page owns.
 
     ``page_id`` namespaces every key so the three pages can coexist in one
-    Streamlit session; grouping them here keeps the phase helpers' signatures
-    readable now that a run also tracks progress and failure state.
+    Streamlit session.
 
-    None of these are widget keys — the phase helpers set and clear them
-    directly, which Streamlit only permits for keys no widget owns.
+    None of these are widget keys — ``core.scenario_page`` sets and clears
+    them directly, and ``core.assistant`` writes revised results back to
+    ``text`` and ``defense``, which Streamlit only permits for keys no widget
+    owns.
     """
 
     page_id: str
@@ -93,7 +94,7 @@ class ResultKeys:
 
     @property
     def status(self) -> str:
-        """The current phase failure, if any (see ``Status``)."""
+        """The current phase failure, if any (see ``core.scenario_page.Status``)."""
         return f"{self.page_id}_generation_status"
 
     @property
