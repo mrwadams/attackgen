@@ -9,8 +9,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
     
     # Writable temporary filesystems for Streamlit
     tmpfs:
@@ -40,14 +38,6 @@ services:
     
     # Run as non-root (matches Dockerfile user)
     user: "1000:1000"
-    
-    # Health check using Python (matches Dockerfile)
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=2)"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
     
     # Restart policy for production
     restart: unless-stopped
