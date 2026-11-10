@@ -3,14 +3,16 @@
 Enterprise/ICS resolution is exercised with a fake `MitreAttackData` covering the
 three helpers used, so the 53 MB bundle is never loaded. ATLAS resolution runs
 against the real bundled data. The tests pin the parity-critical behaviours:
-phase normalisation, dedupe for display, one-technique-per-phase sampling, the
-kill-chain string format, seed determinism, and JSON-native output.
+phase names and order from the matrix's tactics, dedupe for display,
+one-technique-per-phase sampling, the kill-chain string format, seed
+determinism, and JSON-native output.
 """
 
 from __future__ import annotations
 
 import ast
 import json
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,11 +22,12 @@ import core.attack_data as ad
 
 
 class FakeMitreData:
-    """Stand-in for `MitreAttackData` covering the three resolver helpers.
+    """Stand-in for `MitreAttackData` covering the four resolver helpers.
 
-    Models a group with two phases; "Command And Control" is title-cased and must
-    normalise to "Command and Control". The Initial Access phase has two distinct
-    techniques so one-per-phase sampling has a real choice to make.
+    Models a group with two phases. Phase display names and order come from the
+    matrix's tactics, so "command-and-control" must read "Command and Control".
+    The Initial Access phase has two distinct techniques so one-per-phase
+    sampling has a real choice to make.
     """
 
     _TECHS = [
@@ -32,6 +35,18 @@ class FakeMitreData:
         ("attack-pattern--2", "Drive-by Compromise", "T1189", "initial-access"),
         ("attack-pattern--3", "Web Protocols", "T1071.001", "command-and-control"),
     ]
+    _TACTICS = [
+        ("reconnaissance", "Reconnaissance"),
+        ("initial-access", "Initial Access"),
+        ("command-and-control", "Command and Control"),
+    ]
+
+    def get_tactics_by_matrix(self):
+        return {
+            "Fake ATT&CK": [
+                {"x_mitre_shortname": short, "name": name} for short, name in self._TACTICS
+            ]
+        }
 
     def get_groups_by_alias(self, alias):
         if alias == "TESTGROUP":
@@ -100,15 +115,34 @@ class TestResolveThreatGroup:
         kc = ad.resolve_threat_group_kill_chain("Enterprise", "NOPE")
         assert kc.techniques == [] and kc.all_techniques == [] and kc.kill_chain_string == ""
 
-    def test_phase_normalised_and_one_per_phase(self, fake_enterprise):
+    def test_phase_names_from_tactics_and_one_per_phase(self, fake_enterprise):
         kc = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
         phases = [t["Phase Name"] for t in kc.techniques]
-        # One sampled technique per phase, phases ordered per PHASE_ORDER_ATTACK.
+        # One sampled technique per phase, named and ordered by the matrix's tactics.
         assert phases == ["Initial Access", "Command and Control"]
-        # The hyphenated raw phase was title-cased + fixed.
-        assert "Command and Control" in phases
         # all_techniques holds the full deduped display set (3 techniques).
         assert len(kc.all_techniques) == 3
+
+    def test_phases_follow_the_matrix_tactic_order(self, monkeypatch):
+        fake = FakeMitreData()
+        fake._TACTICS = [
+            ("command-and-control", "Command and Control"),
+            ("initial-access", "Initial Access"),
+        ]
+        monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: fake)
+        kc = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
+        assert [t["Phase Name"] for t in kc.techniques] == [
+            "Command and Control",
+            "Initial Access",
+        ]
+        assert kc.all_techniques[0]["Phase Name"] == "Command and Control"
+
+    def test_phase_missing_from_the_matrix_raises(self, monkeypatch):
+        fake = FakeMitreData()
+        fake._TACTICS = [("initial-access", "Initial Access")]
+        monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: fake)
+        with pytest.raises(ValueError, match=r"Web Protocols.*command-and-control"):
+            ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
 
     def test_kill_chain_string_format(self, fake_enterprise):
         kc = ad.resolve_threat_group_kill_chain("Enterprise", "TESTGROUP", seed=0)
@@ -242,6 +276,36 @@ def test_every_shipped_threat_group_option_resolves(matrix):
             assert not ad.resolve_threat_group_kill_chain(
                 matrix, candidate["group"], seed=0
             ).techniques
+
+
+@pytest.mark.parametrize("matrix", ["Enterprise", "ICS"])
+def test_every_shipped_group_resolves_to_its_matrix_tactics(matrix):
+    # Resolves every group in groups.json / groups_ics.json directly, not via
+    # list_usable_scenario_options, which would skip a group that raises.
+    tactics = {
+        tactic["name"]
+        for tactic_list in ad.mitre_data_for_matrix(matrix).get_tactics_by_matrix().values()
+        for tactic in tactic_list
+    }
+    with warnings.catch_warnings():
+        # The pandas warning for a phase outside the categorical must not fire.
+        warnings.simplefilter("error")
+        for candidate in ad.list_threat_groups(matrix):
+            kc = ad.resolve_threat_group_kill_chain(matrix, candidate["group"], seed=0)
+            for row in kc.all_techniques + kc.techniques:
+                assert row["Phase Name"] in tactics, (candidate["group"], row)
+
+
+@pytest.mark.parametrize(
+    ("matrix", "group", "phases"),
+    [
+        ("Enterprise", "APT29", {"Stealth", "Defense Impairment"}),
+        ("ICS", "Sandworm Team", {"Inhibit Response Function"}),
+    ],
+)
+def test_previously_dropped_phases_are_sampled(matrix, group, phases):
+    kc = ad.resolve_threat_group_kill_chain(matrix, group, seed=0)
+    assert phases <= {t["Phase Name"] for t in kc.techniques}
 
 
 def test_usable_options_exclude_raising_and_empty_candidates(monkeypatch):
