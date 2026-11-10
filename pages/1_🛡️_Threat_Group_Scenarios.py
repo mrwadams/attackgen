@@ -19,7 +19,7 @@ from core.request import (
 )
 from core.scenario_page import run_scenario_page
 from core.sidebar import render_setup_sidebar
-from core.styles import inject_emoji_fonts
+from core.styles import back_link, inject_emoji_fonts, page_heading
 
 
 # ------------------ Streamlit Configuration ------------------ #
@@ -111,7 +111,7 @@ def _modifiers():
 
 # ------------------ Streamlit UI ------------------ #
 
-st.markdown("# <span style='color: #1DB954;'>Generate Threat Group Scenario🛡️</span>", unsafe_allow_html=True)
+page_heading("Generate Threat Group Scenario🛡️")
 
 matrix = setup.matrix or "Enterprise"
 groups = load_groups(matrix)
@@ -275,7 +275,4 @@ run_scenario_page(
 )
 
 
-st.markdown(
-    '<a href="/" style="display: inline-block; padding: 5px 20px; color: white; text-align: center; text-decoration: none; font-size: 16px; border-radius: 4px;">⬅️ Back</a>',
-    unsafe_allow_html=True,
-)
+back_link()
