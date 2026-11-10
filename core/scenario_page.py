@@ -44,7 +44,6 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -69,7 +68,7 @@ from core.llm import call_llm_stream
 from core.navigator import layer_filename, navigator_for_domain
 from core.request import RequestIdentity, ScenarioRequest
 from core.response import clean_model_response, stream_filter_thinking
-from core.schemas import MODEL_KEY, PROVIDER_KEY, LLMConfig
+from core.schemas import MODEL_KEY, PROVIDER_KEY, LLMConfig, ResultKeys
 from core.state import setup_was_restored_from_link
 from core.summary import (
     describe_inputs,
@@ -102,116 +101,6 @@ Message = dict
 
 Status = dict[str, str]
 """Why a phase produced no output: ``{"phase": ..., "reason": ..., "detail": ...}``."""
-
-
-@dataclass(frozen=True)
-class _Keys:
-    """The session-state keys one scenario page owns.
-
-    ``page_id`` namespaces every key so the three pages can coexist in one
-    Streamlit session; grouping them here keeps the phase helpers' signatures
-    readable now that a run also tracks progress and failure state.
-
-    None of these are widget keys — the phase helpers set and clear them
-    directly, which Streamlit only permits for keys no widget owns.
-    """
-
-    page_id: str
-
-    @property
-    def generated(self) -> str:
-        return f"{self.page_id}_scenario_generated"
-
-    @property
-    def text(self) -> str:
-        return f"{self.page_id}_scenario_text"
-
-    @property
-    def layer(self) -> str:
-        return f"{self.page_id}_scenario_layer"
-
-    @property
-    def filename(self) -> str:
-        return f"{self.page_id}_scenario_filename"
-
-    @property
-    def defense(self) -> str:
-        return f"{self.page_id}_scenario_defense"
-
-    @property
-    def defense_report(self) -> str:
-        """The structured report a narrative retry needs to rebuild its prompt."""
-        return f"{self.page_id}_scenario_defense_report"
-
-    @property
-    def request(self) -> str:
-        """The :class:`ScenarioRequest` frozen when this result was generated."""
-        return f"{self.page_id}_scenario_request"
-
-    @property
-    def status(self) -> str:
-        """The current phase failure, if any (see ``Status``)."""
-        return f"{self.page_id}_generation_status"
-
-    @property
-    def narrative_running(self) -> str:
-        """Set while the optional narrative streams; survives a torn-down run."""
-        return f"{self.page_id}_narrative_running"
-
-    @property
-    def narrative_stop(self) -> str:
-        return f"{self.page_id}_narrative_stop_requested"
-
-    @property
-    def retry_base(self) -> str:
-        return f"{self.page_id}_retry_base_requested"
-
-    @property
-    def retry_narrative(self) -> str:
-        return f"{self.page_id}_retry_narrative_requested"
-
-    @property
-    def run_id(self) -> str:
-        """The LangSmith run behind *this* result, so feedback can't drift."""
-        return f"{self.page_id}_scenario_run_id"
-
-    @property
-    def regenerate(self) -> str:
-        return f"{self.page_id}_regenerate_requested"
-
-    @property
-    def clear(self) -> str:
-        return f"{self.page_id}_clear_requested"
-
-    @property
-    def pre_apply(self) -> str:
-        """The scenario + narrative stashed before the *first* Assistant apply."""
-        return f"{self.page_id}_scenario_pre_apply"
-
-    @property
-    def applied_at(self) -> str:
-        """When the Assistant last applied changes to this result, if ever."""
-        return f"{self.page_id}_scenario_applied_at"
-
-    @property
-    def revert(self) -> str:
-        return f"{self.page_id}_revert_requested"
-
-    def result_keys(self) -> tuple[str, ...]:
-        """Every key holding this page's latest result (what Clear removes)."""
-        return (
-            self.generated,
-            self.text,
-            self.layer,
-            self.filename,
-            self.defense,
-            self.defense_report,
-            self.request,
-            self.status,
-            self.run_id,
-            self.pre_apply,
-            self.applied_at,
-        )
 
 
 BASE_PHASE = "base"
@@ -506,7 +395,7 @@ def run_scenario_page(
     Enterprise.md"``); the markdown and layer downloads get a sanitised,
     timestamped variant so files are meaningful and unique across scenarios.
     """
-    keys = _Keys(page_id)
+    keys = ResultKeys(page_id)
     st.session_state.setdefault(keys.generated, False)
 
     # A narrative still flagged in-flight belongs to a previous script run that
@@ -647,7 +536,7 @@ def run_scenario_page(
 def _generate_and_render(
     *,
     request: ScenarioRequest,
-    keys: _Keys,
+    keys: ResultKeys,
     build_messages: Callable[[ScenarioRequest], list[Message] | None],
     build_layer: Callable[[ScenarioRequest], str | None] | None,
     build_defense: Callable[[ScenarioRequest], dict | None] | None,
@@ -872,7 +761,7 @@ def _request_retry(request_key: str) -> None:
     st.session_state[request_key] = True
 
 
-def _settle_interrupted_narrative(keys: _Keys) -> None:
+def _settle_interrupted_narrative(keys: ResultKeys) -> None:
     """Turn a narrative left in flight by a torn-down run into a status record.
 
     Streamlit aborts the running script as soon as a rerun is queued — which is
@@ -891,7 +780,7 @@ def _settle_interrupted_narrative(keys: _Keys) -> None:
     )
 
 
-def _render_skip_control(keys: _Keys):
+def _render_skip_control(keys: ResultKeys):
     """Offer a way out of a slow or stalled optional phase.
 
     Clicking this queues a rerun, which tears down the in-flight narrative
@@ -920,7 +809,7 @@ def _render_skip_control(keys: _Keys):
 
 def _run_narrative_phase(
     *,
-    keys: _Keys,
+    keys: ResultKeys,
     report: dict,
     scenario_text: str,
     defense_state: dict | None,
@@ -1046,7 +935,7 @@ def _stream_defense_narrative(
     return cleaned, None
 
 
-def _retry_narrative(*, keys: _Keys, trace_name: str, download_name: str) -> bool:
+def _retry_narrative(*, keys: ResultKeys, trace_name: str, download_name: str) -> bool:
     """Re-run only the narrative against the already-persisted base scenario.
 
     Nothing about the base is regenerated — no second base-scenario model call,
@@ -1107,7 +996,7 @@ def _retry_narrative(*, keys: _Keys, trace_name: str, download_name: str) -> boo
         return False
 
 
-def _render_recovery_notice(keys: _Keys, *, slot) -> None:
+def _render_recovery_notice(keys: ResultKeys, *, slot) -> None:
     """Explain the current phase failure and offer its focused retry.
 
     A missing optional narrative reads as a degraded success (warning, base
@@ -1167,7 +1056,7 @@ def stash_pre_apply(page_id: str) -> None:
     original" always means the version this page generated, not the version
     before the *most recent* apply.
     """
-    keys = _Keys(page_id)
+    keys = ResultKeys(page_id)
     if keys.pre_apply in st.session_state:
         return
     defense_state = st.session_state.get(keys.defense) or {}
@@ -1180,13 +1069,13 @@ def stash_pre_apply(page_id: str) -> None:
 def mark_applied(page_id: str) -> str:
     """Record now as this page's last successful Assistant apply; return it."""
     applied_at = datetime.now(timezone.utc).isoformat()
-    st.session_state[_Keys(page_id).applied_at] = applied_at
+    st.session_state[ResultKeys(page_id).applied_at] = applied_at
     return applied_at
 
 
 def has_been_applied(page_id: str) -> bool:
     """Has the Assistant applied changes to this page's result?"""
-    return bool(st.session_state.get(_Keys(page_id).applied_at))
+    return bool(st.session_state.get(ResultKeys(page_id).applied_at))
 
 
 def _format_applied(value: str) -> str:
@@ -1203,13 +1092,13 @@ def applied_caption(page_id: str) -> str | None:
     Shared by this page's result and the Assistant page itself, so the two
     always describe the same apply in the same words.
     """
-    applied_at = st.session_state.get(_Keys(page_id).applied_at)
+    applied_at = st.session_state.get(ResultKeys(page_id).applied_at)
     if not applied_at:
         return None
     return f"Refined via the AttackGen Assistant — last applied {_format_applied(applied_at)}."
 
 
-def _revert_to_original(keys: _Keys) -> None:
+def _revert_to_original(keys: ResultKeys) -> None:
     """Restore the scenario and narrative stashed before the first apply.
 
     Both move together — a scenario without its matching narrative (or vice
@@ -1243,7 +1132,7 @@ def _revert_to_original(keys: _Keys) -> None:
         st.session_state[DEFENSE_NARRATIVE_KEY] = original_narrative
 
 
-def _clear_result(keys: _Keys) -> None:
+def _clear_result(keys: ResultKeys) -> None:
     """Drop this page's result on an explicit request, leaving Setup intact.
 
     Only the page's own result namespace (and the Assistant handoff, when it
@@ -1329,7 +1218,7 @@ def _render_no_result_note() -> None:
 def _persist_and_render(
     *,
     cleaned: str,
-    keys: _Keys,
+    keys: ResultKeys,
     download_name: str,
     layer_payload: tuple[str, str] | None,
     defense_state: dict | None,
@@ -1387,7 +1276,7 @@ def _persist_and_render(
 
 def _render_previous(
     *,
-    keys: _Keys,
+    keys: ResultKeys,
     download_name: str,
     current_request: ScenarioRequest | None = None,
 ) -> None:
@@ -1519,7 +1408,7 @@ def _render_result_actions(
     the same place whether the result was just generated or re-rendered after
     navigating back to the page.
     """
-    keys = _Keys(page_id)
+    keys = ResultKeys(page_id)
     st.markdown("**Next steps**")
     assistant_col, regenerate_col, clear_col = st.columns(3)
     with assistant_col:

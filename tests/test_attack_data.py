@@ -49,30 +49,44 @@ class FakeMitreData:
 
 
 class FakeTechniqueData:
-    """Stand-in for `MitreAttackData.get_techniques()` for list_technique_options.
+    """Stand-in for `MitreAttackData` for list_technique_options.
 
-    Each technique carries multiple external_references; only those with an
-    ``external_id`` should produce a row, so the CAPEC ref below must be skipped.
+    Shaped like the real bundle: a technique can carry a CAPEC reference with
+    its own ``external_id``, which must not become a picker row, and a revoked
+    technique is returned only when ``remove_revoked_deprecated`` is off.
     """
 
-    def get_techniques(self):
-        return [
-            SimpleNamespace(
-                id="attack-pattern--1",
-                name="Spearphishing Attachment",
-                external_references=[
-                    {"source_name": "mitre-attack", "external_id": "T1566.001"},
-                    {"source_name": "capec"},  # no external_id -> must be skipped
-                ],
-            ),
-            SimpleNamespace(
-                id="attack-pattern--2",
-                name="Drive-by Compromise",
-                external_references=[
-                    {"source_name": "mitre-attack", "external_id": "T1189"},
-                ],
-            ),
-        ]
+    _ACTIVE = [
+        SimpleNamespace(
+            id="attack-pattern--1",
+            name="Spearphishing Attachment",
+            external_references=[
+                {"source_name": "mitre-attack", "external_id": "T1566.001"},
+                {"source_name": "capec", "external_id": "CAPEC-163"},
+            ],
+        ),
+        SimpleNamespace(
+            id="attack-pattern--2",
+            name="Drive-by Compromise",
+            external_references=[
+                {"source_name": "mitre-attack", "external_id": "T1189"},
+            ],
+        ),
+    ]
+    _REVOKED = SimpleNamespace(
+        id="attack-pattern--3",
+        name="Spearphishing Attachment",
+        external_references=[{"source_name": "mitre-attack", "external_id": "T1193"}],
+    )
+    _IDS = {"attack-pattern--1": "T1566.001", "attack-pattern--2": "T1189", "attack-pattern--3": "T1193"}
+
+    def get_techniques(self, remove_revoked_deprecated=False):
+        if remove_revoked_deprecated:
+            return list(self._ACTIVE)
+        return [*self._ACTIVE, self._REVOKED]
+
+    def get_attack_id(self, stix_id):
+        return self._IDS[stix_id]
 
 
 @pytest.fixture
@@ -371,13 +385,29 @@ class TestListTechniqueOptions:
     def test_attack_branch_builds_display_names(self, monkeypatch):
         monkeypatch.setattr(ad, "mitre_data_for_matrix", lambda matrix: FakeTechniqueData())
         opts = ad.list_technique_options("Enterprise")
-        # Three external_references across two techniques, but the CAPEC ref has
-        # no external_id -> exactly two rows.
-        assert len(opts) == 2
+        # One row per active technique: the CAPEC reference and the revoked
+        # technique are both left out.
+        assert [o["Display Name"] for o in opts] == [
+            "Spearphishing Attachment (T1566.001)",
+            "Drive-by Compromise (T1189)",
+        ]
         first = opts[0]
         assert set(first) == {"id", "Technique Name", "External ID", "Display Name"}
         assert first["External ID"] == "T1566.001"
         assert first["Display Name"] == "Spearphishing Attachment (T1566.001)"
+
+    @pytest.mark.parametrize("matrix", ["Enterprise", "ICS", "ATLAS"])
+    def test_offers_only_active_techniques_in_the_shipped_bundle(self, matrix):
+        """The picker and the template guard share one notion of "active", and
+        no label carries a missing ID or a non-ATT&CK reference."""
+        opts = ad.list_technique_options(matrix)
+        labels = [o["Display Name"] for o in opts]
+        assert labels
+        assert not [label for label in labels if label.endswith("(None)")]
+        assert not set(labels) - ad.active_technique_labels(matrix)
+        assert len({o["id"] for o in opts}) == len(opts)
+        prefix = "AML.T" if matrix == "ATLAS" else "T"
+        assert all(o["External ID"].startswith(prefix) for o in opts)
 
     def test_atlas_branch_against_real_bundle(self):
         opts = ad.list_technique_options("ATLAS")
