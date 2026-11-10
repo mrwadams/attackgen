@@ -1,4 +1,4 @@
-"""Data models for LLM configuration and the session-state keys pages share."""
+"""Data models for LLM configuration, plus the session-state keys for setup and per-page results."""
 
 from __future__ import annotations
 
@@ -55,7 +55,9 @@ class ResultKeys:
     Streamlit session.
 
     None of these are widget keys — ``core.scenario_page`` sets and clears
-    them directly, which Streamlit only permits for keys no widget owns.
+    them directly, and ``core.assistant`` writes revised results back to
+    ``text`` and ``defense``, which Streamlit only permits for keys no widget
+    owns.
     """
 
     page_id: str
