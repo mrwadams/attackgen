@@ -28,6 +28,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 import pandas as pd
 from mitreattack.stix20 import MitreAttackData
@@ -304,19 +305,19 @@ def _records(df: pd.DataFrame) -> list[dict]:
     ]
 
 
-@lru_cache(maxsize=4)
-def _tactic_names(mitre: MitreAttackData) -> dict[str, str]:
+@lru_cache(maxsize=2)
+def _tactic_names(mitre: MitreAttackData) -> MappingProxyType[str, str]:
     """The bundle's tactics in matrix order, as ``{shortname: display name}``.
 
     Each Enterprise/ICS bundle holds one matrix, whose ``tactic_refs`` give the
     kill-chain phase order a technique's ``phase_name`` (a tactic shortname) is
-    sorted by.
+    sorted by. Read-only, because every caller shares the cached mapping.
     """
-    return {
+    return MappingProxyType({
         tactic["x_mitre_shortname"]: tactic["name"]
         for tactics in mitre.get_tactics_by_matrix().values()
         for tactic in tactics
-    }
+    })
 
 
 def resolve_threat_group_kill_chain(

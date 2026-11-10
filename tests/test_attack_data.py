@@ -1,7 +1,7 @@
 """Tests for `core.attack_data` — headless loaders + kill-chain resolution.
 
 Enterprise/ICS resolution is exercised with a fake `MitreAttackData` covering the
-three helpers used, so the 53 MB bundle is never loaded. ATLAS resolution runs
+four helpers used, so the 53 MB bundle is never loaded. ATLAS resolution runs
 against the real bundled data. The tests pin the parity-critical behaviours:
 phase names and order from the matrix's tactics, dedupe for display,
 one-technique-per-phase sampling, the kill-chain string format, seed
