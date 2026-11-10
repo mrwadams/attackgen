@@ -374,6 +374,27 @@ class TestGenerateTools:
                 "Enterprise", "APT29", "F", "L", provider="Bogus", model="x"
             )
 
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: s.generate_threat_group_scenario(
+                "Enterprise", "APT29", "F", "L", provider="Bogus", model="x"
+            ),
+            lambda: s.generate_custom_scenario(
+                "Enterprise", ["T1059"], "F", "L", provider="Bogus", model="x"
+            ),
+        ],
+        ids=["threat_group", "custom"],
+    )
+    def test_bad_provider_raises_before_loading_mitre_data(self, monkeypatch, call):
+        def fail(*_a, **_k):
+            raise AssertionError("MITRE data loaded before the provider was checked")
+
+        monkeypatch.setattr(s.ad, "resolve_threat_group_kill_chain", fail)
+        monkeypatch.setattr(s.ad, "mitre_data_for_matrix", fail)
+        with pytest.raises(ValueError, match="Unknown provider 'Bogus'"):
+            call()
+
     def test_bad_model_raises(self, canned_kill_chain):
         with pytest.raises(ValueError):
             s.generate_threat_group_scenario(
