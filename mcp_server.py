@@ -28,6 +28,7 @@ The heavy STIX bundles load lazily on first data-tool call (see
 from __future__ import annotations
 
 import os
+from collections.abc import Collection
 from dataclasses import asdict
 from typing import Literal
 
@@ -277,6 +278,18 @@ def _stride_codes(values: list[str]) -> list[str]:
     return list(dict.fromkeys(by_value[value] for value in values))
 
 
+def _reject_unknown(kind: str, values: list[str], valid: Collection[str]) -> None:
+    """Raise ``ValueError`` when any of ``values`` is not in ``valid``.
+
+    The message names the unknown values and lists the valid ones, rather than
+    letting the builder drop an unknown name silently or fail on it with a bare
+    ``KeyError``.
+    """
+    unknown = [value for value in values if value not in valid]
+    if unknown:
+        raise ValueError(f"Unknown {kind} {unknown}. Valid values: {', '.join(valid)}.")
+
+
 def _resolve_ai_insider_inputs(
     template: str | None,
     archetype: str,
@@ -292,7 +305,9 @@ def _resolve_ai_insider_inputs(
     A template fills gaps; any explicitly-supplied value wins over it. Raises
     ``ValueError`` when neither a template nor an archetype is given, or when
     the organisation context is missing — ``template`` gives those arguments
-    defaults, so they are no longer required by the tool schema.
+    defaults, so they are no longer required by the tool schema. Also raises
+    for an unknown archetype, category, STRIDE threat or capability, and when
+    the merged selection has no category and no STRIDE threat.
 
     No template supplies ``capabilities``, so it passes through unresolved
     (``None`` when the caller omits it too) — ``build_ai_insider_messages``
@@ -304,13 +319,24 @@ def _resolve_ai_insider_inputs(
     resolved_archetype = archetype or preset.get("archetype", "")
     if not resolved_archetype:
         raise ValueError("Supply either 'template' or 'archetype'.")
+    _reject_unknown("deployment archetype", [resolved_archetype], aip.DEPLOYMENT_ARCHETYPES)
+    if capabilities is not None:
+        _reject_unknown("capability", capabilities, aip.AGENT_CAPABILITIES)
     if not industry or not company_size:
         raise ValueError("Both 'industry' and 'company_size' are required.")
+    selected_categories = categories or preset.get("categories", [])
+    _reject_unknown("threat category", selected_categories, aip.THREAT_CATEGORIES)
+    selected_stride = _stride_codes(stride or preset.get("stride", []))
+    if not selected_categories and not selected_stride:
+        raise ValueError(
+            "Select at least one threat category (or a specific STRIDE threat) "
+            "for the scenario."
+        )
     seed = scenario_seed if scenario_seed is not None else preset.get("brief", "")
     return {
         "archetype_name": resolved_archetype,
-        "selected_categories": categories or preset.get("categories", []),
-        "selected_stride": _stride_codes(stride or preset.get("stride", [])),
+        "selected_categories": selected_categories,
+        "selected_stride": selected_stride,
         "selected_capabilities": capabilities,
         "industry": industry,
         "company_size": company_size,
@@ -342,6 +368,10 @@ def get_ai_insider_prompt(
 
     ``capabilities`` defaults to the full set (no template supplies it); pass
     ``[]`` to leave the agent's capabilities unspecified.
+
+    Raises ``ValueError`` listing the valid values for an unknown archetype,
+    category, STRIDE threat or capability, and when the resolved selection has
+    no category and no STRIDE threat (page 3 blocks the same state).
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
@@ -476,6 +506,10 @@ def generate_ai_insider_scenario(
 
     ``capabilities`` defaults to the full set (no template supplies it); pass
     ``[]`` to leave the agent's capabilities unspecified.
+
+    Raises ``ValueError`` listing the valid values for an unknown archetype,
+    category, STRIDE threat or capability, and when the resolved selection has
+    no category and no STRIDE threat (page 3 blocks the same state).
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(

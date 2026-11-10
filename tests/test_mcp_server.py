@@ -143,7 +143,7 @@ class TestDataTools:
     def test_get_ai_insider_prompt_builds_messages(self):
         archetype = next(iter(DEPLOYMENT_ARCHETYPES))
         out = s.get_ai_insider_prompt(
-            archetype, categories=[], stride=[], capabilities=[],
+            archetype, categories=[], stride=["S1"], capabilities=[],
             industry="Healthcare", company_size="Large",
         )
         msgs = out["messages"]
@@ -222,6 +222,53 @@ class TestDataTools:
             archetype, stride=[code, label], industry="Healthcare", company_size="Large",
         )
         assert out["messages"][1]["content"].count(f"- **{label}**") == 1
+
+    def test_unknown_category_raises_listing_valid_ones(self):
+        """A typo'd category alongside a valid one fails rather than being
+        dropped, so the prompt never carries a partial scope."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        valid = next(iter(THREAT_CATEGORIES))
+        with pytest.raises(ValueError, match="Unknown threat category.*Bogus Category") as err:
+            s.get_ai_insider_prompt(
+                archetype, categories=["Bogus Category", valid],
+                industry="Healthcare", company_size="Large",
+            )
+        assert valid in str(err.value)
+
+    def test_unknown_archetype_raises_listing_valid_ones(self):
+        valid = next(iter(DEPLOYMENT_ARCHETYPES))
+        with pytest.raises(ValueError, match="Unknown deployment archetype.*Bogus") as err:
+            s.get_ai_insider_prompt(
+                "Bogus", stride=["S1"], industry="Healthcare", company_size="Large",
+            )
+        assert valid in str(err.value)
+
+    def test_unknown_capability_raises_listing_valid_ones(self):
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        valid = next(iter(AGENT_CAPABILITIES))
+        with pytest.raises(ValueError, match="Unknown capability.*Bogus") as err:
+            s.get_ai_insider_prompt(
+                archetype, stride=["S1"], capabilities=[valid, "Bogus"],
+                industry="Healthcare", company_size="Large",
+            )
+        assert valid in str(err.value)
+
+    def test_empty_threat_scope_raises(self):
+        """Page 3 blocks a scenario with no category and no STRIDE threat;
+        the MCP tools hold the same rule rather than build an empty scope."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        with pytest.raises(ValueError, match="threat category.*STRIDE threat"):
+            s.get_ai_insider_prompt(
+                archetype, categories=[], stride=[],
+                industry="Healthcare", company_size="Large",
+            )
+
+    def test_every_template_alone_passes_the_scope_check(self):
+        for template in s.list_ai_insider_options()["templates"]:
+            out = s.get_ai_insider_prompt(
+                template=template["name"], industry="Technology", company_size="Large",
+            )
+            assert out["messages"][1]["role"] == "user"
 
     def test_unknown_template_raises(self):
         with pytest.raises(ValueError, match="Unknown template"):
@@ -393,7 +440,7 @@ class TestGenerateTools:
         archetype = next(iter(DEPLOYMENT_ARCHETYPES))
         mock_litellm_completion.content = "# AI Insider Scenario"
         out = s.generate_ai_insider_scenario(
-            archetype, [], [], [], "Healthcare", "Large",
+            archetype, [], ["S1"], [], "Healthcare", "Large",
             provider="Anthropic API", model="claude-sonnet-5", api_key="k",
         )
         assert out == "# AI Insider Scenario"
@@ -422,6 +469,27 @@ class TestGenerateTools:
                 industry="Technology", company_size="Large",
                 provider="Anthropic API", model="claude-sonnet-5", api_key="k",
             )
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"categories": ["Bogus Category"]},
+            {"archetype": "Bogus", "stride": ["S1"]},
+            {"stride": ["S1"], "capabilities": ["Bogus"]},
+            {"categories": [], "stride": []},
+        ],
+        ids=["category", "archetype", "capability", "empty-scope"],
+    )
+    def test_ai_insider_scenario_rejects_bad_inputs_before_calling_the_model(
+        self, no_langsmith, mock_litellm_completion, kwargs
+    ):
+        with pytest.raises(ValueError):
+            s.generate_ai_insider_scenario(
+                industry="Healthcare", company_size="Large",
+                provider="Anthropic API", model="claude-sonnet-5", api_key="k",
+                **{"archetype": next(iter(DEPLOYMENT_ARCHETYPES)), **kwargs},
+            )
+        assert mock_litellm_completion.calls == []
 
     def test_empty_kill_chain_raises(self, monkeypatch):
         """The guard fires before the model is ever called (no LLM mock needed)."""

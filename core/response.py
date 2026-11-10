@@ -8,6 +8,11 @@ from collections.abc import Iterable, Iterator
 _OPEN_TAG = "<think>"
 _CLOSE_TAG = "</think>"
 _MAX_PARTIAL = max(len(_OPEN_TAG), len(_CLOSE_TAG)) - 1
+_OUTER_FENCE = re.compile(
+    r"```(?P<lang>markdown|md)?[ \t]*\n(?P<body>.*?)\n?```", re.DOTALL | re.IGNORECASE
+)
+_FENCE_LINE = re.compile(r"^\s*```", re.MULTILINE)
+_MARKDOWN_OPENER = re.compile(r"^\s*```(markdown|md)[ \t]*$", re.MULTILINE | re.IGNORECASE)
 
 
 def stream_filter_thinking(deltas: Iterable[str]) -> Iterator[str]:
@@ -50,17 +55,29 @@ def stream_filter_thinking(deltas: Iterable[str]) -> Iterator[str]:
 
 
 def clean_model_response(text: str) -> tuple[str | None, str]:
-    """Pull out ``<think>...</think>`` reasoning and strip surrounding code fences.
+    """Pull out ``<think>...</think>`` reasoning and strip an outer Markdown fence.
 
     Some reasoning models wrap their chain-of-thought in ``<think>`` tags; we
     surface that separately so pages can show it in an expander while keeping
-    the main scenario clean. The trailing fence strip handles models that wrap
-    a Markdown scenario in a single outer ```` ```markdown ```` block.
+    the main scenario clean.
+
+    A fence is removed only when it wraps the whole reply. A ```` ```markdown ````
+    or ```` ```md ```` wrapper is removed, keeping any code blocks inside it,
+    unless another Markdown fence opens inside it. A bare ```` ``` ```` wrapper is removed only when no other fence line is
+    inside it, since a reply that opens and closes with separate code blocks
+    looks the same at its ends. A wrapper with any other language, such as
+    ```` ```powershell ````, is a deliberate code block and stays. Fences inside
+    the text are never touched.
 
     Returns ``(thinking_or_None, cleaned)``.
     """
     match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
     thinking = match.group(1).strip() if match else None
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    cleaned = re.sub(r"^```\w*\n|```$", "", cleaned, flags=re.MULTILINE).strip()
+    outer = _OUTER_FENCE.fullmatch(cleaned)
+    if outer and (
+        not _FENCE_LINE.search(outer["body"])
+        or (outer["lang"] and not _MARKDOWN_OPENER.search(outer["body"]))
+    ):
+        cleaned = outer["body"].strip()
     return thinking, cleaned
