@@ -3,12 +3,14 @@ import streamlit as st
 from core.apply_recovery import applied_caption, mark_applied, stash_pre_apply
 from core.assistant import (
     CLEANED_REPLY_KEY,
+    CLEAR_BUTTON_KEY,
     Conversation,
     apply_summary_note,
     apply_write_back,
+    assistant_downloads,
+    choose_target,
     render_empty_state,
     render_scenario_identity,
-    resolve_download_artifacts,
     run_apply,
     scenario_handoff,
     stream_assistant_reply,
@@ -41,35 +43,9 @@ if page_id:
     if caption:
         st.caption(caption)
 
-# Pick what to edit. The Detection & Response and combined options only appear
-# when a purple-team narrative was generated alongside the scenario (page 1/2
-# toggle). The combined option refines both together so a change made to one can
-# be carried consistently into the other.
-if scenario.defense_narrative:
-    choice = st.radio(
-        "Editing:",
-        ["Scenario", "Detection & Response", "Scenario + Detection & Response"],
-        horizontal=True,
-        key="assistant_target",
-    )
-else:
-    choice = "Scenario"
-target = {
-    "Detection & Response": "defense",
-    "Scenario + Detection & Response": "both",
-}.get(choice, "scenario")
+target = choose_target(scenario)
 
-if target == "defense":
-    panels = [("Detection & Response Narrative", scenario.defense_narrative)]
-elif target == "both":
-    panels = [
-        ("Generated Scenario", scenario.text),
-        ("Detection & Response Narrative", scenario.defense_narrative),
-    ]
-else:
-    panels = [("Generated Scenario", scenario.text)]
-
-for label, content in panels:
+for label, content in target.panels(scenario):
     with st.expander(label):
         with st.container(height=400, border=True):
             st.markdown(content)
@@ -118,7 +94,7 @@ st.markdown("---")
 has_user_turn = any(m["role"] == "user" for m in conversation.messages)
 apply_clicked = st.button(
     "Apply changes to downloads",
-    key=f"assistant_apply_{target}",
+    key=target.apply_key,
     disabled=not has_user_turn,
 )
 if not has_user_turn:
@@ -159,25 +135,16 @@ if apply_clicked:
             conversation.append("assistant", apply_summary_note(applied))
             st.rerun()
 
-download_specs = []
-artifacts = resolve_download_artifacts(scenario)
-if target in ("scenario", "both") and "scenario" in artifacts:
-    filename, data = artifacts["scenario"]
-    download_specs.append(("Download Scenario", data, filename))
-if target in ("defense", "both") and "defense" in artifacts:
-    filename, data = artifacts["defense"]
-    download_specs.append(("Download Detection & Response", data, filename))
-if download_specs:
-    for column, (label, data, filename) in zip(
-        st.columns(len(download_specs)), download_specs
-    ):
+downloads = assistant_downloads(scenario, target)
+if downloads:
+    for column, download in zip(st.columns(len(downloads)), downloads):
         with column:
             st.download_button(
-                label=label,
-                data=data,
-                file_name=filename,
+                label=download.label,
+                data=download.data,
+                file_name=download.filename,
                 mime="text/markdown",
-                key=f"assistant_download_{filename}",
+                key=download.key,
             )
 
 
@@ -187,5 +154,5 @@ def clear_conversation():
 
 
 with st.container():
-    if st.button("Clear Conversation", key='clear_button'):
+    if st.button("Clear Conversation", key=CLEAR_BUTTON_KEY):
         clear_conversation()

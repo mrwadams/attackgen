@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 import streamlit as st
@@ -68,34 +69,100 @@ BOTH_SYSTEM_PROMPT = (
     "headers, bullet points, and formatting for readability."
 )
 
-# The editing modes, keyed by the value the page's radio resolves to.
-TARGETS: dict[str, dict[str, Any]] = {
-    "scenario": {
-        "system_prompt": SCENARIO_SYSTEM_PROMPT,
-        "greeting": (
-            "Hi, I can help you update and ask questions about your incident response scenario."
-        ),
-        "trace_name": "AttackGen Assistant",
-        "trace_tags": ("assistant",),
-    },
-    "defense": {
-        "system_prompt": DEFENSE_SYSTEM_PROMPT,
-        "greeting": (
-            "Hi, I can help you refine the Detection & Response narrative for your scenario."
-        ),
-        "trace_name": "AttackGen Assistant — Detection & Response",
-        "trace_tags": ("assistant", "purple_team_narrative"),
-    },
-    "both": {
-        "system_prompt": BOTH_SYSTEM_PROMPT,
-        "greeting": (
-            "Hi, I can help you refine the scenario and its Detection & Response narrative "
-            "together, keeping changes consistent across both."
-        ),
-        "trace_name": "AttackGen Assistant — Scenario + Detection & Response",
-        "trace_tags": ("assistant", "purple_team_narrative"),
-    },
-}
+# Widget keys of the Assistant page.
+TARGET_WIDGET_KEY = "assistant_target"
+CLEAR_BUTTON_KEY = "clear_button"
+
+
+class Artifact(Enum):
+    """A document the Assistant revises and offers for download."""
+
+    # (panel title, download label, how the apply note names it)
+    SCENARIO = ("Generated Scenario", "Download Scenario", "the scenario")
+    DEFENSE = (
+        "Detection & Response Narrative",
+        "Download Detection & Response",
+        "the Detection & Response narrative",
+    )
+
+    def __init__(self, panel_title: str, download_label: str, noun: str) -> None:
+        self.panel_title = panel_title
+        self.download_label = download_label
+        self.noun = noun
+
+    def text_in(self, scenario: AssistantScenario) -> str | None:
+        """This artifact's current text in the handed-off scenario."""
+        if self is Artifact.SCENARIO:
+            return scenario.text
+        return scenario.defense_narrative
+
+
+class Target(Enum):
+    """What the Assistant is editing, as picked on the page's "Editing:" radio.
+
+    Each target owns its radio label, the artifacts it shows and revises, its
+    prompt, greeting and trace, and the key of its Apply button.
+    """
+
+    # (radio label, artifacts, system prompt, greeting, trace name, trace tags)
+    SCENARIO = (
+        "Scenario",
+        (Artifact.SCENARIO,),
+        SCENARIO_SYSTEM_PROMPT,
+        "Hi, I can help you update and ask questions about your incident response scenario.",
+        "AttackGen Assistant",
+        ("assistant",),
+    )
+    DEFENSE = (
+        "Detection & Response",
+        (Artifact.DEFENSE,),
+        DEFENSE_SYSTEM_PROMPT,
+        "Hi, I can help you refine the Detection & Response narrative for your scenario.",
+        "AttackGen Assistant — Detection & Response",
+        ("assistant", "purple_team_narrative"),
+    )
+    BOTH = (
+        "Scenario + Detection & Response",
+        (Artifact.SCENARIO, Artifact.DEFENSE),
+        BOTH_SYSTEM_PROMPT,
+        "Hi, I can help you refine the scenario and its Detection & Response narrative "
+        "together, keeping changes consistent across both.",
+        "AttackGen Assistant — Scenario + Detection & Response",
+        ("assistant", "purple_team_narrative"),
+    )
+
+    def __init__(
+        self,
+        label: str,
+        artifacts: tuple[Artifact, ...],
+        system_prompt: str,
+        greeting: str,
+        trace_name: str,
+        trace_tags: tuple[str, ...],
+    ) -> None:
+        self.label = label
+        self.artifacts = artifacts
+        self.system_prompt = system_prompt
+        self.greeting = greeting
+        self.trace_name = trace_name
+        self.trace_tags = trace_tags
+
+    @classmethod
+    def from_label(cls, label: str) -> Target:
+        """The target whose radio label is ``label``."""
+        for target in cls:
+            if target.label == label:
+                return target
+        raise ValueError(f"unknown editing target: {label!r}")
+
+    @property
+    def apply_key(self) -> str:
+        """The widget key of this target's Apply button."""
+        return f"assistant_apply_{self.name.lower()}"
+
+    def panels(self, scenario: AssistantScenario) -> list[tuple[str, str | None]]:
+        """The (title, text) panels this target shows above the chat."""
+        return [(artifact.panel_title, artifact.text_in(scenario)) for artifact in self.artifacts]
 
 
 @dataclass(frozen=True)
@@ -177,14 +244,14 @@ class Conversation:
     def __init__(
         self,
         scenario: AssistantScenario,
-        target: str,
+        target: Target,
         session_state: Any | None = None,
     ) -> None:
         self.target = target
         self._state = st.session_state if session_state is None else session_state
         store = self._state.get(CONVERSATIONS_KEY)
-        if not store or store.get("scenario") != scenario.identity:
-            store = {"scenario": scenario.identity, "targets": {}}
+        if not store or store.get("identity") != scenario.identity:
+            store = {"identity": scenario.identity, "targets": {}}
             self._state[CONVERSATIONS_KEY] = store
         targets = store["targets"]
         if target not in targets:
@@ -192,7 +259,7 @@ class Conversation:
         self._messages: list[dict[str, str]] = targets[target]
 
     def _seed(self) -> list[dict[str, str]]:
-        return [{"role": "assistant", "content": TARGETS[self.target]["greeting"]}]
+        return [{"role": "assistant", "content": self.target.greeting}]
 
     @property
     def messages(self) -> list[dict[str, str]]:
@@ -214,14 +281,14 @@ class Conversation:
 
 def build_assistant_messages(
     *,
-    target: str,
+    target: Target,
     scenario_text: str,
     defense_narrative: str | None,
     chat_history: str,
     user_input: str,
 ) -> list[dict[str, str]]:
     """Assemble the system + user messages for one Assistant turn."""
-    if target == "both":
+    if target is Target.BOTH:
         context = (
             f"Here is the incident response scenario:\n\n{scenario_text}\n\n"
             f"Here is the accompanying Detection & Response narrative:\n\n{defense_narrative}\n\n"
@@ -229,7 +296,7 @@ def build_assistant_messages(
             f"apply it consistently across them and show the update to each.\n\n"
             f"Chat history:\n{chat_history}\n\nUser: {user_input}"
         )
-    elif target == "defense":
+    elif target is Target.DEFENSE:
         context = (
             f"Here is the scenario, for reference:\n\n{scenario_text}\n\n"
             f"Here is the current Detection & Response narrative the user wants to refine:"
@@ -242,14 +309,14 @@ def build_assistant_messages(
             f"Chat history:\n{chat_history}\n\nUser: {user_input}"
         )
     return [
-        {"role": "system", "content": TARGETS[target]["system_prompt"]},
+        {"role": "system", "content": target.system_prompt},
         {"role": "user", "content": context},
     ]
 
 
 def stream_assistant_reply(
     *,
-    target: str,
+    target: Target,
     scenario: AssistantScenario,
     chat_history: str,
     user_input: str,
@@ -268,8 +335,8 @@ def stream_assistant_reply(
         user_input=user_input,
     )
     config = LLMConfig.from_session_state(
-        trace_name=TARGETS[target]["trace_name"],
-        trace_tags=TARGETS[target]["trace_tags"],
+        trace_name=target.trace_name,
+        trace_tags=target.trace_tags,
     )
     raw_chunks: list[str] = []
 
@@ -312,17 +379,11 @@ APPLY_SYSTEM_PROMPT = (
     "explanation of what changed — reply with only the finished document."
 )
 
-ARTIFACT_LABELS = {
-    "scenario": "the scenario",
-    "defense": "the Detection & Response narrative",
-}
-
-
 @dataclass(frozen=True)
 class ApplyCall:
     """One dedicated apply call: which artifact it revises, and its messages."""
 
-    artifact: str
+    artifact: Artifact
     messages: list[dict[str, str]]
 
 
@@ -330,30 +391,30 @@ class ApplyCall:
 class AppliedArtifact:
     """One artifact's guarded, revised text from a completed apply call."""
 
-    artifact: str
+    artifact: Artifact
     text: str
 
 
 def build_apply_messages(
     *,
-    target: str,
+    target: Target,
     scenario_text: str,
     defense_narrative: str | None,
     chat_history: str,
 ) -> list[ApplyCall]:
     """Build the dedicated apply call(s) for one Assistant mode.
 
-    ``scenario``/``defense`` modes need one call; ``both`` needs two, one per
+    The single-artifact targets need one call; ``Target.BOTH`` needs two, one per
     artifact, each also given the *other* artifact's current text so the pair
     can be kept consistent without either call revising both at once.
     """
     calls: list[ApplyCall] = []
 
-    if target in ("scenario", "both"):
+    if Artifact.SCENARIO in target.artifacts:
         reference = (
             "\n\nFor reference, here is the current Detection & Response "
             f"narrative (do not include or revise it in your reply):\n\n{defense_narrative}"
-            if target == "both" and defense_narrative
+            if target is Target.BOTH and defense_narrative
             else ""
         )
         user_content = (
@@ -364,7 +425,7 @@ def build_apply_messages(
         )
         calls.append(
             ApplyCall(
-                artifact="scenario",
+                artifact=Artifact.SCENARIO,
                 messages=[
                     {"role": "system", "content": APPLY_SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
@@ -372,11 +433,11 @@ def build_apply_messages(
             )
         )
 
-    if target in ("defense", "both"):
+    if Artifact.DEFENSE in target.artifacts:
         reference = (
             "\n\nFor reference, here is the current incident response scenario "
             f"(do not include or revise it in your reply):\n\n{scenario_text}"
-            if target == "both"
+            if target is Target.BOTH
             else ""
         )
         user_content = (
@@ -387,7 +448,7 @@ def build_apply_messages(
         )
         calls.append(
             ApplyCall(
-                artifact="defense",
+                artifact=Artifact.DEFENSE,
                 messages=[
                     {"role": "system", "content": APPLY_SYSTEM_PROMPT},
                     {"role": "user", "content": user_content},
@@ -414,7 +475,7 @@ def guard_applied_artifact(raw_text: str) -> str | None:
 def apply_write_back(
     *,
     page_id: str,
-    artifact: str,
+    artifact: Artifact,
     revised_text: str,
     session_state: Any | None = None,
 ) -> None:
@@ -430,10 +491,10 @@ def apply_write_back(
     """
     state = st.session_state if session_state is None else session_state
     keys = ResultKeys(page_id)
-    if artifact == "scenario":
+    if artifact is Artifact.SCENARIO:
         state[keys.text] = revised_text
         state[SCENARIO_TEXT_KEY] = revised_text
-    elif artifact == "defense":
+    elif artifact is Artifact.DEFENSE:
         defense_state = dict(state.get(keys.defense) or {})
         title = defense_title(defense_state.get("download_md", ""))
         deterministic_md = defense_state.get("deterministic_md", "")
@@ -448,7 +509,7 @@ def apply_write_back(
 
 
 def run_apply(
-    *, target: str, scenario: AssistantScenario, chat_history: str
+    *, target: Target, scenario: AssistantScenario, chat_history: str
 ) -> list[AppliedArtifact] | None:
     """Make the dedicated apply call(s) for ``target`` and guard each result.
 
@@ -478,24 +539,24 @@ def run_apply(
 
 def apply_summary_note(applied: list[AppliedArtifact]) -> str:
     """The chat message marking a successful apply point in the history."""
-    labels = [ARTIFACT_LABELS.get(a.artifact, a.artifact) for a in applied]
+    labels = [a.artifact.noun for a in applied]
     return f"✅ Applied changes to {' and '.join(labels)}."
 
 
 def resolve_download_artifacts(
     scenario: AssistantScenario, session_state: Any | None = None
-) -> dict[str, tuple[str, str]]:
+) -> dict[Artifact, tuple[str, str]]:
     """Filenames + data for the downloads the Assistant page offers.
 
     Reads the page-scoped keys ``core.scenario_page`` persists for the
     scenario's originating page, so a download offered here is always the same
     file (same name, same content) the scenario page itself would offer.
-    Returns only the artifacts that exist — e.g. no ``"defense"`` entry when
-    no purple-team narrative was generated.
+    Returns only the artifacts that exist — e.g. no ``Artifact.DEFENSE`` entry
+    when no purple-team narrative was generated.
     """
     state = st.session_state if session_state is None else session_state
     page_id = (scenario.meta or {}).get("page_id")
-    artifacts: dict[str, tuple[str, str]] = {}
+    artifacts: dict[Artifact, tuple[str, str]] = {}
     if not page_id:
         return artifacts
 
@@ -503,13 +564,40 @@ def resolve_download_artifacts(
     filename = state.get(keys.filename)
     text = state.get(keys.text)
     if filename and text:
-        artifacts["scenario"] = (filename, text)
+        artifacts[Artifact.SCENARIO] = (filename, text)
 
     defense_state = state.get(keys.defense)
     if defense_state and defense_state.get("download_md"):
-        artifacts["defense"] = (defense_state["filename"], defense_state["download_md"])
+        artifacts[Artifact.DEFENSE] = (defense_state["filename"], defense_state["download_md"])
 
     return artifacts
+
+
+@dataclass(frozen=True)
+class AssistantDownload:
+    """One download button the Assistant page offers."""
+
+    label: str
+    data: str
+    filename: str
+
+    @property
+    def key(self) -> str:
+        """The widget key of this download button."""
+        return f"assistant_download_{self.filename}"
+
+
+def assistant_downloads(
+    scenario: AssistantScenario, target: Target, session_state: Any | None = None
+) -> list[AssistantDownload]:
+    """The downloads for ``target``'s artifacts that exist, in its order."""
+    artifacts = resolve_download_artifacts(scenario, session_state)
+    downloads = []
+    for artifact in target.artifacts:
+        if artifact in artifacts:
+            filename, data = artifacts[artifact]
+            downloads.append(AssistantDownload(artifact.download_label, data, filename))
+    return downloads
 
 
 # --- Navigation surfaces -----------------------------------------------------
@@ -524,6 +612,25 @@ def render_empty_state() -> None:
     for page in SCENARIO_PAGES:
         st.page_link(page.path, label=page.label, icon=page.icon)
         st.caption(page.description)
+
+
+def choose_target(scenario: AssistantScenario) -> Target:
+    """Render the "Editing:" choice and return the target picked.
+
+    The Detection & Response and combined targets only exist when a
+    purple-team narrative was generated alongside the scenario (page 1/2
+    toggle). The combined target refines both together so a change made to one
+    can be carried consistently into the other.
+    """
+    if not scenario.defense_narrative:
+        return Target.SCENARIO
+    label = st.radio(
+        "Editing:",
+        [target.label for target in Target],
+        horizontal=True,
+        key=TARGET_WIDGET_KEY,
+    )
+    return Target.from_label(label)
 
 
 def render_scenario_identity(scenario: AssistantScenario) -> None:
