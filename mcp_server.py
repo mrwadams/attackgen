@@ -63,9 +63,9 @@ _DEFAULT_MODEL = os.getenv("ATTACKGEN_MODEL", "")
 
 
 def _make_config(
+    *,
     provider: str,
     model: str,
-    *,
     api_key: str | None,
     api_base: str | None,
     trace_name: str,
@@ -73,13 +73,15 @@ def _make_config(
 ) -> LLMConfig:
     """Build a validated LLMConfig for a generate tool.
 
-    Validates the provider (and, except for Custom, the model) against the
-    registry in ``core/models.py`` so a typo fails loudly instead of producing a
-    confusing LiteLLM error. ``api_key=None`` leaves LiteLLM to read the
-    provider's env var — the caller's own key. Custom is the exception: core.llm
-    forces LiteLLM's OpenAI path for it, so the sidebar's fallbacks are applied
-    here instead — ``CUSTOM_MODEL_NAME``, ``CUSTOM_API_KEY``, and
-    ``CUSTOM_BASE_URL`` then the registry default.
+    Each generate tool calls this first, so a bad provider or model fails
+    before any MITRE data loads, and the resulting config is the one value the
+    rest of the call uses. Validates the provider (and, except for Custom, the
+    model) against the registry in ``core/models.py`` so a typo fails loudly
+    instead of producing a confusing LiteLLM error. ``api_key=None`` leaves
+    LiteLLM to read the provider's env var — the caller's own key. Custom is the
+    exception: core.llm forces LiteLLM's OpenAI path for it, so the sidebar's
+    fallbacks are applied here instead — ``CUSTOM_MODEL_NAME``,
+    ``CUSTOM_API_KEY``, and ``CUSTOM_BASE_URL`` then the registry default.
     """
     provider_info = get_provider(provider)
     if provider_info is None:
@@ -113,6 +115,13 @@ def _generate(config: LLMConfig, messages: list[dict]) -> str:
     raw = call_llm(config, messages)
     _thinking, cleaned = clean_model_response(raw)
     return cleaned
+
+
+def _append_detection(scenario: str, matrix: Matrix, technique_ids: list[str]) -> str:
+    """Append the Detection & Response section, when the matrix yields one."""
+    report = resolve_defense_report(matrix, technique_ids)
+    detection = defense_to_markdown(report) if report else None
+    return f"{scenario}\n\n---\n\n{detection}" if detection else scenario
 
 
 # ===========================================================================
@@ -291,6 +300,7 @@ def _reject_unknown(kind: str, values: list[str], valid: Collection[str]) -> Non
 
 
 def _resolve_ai_insider_inputs(
+    *,
     template: str | None,
     archetype: str,
     categories: list[str] | None,
@@ -375,8 +385,9 @@ def get_ai_insider_prompt(
     """
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
-            template, archetype, categories, stride, capabilities,
-            industry, company_size, scenario_seed,
+            template=template, archetype=archetype, categories=categories,
+            stride=stride, capabilities=capabilities, industry=industry,
+            company_size=company_size, scenario_seed=scenario_seed,
         )
     )
     return {"messages": messages}
@@ -408,6 +419,10 @@ def generate_threat_group_scenario(
     adds the AI-enhanced-adversary framing; ``include_detection`` appends the
     purple-team Detection & Response section.
     """
+    config = _make_config(
+        provider=provider, model=model, api_key=api_key, api_base=api_base,
+        trace_name="Threat Group Scenario (MCP)", trace_tags=("threat_group_scenario", "mcp"),
+    )
     kc = ad.resolve_kill_chain(matrix, group, seed=seed)
     if not kc.techniques:
         raise ValueError(f"No techniques found for '{group}' in the {matrix} matrix.")
@@ -419,17 +434,8 @@ def generate_threat_group_scenario(
         company_size=company_size,
         ai_uplift=ai_uplift,
     )
-    config = _make_config(
-        provider, model, api_key=api_key, api_base=api_base,
-        trace_name="Threat Group Scenario (MCP)", trace_tags=("threat_group_scenario", "mcp"),
-    )
     scenario = _generate(config, messages)
-    if include_detection:
-        report = resolve_defense_report(matrix, kc.technique_ids)
-        detection = defense_to_markdown(report) if report else None
-        if detection:
-            scenario = f"{scenario}\n\n---\n\n{detection}"
-    return scenario
+    return _append_detection(scenario, matrix, kc.technique_ids) if include_detection else scenario
 
 
 @mcp.tool()
@@ -453,6 +459,10 @@ def generate_custom_scenario(
     purple-team Detection & Response section. Raises ``ValueError`` for an ID
     the matrix's bundle does not contain, before any model call.
     """
+    config = _make_config(
+        provider=provider, model=model, api_key=api_key, api_base=api_base,
+        trace_name="Custom Scenario (MCP)", trace_tags=("custom_scenario", "mcp"),
+    )
     if not techniques:
         raise ValueError("At least one technique is required.")
     ids = _known_technique_ids(matrix, techniques)
@@ -465,17 +475,8 @@ def generate_custom_scenario(
         company_size=company_size,
         ai_uplift=ai_uplift,
     )
-    config = _make_config(
-        provider, model, api_key=api_key, api_base=api_base,
-        trace_name="Custom Scenario (MCP)", trace_tags=("custom_scenario", "mcp"),
-    )
     scenario = _generate(config, messages)
-    if include_detection:
-        report = resolve_defense_report(matrix, ids)
-        detection = defense_to_markdown(report) if report else None
-        if detection:
-            scenario = f"{scenario}\n\n---\n\n{detection}"
-    return scenario
+    return _append_detection(scenario, matrix, ids) if include_detection else scenario
 
 
 @mcp.tool()
@@ -511,15 +512,16 @@ def generate_ai_insider_scenario(
     category, STRIDE threat or capability, and when the resolved selection has
     no category and no STRIDE threat (page 3 blocks the same state).
     """
+    config = _make_config(
+        provider=provider, model=model, api_key=api_key, api_base=api_base,
+        trace_name="AI Insider Threat Scenario (MCP)", trace_tags=("ai_insider_scenario", "mcp"),
+    )
     messages = build_ai_insider_messages(
         **_resolve_ai_insider_inputs(
-            template, archetype, categories, stride, capabilities,
-            industry, company_size, scenario_seed,
+            template=template, archetype=archetype, categories=categories,
+            stride=stride, capabilities=capabilities, industry=industry,
+            company_size=company_size, scenario_seed=scenario_seed,
         )
-    )
-    config = _make_config(
-        provider, model, api_key=api_key, api_base=api_base,
-        trace_name="AI Insider Threat Scenario (MCP)", trace_tags=("ai_insider_scenario", "mcp"),
     )
     return _generate(config, messages)
 
