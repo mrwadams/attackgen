@@ -15,11 +15,11 @@ from typing import Any
 import streamlit as st
 from dotenv import load_dotenv
 
+from core.matrices import MATRIX_NAMES
 from core.models import PROVIDERS, get_models_for_provider
 from core.schemas import API_BASE_KEY, API_KEY_KEY, MODEL_KEY, PROVIDER_KEY
 from core.state import restore_from_query_params, sync_to_query_params
 
-MATRIX_OPTIONS = ["Enterprise", "ICS", "ATLAS"]
 INDUSTRIES = sorted(
     [
         "Aerospace / Defense",
@@ -109,7 +109,7 @@ def get_setup_state(
         blockers.append("Enter a base URL in the Setup sidebar.")
     if not model_name:
         blockers.append("Select or enter a model in the Setup sidebar.")
-    if matrix not in MATRIX_OPTIONS:
+    if matrix not in MATRIX_NAMES:
         blockers.append("Select a MITRE framework in the Setup sidebar.")
     if not industry:
         blockers.append("Select your company's industry in the Setup sidebar.")
@@ -249,13 +249,13 @@ def render_setup_sidebar() -> SetupState:
 
         persisted_matrix = st.session_state.get("matrix")
         matrix_idx = (
-            MATRIX_OPTIONS.index(persisted_matrix)
-            if persisted_matrix in MATRIX_OPTIONS
+            MATRIX_NAMES.index(persisted_matrix)
+            if persisted_matrix in MATRIX_NAMES
             else 0
         )
         st.session_state["matrix"] = st.radio(
             "MITRE framework",
-            MATRIX_OPTIONS,
+            MATRIX_NAMES,
             index=matrix_idx,
             help=(
                 "Enterprise and ICS are ATT&CK matrices for traditional IT and industrial "

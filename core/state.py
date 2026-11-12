@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from core.matrices import MATRIX_NAMES
 from core.models import PROVIDERS
 from core.schemas import API_BASE_KEY, MODEL_KEY, PROVIDER_KEY
 
@@ -34,7 +35,6 @@ PERSISTED: dict[str, str] = {
 }
 
 _QP_KEYS = set(PERSISTED.values())
-_VALID_MATRICES = {"Enterprise", "ICS", "ATLAS"}
 
 RESTORED_KEY = "_setup_restored_from_link"
 """Set once when a deep link actually supplied setup values.
@@ -62,7 +62,7 @@ def restore_from_query_params() -> None:
         # otherwise a stale URL could put us in an invalid state.
         if ss_key == PROVIDER_KEY and value not in PROVIDERS:
             continue
-        if ss_key == "matrix" and value not in _VALID_MATRICES:
+        if ss_key == "matrix" and value not in MATRIX_NAMES:
             continue
         st.session_state[ss_key] = value
         st.session_state[RESTORED_KEY] = True

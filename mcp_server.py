@@ -37,6 +37,7 @@ from mcp.server.mcpserver import MCPServer
 from core import attack_data as ad
 from core.detections import defense_to_markdown, resolve_defense_report
 from core.llm import call_llm
+from core.matrices import MATRIX_NAMES
 from core.models import PROVIDERS, get_models_for_provider, get_provider
 from core.navigator import build_layer, dumps, normalise_technique_ids
 from core.prompts import (
@@ -50,7 +51,7 @@ from data import ai_insider_threats as aip
 
 mcp = MCPServer("attackgen")
 
-Matrix = Literal["Enterprise", "ICS", "ATLAS"]
+Matrix = Literal[MATRIX_NAMES]
 
 # Provider/model defaults for the zero-arg happy path on the generate tools.
 _DEFAULT_PROVIDER = os.getenv("ATTACKGEN_PROVIDER", "OpenAI API")
