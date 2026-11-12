@@ -27,10 +27,11 @@ from core.assistant import (
     SCENARIO_FLAG_KEY,
     SCENARIO_META_KEY,
     SCENARIO_TEXT_KEY,
-    TARGETS,
     AppliedArtifact,
+    Artifact,
     AssistantScenario,
     Conversation,
+    Target,
     apply_summary_note,
     apply_write_back,
     build_apply_messages,
@@ -144,23 +145,23 @@ class TestConversation:
     ) -> None:
         _handoff(fake_session_state)
 
-        conversation = Conversation(scenario_handoff(), "defense")
+        conversation = Conversation(scenario_handoff(), Target.DEFENSE)
 
         assert conversation.messages == [
-            {"role": "assistant", "content": TARGETS["defense"]["greeting"]}
+            {"role": "assistant", "content": Target.DEFENSE.greeting}
         ]
 
     def test_a_second_scenario_starts_a_fresh_conversation(self, fake_session_state) -> None:
         _handoff(fake_session_state)
-        first = Conversation(scenario_handoff(), "scenario")
+        first = Conversation(scenario_handoff(), Target.SCENARIO)
         first.append("user", "Make it about ransomware.")
         first.append("assistant", "Done.")
 
         _second_handoff(fake_session_state)
-        second = Conversation(scenario_handoff(), "scenario")
+        second = Conversation(scenario_handoff(), Target.SCENARIO)
 
         assert second.messages == [
-            {"role": "assistant", "content": TARGETS["scenario"]["greeting"]}
+            {"role": "assistant", "content": Target.SCENARIO.greeting}
         ]
         assert "ransomware" not in second.chat_history()
 
@@ -168,32 +169,32 @@ class TestConversation:
         self, fake_session_state
     ) -> None:
         _handoff(fake_session_state)
-        Conversation(scenario_handoff(), "scenario").append("user", "old turn")
+        Conversation(scenario_handoff(), Target.SCENARIO).append("user", "old turn")
 
         _second_handoff(fake_session_state, page_id="threat_group")
 
-        assert "old turn" not in Conversation(scenario_handoff(), "scenario").chat_history()
+        assert "old turn" not in Conversation(scenario_handoff(), Target.SCENARIO).chat_history()
 
     def test_returning_to_the_same_scenario_keeps_its_history(
         self, fake_session_state
     ) -> None:
         _handoff(fake_session_state)
-        Conversation(scenario_handoff(), "scenario").append("user", "Add an inject.")
+        Conversation(scenario_handoff(), Target.SCENARIO).append("user", "Add an inject.")
 
         # A later visit (a rerun, or navigating away and back) resolves the
         # handoff afresh; the result it names is unchanged.
-        again = Conversation(scenario_handoff(), "scenario")
+        again = Conversation(scenario_handoff(), Target.SCENARIO)
 
         assert again.messages[-1] == {"role": "user", "content": "Add an inject."}
 
     def test_each_target_keeps_its_own_conversation(self, fake_session_state) -> None:
         _handoff(fake_session_state)
-        Conversation(scenario_handoff(), "scenario").append("user", "scenario turn")
-        Conversation(scenario_handoff(), "defense").append("user", "defense turn")
+        Conversation(scenario_handoff(), Target.SCENARIO).append("user", "scenario turn")
+        Conversation(scenario_handoff(), Target.DEFENSE).append("user", "defense turn")
 
-        scenario_chat = Conversation(scenario_handoff(), "scenario").chat_history()
-        defense_chat = Conversation(scenario_handoff(), "defense").chat_history()
-        both_chat = Conversation(scenario_handoff(), "both").chat_history()
+        scenario_chat = Conversation(scenario_handoff(), Target.SCENARIO).chat_history()
+        defense_chat = Conversation(scenario_handoff(), Target.DEFENSE).chat_history()
+        both_chat = Conversation(scenario_handoff(), Target.BOTH).chat_history()
 
         assert "scenario turn" in scenario_chat and "defense turn" not in scenario_chat
         assert "defense turn" in defense_chat and "scenario turn" not in defense_chat
@@ -203,27 +204,27 @@ class TestConversation:
         self, fake_session_state
     ) -> None:
         _handoff(fake_session_state)
-        scenario_chat = Conversation(scenario_handoff(), "scenario")
+        scenario_chat = Conversation(scenario_handoff(), Target.SCENARIO)
         scenario_chat.append("user", "scenario turn")
-        Conversation(scenario_handoff(), "defense").append("user", "defense turn")
+        Conversation(scenario_handoff(), Target.DEFENSE).append("user", "defense turn")
 
         scenario_chat.reset()
 
-        assert Conversation(scenario_handoff(), "scenario").messages == [
-            {"role": "assistant", "content": TARGETS["scenario"]["greeting"]}
+        assert Conversation(scenario_handoff(), Target.SCENARIO).messages == [
+            {"role": "assistant", "content": Target.SCENARIO.greeting}
         ]
-        assert "defense turn" in Conversation(scenario_handoff(), "defense").chat_history()
+        assert "defense turn" in Conversation(scenario_handoff(), Target.DEFENSE).chat_history()
 
     def test_superseded_conversations_do_not_accumulate(self, fake_session_state) -> None:
         _handoff(fake_session_state)
-        for target in TARGETS:
+        for target in Target:
             Conversation(scenario_handoff(), target).append("user", "first scenario")
 
         _second_handoff(fake_session_state)
-        Conversation(scenario_handoff(), "scenario")
+        Conversation(scenario_handoff(), Target.SCENARIO)
 
         store = fake_session_state[CONVERSATIONS_KEY]
-        assert list(store["targets"]) == ["scenario"]
+        assert list(store["targets"]) == [Target.SCENARIO]
         assert "first scenario" not in repr(store)
 
     def test_only_the_current_scenario_turns_reach_the_model(
@@ -233,13 +234,13 @@ class TestConversation:
         fake_session_state["chosen_model_provider"] = "OpenAI API"
         fake_session_state["llm_model_name"] = "gpt-5.5"
         fake_session_state["llm_api_key"] = "k"
-        stale = Conversation(scenario_handoff(), "scenario")
+        stale = Conversation(scenario_handoff(), Target.SCENARIO)
         stale.append("user", "Question about APT29.")
         stale.append("assistant", "Answer about APT29.")
 
         _second_handoff(fake_session_state)
         scenario = scenario_handoff()
-        conversation = Conversation(scenario, "scenario")
+        conversation = Conversation(scenario, Target.SCENARIO)
         conversation.append("user", "Earlier question.")
         conversation.append("assistant", "Earlier answer.")
         sent: list[Any] = []
@@ -252,7 +253,7 @@ class TestConversation:
 
         list(
             stream_assistant_reply(
-                target="scenario",
+                target=Target.SCENARIO,
                 scenario=scenario,
                 chat_history=conversation.chat_history(),
                 user_input="New question.",
@@ -261,7 +262,7 @@ class TestConversation:
 
         content = sent[0][1]["content"]
         assert "Earlier question." in content and "Earlier answer." in content
-        assert TARGETS["scenario"]["greeting"] in content
+        assert Target.SCENARIO.greeting in content
         assert "APT29" not in content
 
 
@@ -320,7 +321,7 @@ class TestModelSeam:
 
         chunks = list(
             stream_assistant_reply(
-                target="scenario",
+                target=Target.SCENARIO,
                 scenario=scenario_handoff(),
                 chat_history="assistant: greeting",
                 user_input="Which inject tests containment?",
@@ -338,7 +339,7 @@ class TestModelSeam:
 
     def test_defense_target_carries_the_narrative_for_reference(self) -> None:
         messages = build_assistant_messages(
-            target="defense",
+            target=Target.DEFENSE,
             scenario_text="# Scenario",
             defense_narrative="## Defender walkthrough",
             chat_history="",
@@ -351,7 +352,7 @@ class TestModelSeam:
 
     def test_both_target_carries_scenario_and_narrative(self) -> None:
         messages = build_assistant_messages(
-            target="both",
+            target=Target.BOTH,
             scenario_text="# Scenario",
             defense_narrative="## Defender walkthrough",
             chat_history="",
@@ -376,7 +377,7 @@ class TestModelSeam:
 
         chunks = list(
             stream_assistant_reply(
-                target="scenario",
+                target=Target.SCENARIO,
                 scenario=scenario_handoff(),
                 chat_history="",
                 user_input="hi",
@@ -393,13 +394,13 @@ class TestModelSeam:
 class TestBuildApplyMessages:
     def test_scenario_mode_makes_one_call_with_no_cross_reference(self) -> None:
         calls = build_apply_messages(
-            target="scenario",
+            target=Target.SCENARIO,
             scenario_text="# Scenario",
             defense_narrative="## Narrative",
             chat_history="user: shorten it",
         )
 
-        assert [c.artifact for c in calls] == ["scenario"]
+        assert [c.artifact for c in calls] == [Artifact.SCENARIO]
         content = calls[0].messages[1]["content"]
         assert "# Scenario" in content
         assert "shorten it" in content
@@ -408,13 +409,13 @@ class TestBuildApplyMessages:
 
     def test_defense_mode_makes_one_call_with_no_cross_reference(self) -> None:
         calls = build_apply_messages(
-            target="defense",
+            target=Target.DEFENSE,
             scenario_text="# Scenario",
             defense_narrative="## Narrative",
             chat_history="user: add a log source",
         )
 
-        assert [c.artifact for c in calls] == ["defense"]
+        assert [c.artifact for c in calls] == [Artifact.DEFENSE]
         content = calls[0].messages[1]["content"]
         assert "## Narrative" in content
         assert "add a log source" in content
@@ -422,15 +423,15 @@ class TestBuildApplyMessages:
 
     def test_both_mode_makes_two_calls_each_given_the_others_current_text(self) -> None:
         calls = build_apply_messages(
-            target="both",
+            target=Target.BOTH,
             scenario_text="# Scenario",
             defense_narrative="## Narrative",
             chat_history="user: change the industry",
         )
 
-        assert sorted(c.artifact for c in calls) == ["defense", "scenario"]
-        scenario_call = next(c for c in calls if c.artifact == "scenario")
-        defense_call = next(c for c in calls if c.artifact == "defense")
+        assert {c.artifact for c in calls} == {Artifact.SCENARIO, Artifact.DEFENSE}
+        scenario_call = next(c for c in calls if c.artifact is Artifact.SCENARIO)
+        defense_call = next(c for c in calls if c.artifact is Artifact.DEFENSE)
 
         # Each call revises its own artifact but is given the other's current
         # text so the pair can be kept aligned.
@@ -442,13 +443,13 @@ class TestBuildApplyMessages:
     def test_both_mode_omits_the_narrative_reference_when_there_is_none(self) -> None:
         """A `both`-mode call that has no narrative yet must not print "None"."""
         calls = build_apply_messages(
-            target="both",
+            target=Target.BOTH,
             scenario_text="# Scenario",
             defense_narrative=None,
             chat_history="",
         )
 
-        scenario_call = next(c for c in calls if c.artifact == "scenario")
+        scenario_call = next(c for c in calls if c.artifact is Artifact.SCENARIO)
         assert "None" not in scenario_call.messages[1]["content"]
 
 
@@ -477,7 +478,7 @@ class TestApplyWriteBack:
 
         apply_write_back(
             page_id="threat_group",
-            artifact="scenario",
+            artifact=Artifact.SCENARIO,
             revised_text="# New scenario",
             session_state=state,
         )
@@ -503,7 +504,7 @@ class TestApplyWriteBack:
 
         apply_write_back(
             page_id="threat_group",
-            artifact="defense",
+            artifact=Artifact.DEFENSE,
             revised_text="## New walkthrough",
             session_state=state,
         )
@@ -553,10 +554,10 @@ class TestRunApply:
         monkeypatch.setattr("core.assistant.call_llm", _call_llm)
 
         result = run_apply(
-            target="scenario", scenario=self._scenario(), chat_history="user: shorten it"
+            target=Target.SCENARIO, scenario=self._scenario(), chat_history="user: shorten it"
         )
 
-        assert result == [AppliedArtifact(artifact="scenario", text="# Revised scenario")]
+        assert result == [AppliedArtifact(artifact=Artifact.SCENARIO, text="# Revised scenario")]
         assert len(calls) == 1
         config, _messages = calls[0]
         assert config.trace_name == APPLY_TRACE_NAME
@@ -580,13 +581,13 @@ class TestRunApply:
         monkeypatch.setattr("core.assistant.call_llm", _call_llm)
 
         result = run_apply(
-            target="both", scenario=self._scenario(), chat_history="user: change the industry"
+            target=Target.BOTH, scenario=self._scenario(), chat_history="user: change the industry"
         )
 
-        assert {a.artifact for a in result} == {"scenario", "defense"}
+        assert {a.artifact for a in result} == {Artifact.SCENARIO, Artifact.DEFENSE}
         texts = {a.artifact: a.text for a in result}
-        assert texts["scenario"] == "# Revised scenario"
-        assert texts["defense"] == "## Revised narrative"
+        assert texts[Artifact.SCENARIO] == "# Revised scenario"
+        assert texts[Artifact.DEFENSE] == "## Revised narrative"
 
     def test_any_empty_return_refuses_the_whole_apply(
         self, fake_session_state, monkeypatch: pytest.MonkeyPatch
@@ -602,7 +603,7 @@ class TestRunApply:
         monkeypatch.setattr("core.assistant.call_llm", _call_llm)
 
         result = run_apply(
-            target="both", scenario=self._scenario(), chat_history=""
+            target=Target.BOTH, scenario=self._scenario(), chat_history=""
         )
 
         assert result is None
@@ -610,14 +611,14 @@ class TestRunApply:
 
 class TestApplySummaryNote:
     def test_scenario_only(self) -> None:
-        note = apply_summary_note([AppliedArtifact(artifact="scenario", text="x")])
+        note = apply_summary_note([AppliedArtifact(artifact=Artifact.SCENARIO, text="x")])
         assert note == "✅ Applied changes to the scenario."
 
     def test_both_artifacts(self) -> None:
         note = apply_summary_note(
             [
-                AppliedArtifact(artifact="scenario", text="x"),
-                AppliedArtifact(artifact="defense", text="y"),
+                AppliedArtifact(artifact=Artifact.SCENARIO, text="x"),
+                AppliedArtifact(artifact=Artifact.DEFENSE, text="y"),
             ]
         )
         assert note == "✅ Applied changes to the scenario and the Detection & Response narrative."
@@ -637,8 +638,8 @@ class TestResolveDownloadArtifacts:
 
         artifacts = resolve_download_artifacts(scenario, session_state=state)
 
-        assert artifacts["scenario"] == ("scn_20260908.md", "# Scenario")
-        assert artifacts["defense"] == (
+        assert artifacts[Artifact.SCENARIO] == ("scn_20260908.md", "# Scenario")
+        assert artifacts[Artifact.DEFENSE] == (
             "scn_20260908_detection.md",
             "# Detection & Response — scn\n\n...",
         )
@@ -656,4 +657,4 @@ class TestResolveDownloadArtifacts:
 
         artifacts = resolve_download_artifacts(scenario, session_state=state)
 
-        assert artifacts == {"scenario": ("scn.md", "# Scenario")}
+        assert artifacts == {Artifact.SCENARIO: ("scn.md", "# Scenario")}
