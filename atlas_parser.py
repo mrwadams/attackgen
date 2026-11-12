@@ -7,7 +7,6 @@ only supports ATT&CK Enterprise/ICS/Mobile matrices.
 
 import json
 from typing import Dict, List, Optional
-import pandas as pd
 
 
 class ATLASData:
@@ -120,20 +119,9 @@ class ATLASData:
                 })
         return result
 
-    def get_tactic_names_ordered(self) -> List[str]:
-        """Get tactic names in the standard kill chain order"""
-        return [t["name"] for t in self.get_tactics()]
-
     def get_technique_by_id(self, technique_id: str) -> Optional[Dict]:
         """Get a specific technique by its ATLAS ID (e.g., AML.T0051)"""
         return self.techniques.get(technique_id)
-
-    def get_atlas_id(self, stix_id: str) -> Optional[str]:
-        """Get ATLAS ID from STIX ID"""
-        for ext_id, obj in self.techniques.items():
-            if obj["id"] == stix_id:
-                return ext_id
-        return None
 
     def get_tactic_name_by_shortname(self, shortname: str) -> str:
         """Convert tactic shortname to full name"""
@@ -180,36 +168,6 @@ class ATLASData:
                 "description": obj.get("description", ""),
             })
         return result
-
-    def get_techniques_for_tactic(self, tactic_shortname: str) -> List[Dict]:
-        """Get all techniques belonging to a specific tactic"""
-        result = []
-        for ext_id, obj in self.techniques.items():
-            kill_chain_phases = obj.get("kill_chain_phases", [])
-            for phase in kill_chain_phases:
-                if phase.get("phase_name") == tactic_shortname:
-                    result.append({
-                        "id": obj["id"],
-                        "external_id": ext_id,
-                        "name": obj["name"],
-                        "description": obj.get("description", ""),
-                        "is_subtechnique": obj.get("x_mitre_is_subtechnique", False)
-                    })
-                    break
-        return result
-
-
-def load_atlas_case_studies(filepath: str) -> pd.DataFrame:
-    """
-    Load ATLAS case studies from JSON file.
-
-    Args:
-        filepath: Path to atlas-case-studies.json
-
-    Returns:
-        DataFrame with case study data
-    """
-    return pd.read_json(filepath)
 
 
 def get_techniques_from_case_study_procedure(

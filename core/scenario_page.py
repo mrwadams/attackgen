@@ -333,8 +333,6 @@ def run_scenario_page(
     download_name: str,
     trace_name: str,
     trace_tags: tuple[str, ...],
-    status_text: str = "Generating scenario...",
-    button_label: str = "Generate Scenario",
     render_modifiers: Callable[[], None] | None = None,
     requirements: Callable[[], Iterable[str]] | None = None,
     setup: Any | None = None,
@@ -433,7 +431,7 @@ def run_scenario_page(
     _render_readiness(blockers, request=current_request)
 
     clicked = st.button(
-        button_label,
+        "Generate Scenario",
         key=f"{page_id}_generate",
         disabled=not ready,
         type="primary",
@@ -469,7 +467,6 @@ def run_scenario_page(
             build_defense=build_defense,
             trace_name=trace_name,
             trace_tags=trace_tags,
-            status_text=status_text,
             human_name=download_name,
             defense_narrative=defense_narrative,
         )
@@ -542,7 +539,6 @@ def _generate_and_render(
     build_defense: Callable[[ScenarioRequest], dict | None] | None,
     trace_name: str,
     trace_tags: tuple[str, ...],
-    status_text: str,
     human_name: str,
     defense_narrative: bool,
 ) -> None:
@@ -589,7 +585,7 @@ def _generate_and_render(
             )
 
             set_phase(status, "Generating base scenario")
-            st.write(status_text)
+            st.write("Generating scenario...")
 
             def _tee(chunks):
                 for chunk in chunks:
