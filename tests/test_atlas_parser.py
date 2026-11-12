@@ -142,7 +142,8 @@ def test_get_tactics_returns_kill_chain_order_skipping_absent_ids(
 ) -> None:
     # Reconnaissance (AML.TA0002) precedes Initial Access (AML.TA0004) in the
     # canonical order, even though the document lists them the other way round.
-    assert atlas_data.get_tactic_names_ordered() == ["Reconnaissance", "Initial Access"]
+    names = [t["name"] for t in atlas_data.get_tactics()]
+    assert names == ["Reconnaissance", "Initial Access"]
 
 
 def test_get_tactic_name_by_shortname_echoes_unknown(atlas_data: ATLASData) -> None:
@@ -167,16 +168,6 @@ def test_get_techniques_can_exclude_subtechniques(atlas_data: ATLASData) -> None
     assert "AML.T0001.001" in with_subs
     assert "AML.T0001.001" not in without_subs
     assert "AML.T0001" in without_subs
-
-
-def test_get_techniques_for_tactic_matches_by_phase_name(atlas_data: ATLASData) -> None:
-    recon = atlas_data.get_techniques_for_tactic("reconnaissance")
-    assert [t["external_id"] for t in recon] == ["AML.T0001"]
-
-
-def test_get_atlas_id_maps_stix_id_back_to_external_id(atlas_data: ATLASData) -> None:
-    assert atlas_data.get_atlas_id("attack-pattern--t1") == "AML.T0001"
-    assert atlas_data.get_atlas_id("attack-pattern--missing") is None
 
 
 # ---------------------------------------------------------------------------

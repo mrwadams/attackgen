@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from core.ai_uplift import (
     AI_UPLIFT_PROMPT,
-    apply_ai_uplift,
+    append_ai_uplift,
     is_ai_uplift_on,
     uplift_trace_tags,
 )
@@ -17,18 +17,17 @@ from core.ai_uplift import (
 
 def test_defaults_to_off_before_toggle_rendered(fake_session_state) -> None:
     assert is_ai_uplift_on("threat_group") is False
-    assert apply_ai_uplift("base content", "threat_group") == "base content"
     assert uplift_trace_tags(("threat_group_scenario",), "threat_group") == (
         "threat_group_scenario",
     )
 
 
-def test_apply_appends_prompt_when_on(fake_session_state) -> None:
-    fake_session_state["threat_group_ai_uplift"] = True
+def test_append_adds_prompt_when_on() -> None:
+    assert append_ai_uplift("base content", True) == "base content" + AI_UPLIFT_PROMPT
 
-    result = apply_ai_uplift("base content", "threat_group")
 
-    assert result == "base content" + AI_UPLIFT_PROMPT
+def test_append_leaves_content_unchanged_when_off() -> None:
+    assert append_ai_uplift("base content", False) == "base content"
 
 
 def test_trace_tags_gains_ai_enhanced_when_on(fake_session_state) -> None:
@@ -45,4 +44,3 @@ def test_toggle_state_is_namespaced_per_page(fake_session_state) -> None:
     # The "custom" page must not inherit the threat-group page's toggle.
     assert is_ai_uplift_on("threat_group") is True
     assert is_ai_uplift_on("custom") is False
-    assert apply_ai_uplift("x", "custom") == "x"
