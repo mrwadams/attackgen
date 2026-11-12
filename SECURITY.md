@@ -93,7 +93,7 @@ AttackGen uses comprehensive automated security scanning in our CI/CD pipeline t
 
 ### Security Scanning Tools
 
-Our security workflow runs automatically on every push and pull request, using:
+Our security workflow runs on pushes and pull requests to `main` and `develop`, weekly, and on manual dispatch. Trivy and Dependency Review run on some of those triggers only, as noted below. The workflow uses:
 
 1. **Python Code Analysis**
    - **Bandit**: Identifies common security issues in Python code (SQL injection, hardcoded credentials, etc.)
@@ -108,9 +108,10 @@ Our security workflow runs automatically on every push and pull request, using:
 
 4. **Container Security**
    - **Trivy**: Scans Docker images for vulnerabilities in OS packages and dependencies
+   - Runs on pushes to `main` and `develop` and on manual dispatch only. Pull requests and the weekly scheduled scan do not build or scan the image.
 
 5. **Dependency Review**
-   - Automated review of dependency changes in pull requests
+   - Automated review of dependency changes in pull requests (runs on pull requests only)
    - Blocks dependencies with moderate or higher severity vulnerabilities
    - Prevents introduction of incompatible licenses (GPL-3.0, AGPL-3.0)
 
@@ -119,7 +120,7 @@ Our security workflow runs automatically on every push and pull request, using:
 Security scan results are available in multiple locations:
 
 - **GitHub Security Tab**: View all code scanning alerts, secret scanning alerts, and Dependabot alerts
-- **Pull Request Checks**: Security scans run on every PR with results visible in the checks
+- **Pull Request Checks**: Security scans except Trivy run on every PR with results visible in the checks
 - **Actions Tab**: Detailed workflow logs and security reports
 - **Workflow Artifacts**: Downloadable JSON reports (Bandit, pip-audit) for deeper analysis
 
@@ -127,7 +128,7 @@ Security scan results are available in multiple locations:
 
 - **Scheduled Scans**: Security workflow runs weekly (Mondays at 9 AM UTC) to catch newly disclosed vulnerabilities
 - **Push-based Scans**: Automatic scanning on every push to `main` and `develop` branches
-- **Pull Request Scanning**: All PRs are scanned before merge
+- **Pull Request Scanning**: All PRs are scanned before merge, except for the Trivy image scan
 
 ### Addressing Security Findings
 
