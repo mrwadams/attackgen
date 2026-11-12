@@ -49,6 +49,12 @@ from typing import Any
 
 import streamlit as st
 
+from core.apply_recovery import (
+    applied_caption,
+    forget_applies,
+    has_been_applied,
+    revert_to_original,
+)
 from core.assistant import (
     DEFENSE_NARRATIVE_KEY,
     SCENARIO_FLAG_KEY,
@@ -60,7 +66,6 @@ from core.detections import (
     assemble_defense_document,
     build_narrative_messages,
     defense_download_name,
-    defense_title,
     defense_to_markdown,
 )
 from core.feedback import render_feedback_widget
@@ -411,7 +416,7 @@ def run_scenario_page(
     if st.session_state.pop(keys.clear, False):
         _clear_result(keys)
     if st.session_state.pop(keys.revert, False):
-        _revert_to_original(keys)
+        revert_to_original(page_id)
 
     # Capture the current form once. The same request describes what *will* be
     # generated (the pre-flight summary), is frozen as the run's inputs when
@@ -1039,99 +1044,6 @@ def _request_flag(request_key: str) -> None:
     st.session_state[request_key] = True
 
 
-# --- Assistant "apply" recovery -----------------------------------------------
-#
-# The Assistant's apply step (core.assistant.apply_write_back) overwrites this
-# page's scenario text and Detection & Response narrative in place. These
-# functions are the other half of that contract: stashing what was there
-# before the *first* apply of the session, so a single "Revert to original"
-# action can undo every apply since, and captioning the result as refined.
-
-
-def stash_pre_apply(page_id: str) -> None:
-    """Stash the pre-apply scenario + narrative once, before the first apply.
-
-    A second or third apply in the same session must not overwrite this
-    stash with its own (already-refined) starting point — "Revert to
-    original" always means the version this page generated, not the version
-    before the *most recent* apply.
-    """
-    keys = ResultKeys(page_id)
-    if keys.pre_apply in st.session_state:
-        return
-    defense_state = st.session_state.get(keys.defense) or {}
-    st.session_state[keys.pre_apply] = {
-        "text": st.session_state.get(keys.text),
-        "narrative": defense_state.get("narrative_md"),
-    }
-
-
-def mark_applied(page_id: str) -> str:
-    """Record now as this page's last successful Assistant apply; return it."""
-    applied_at = datetime.now(timezone.utc).isoformat()
-    st.session_state[ResultKeys(page_id).applied_at] = applied_at
-    return applied_at
-
-
-def has_been_applied(page_id: str) -> bool:
-    """Has the Assistant applied changes to this page's result?"""
-    return bool(st.session_state.get(ResultKeys(page_id).applied_at))
-
-
-def _format_applied(value: str) -> str:
-    try:
-        parsed = datetime.fromisoformat(value)
-    except (TypeError, ValueError):
-        return str(value)
-    return parsed.strftime("%Y-%m-%d %H:%M UTC" if parsed.tzinfo else "%Y-%m-%d %H:%M")
-
-
-def applied_caption(page_id: str) -> str | None:
-    """The "refined via the Assistant" caption, or ``None`` if never applied.
-
-    Shared by this page's result and the Assistant page itself, so the two
-    always describe the same apply in the same words.
-    """
-    applied_at = st.session_state.get(ResultKeys(page_id).applied_at)
-    if not applied_at:
-        return None
-    return f"Refined via the AttackGen Assistant — last applied {_format_applied(applied_at)}."
-
-
-def _revert_to_original(keys: ResultKeys) -> None:
-    """Restore the scenario and narrative stashed before the first apply.
-
-    Both move together — a scenario without its matching narrative (or vice
-    versa) would leave the Detection & Response tab describing a different
-    incident than the one on screen.
-    """
-    stash = st.session_state.pop(keys.pre_apply, None)
-    st.session_state.pop(keys.applied_at, None)
-    if not stash:
-        return
-
-    original_text = stash.get("text")
-    st.session_state[keys.text] = original_text
-
-    original_narrative = stash.get("narrative")
-    defense_state = st.session_state.get(keys.defense)
-    if defense_state is not None:
-        defense_state = dict(defense_state)
-        title = defense_title(defense_state.get("download_md", ""))
-        defense_state["narrative_md"] = original_narrative
-        defense_state["download_md"] = assemble_defense_document(
-            defense_state.get("deterministic_md", ""), original_narrative, title=title
-        )
-        st.session_state[keys.defense] = defense_state
-
-    # Follow the same ownership rule _persist_and_render and _clear_result use:
-    # only refresh the Assistant handoff while it still points at this page.
-    meta = st.session_state.get(SCENARIO_META_KEY) or {}
-    if meta.get("page_id") == keys.page_id:
-        st.session_state[SCENARIO_TEXT_KEY] = original_text
-        st.session_state[DEFENSE_NARRATIVE_KEY] = original_narrative
-
-
 def _clear_result(keys: ResultKeys) -> None:
     """Drop this page's result on an explicit request, leaving Setup intact.
 
@@ -1231,8 +1143,7 @@ def _persist_and_render(
     # Regenerate inherits the "Refined via the Assistant" caption, the layer's
     # "not regenerated" notice, and a "Revert to original" that would replace
     # the new scenario with the *old* one's pre-apply text.
-    st.session_state.pop(keys.pre_apply, None)
-    st.session_state.pop(keys.applied_at, None)
+    forget_applies(keys.page_id)
     st.session_state[keys.layer] = layer_payload
     st.session_state[keys.filename] = download_name
     st.session_state[keys.defense] = defense_state

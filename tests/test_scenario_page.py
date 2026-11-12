@@ -21,6 +21,12 @@ import pytest
 import streamlit as st
 
 import core.llm as llm_module
+from core.apply_recovery import (
+    applied_caption,
+    has_been_applied,
+    mark_applied,
+    stash_pre_apply,
+)
 from core.assistant import apply_write_back
 from core.request import (
     AIInsiderPayload,
@@ -37,11 +43,7 @@ from core.scenario_page import (
     _SCRIPT_CONTROL,
     _stream_on_worker,
     _unique_filenames,
-    applied_caption,
-    has_been_applied,
-    mark_applied,
     run_scenario_page,
-    stash_pre_apply,
 )
 
 
@@ -2567,7 +2569,7 @@ def test_layer_caption_notes_it_reflects_the_original_scenario_after_apply(
     )
 
 
-def test_revert_restores_the_scenario_and_narrative_together(
+def test_revert_button_restores_the_generated_result(
     stub_streamlit, fake_session_state, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _generate_threat_group_result(stub_streamlit, fake_session_state, monkeypatch)

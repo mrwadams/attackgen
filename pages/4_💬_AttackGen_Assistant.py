@@ -1,5 +1,6 @@
 import streamlit as st
 
+from core.apply_recovery import applied_caption, mark_applied, stash_pre_apply
 from core.assistant import (
     CLEANED_REPLY_KEY,
     Conversation,
@@ -12,7 +13,6 @@ from core.assistant import (
     scenario_handoff,
     stream_assistant_reply,
 )
-from core.scenario_page import applied_caption, mark_applied, stash_pre_apply
 from core.sidebar import render_setup_blockers, render_setup_sidebar
 from core.styles import inject_emoji_fonts, page_heading
 
