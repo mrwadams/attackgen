@@ -12,6 +12,7 @@ from core.detections import (
     render_defense_narrative_toggle,
     resolve_defense_report,
 )
+from core.matrices import DEFAULT_MATRIX, MATRICES
 from core.navigator import build_layer, dumps, normalise_technique_ids
 from core.request import (
     CustomPayload,
@@ -35,7 +36,8 @@ setup = render_setup_sidebar()
 
 industry = setup.industry
 company_size = setup.company_size
-matrix = setup.matrix or "Enterprise"
+matrix = setup.matrix or DEFAULT_MATRIX
+matrix_info = MATRICES[matrix]
 
 
 # ------------------ Data Loading ------------------ #
@@ -140,10 +142,7 @@ def template_selection(template, current_matrix):
 
 page_heading("Generate Custom Scenario🛠️")
 
-if matrix == "ATLAS":
-    st.markdown("### Select ATLAS Techniques")
-else:
-    st.markdown("### Select ATT&CK Techniques")
+st.markdown(f"### Select {matrix_info.framework} Techniques")
 
 if techniques_load_error is not None:
     st.error(f"Could not load the {matrix} techniques: {techniques_load_error}")
@@ -168,21 +167,16 @@ if techniques_load_error is None:
     if st.session_state.get('selected_techniques_matrix') != matrix:
         st.session_state['selected_techniques'] = []
 
-    select_label = "Select ATLAS Techniques" if matrix == "ATLAS" else "Select ATT&CK Techniques"
     selected_techniques = st.multiselect(
-        select_label,
+        f"Select {matrix_info.framework} Techniques",
         options=technique_options,
         default=st.session_state.get('selected_techniques', []),
     )
 
-    if matrix == "Enterprise":
-        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T1556` or `Phishing`).")
-    elif matrix == "ICS":
-        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `T0814` or `Denial of Service`).")
-    elif matrix == "ATLAS":
-        st.info("📝 Techniques are searchable by either their name or technique ID (e.g. `AML.T0051` or `Prompt Injection`).")
-    else:
-        st.info("📝 Techniques are searchable by either their name or technique ID.")
+    st.info(
+        "📝 Techniques are searchable by either their name or technique ID "
+        f"(e.g. {matrix_info.technique_example})."
+    )
 
 
 st.markdown("")
@@ -191,7 +185,6 @@ st.markdown("### Generate a Scenario")
 
 def _requirements() -> list[str]:
     """This page's own readiness blockers, in the order the form presents them."""
-    label = "ATLAS" if matrix == "ATLAS" else "ATT&CK"
     if techniques_load_error is not None:
         # Phrased as something the user can act on: every other line in the
         # readiness box is a step they can complete, so a bare "could not
@@ -200,7 +193,7 @@ def _requirements() -> list[str]:
         # can pick a different group — the step that changes what gets loaded
         # is switching framework in the sidebar. `load_techniques` isn't
         # cached, so the switch retries the load on the next rerun. Names
-        # `matrix` rather than `label`, which is "ATT&CK" for both Enterprise
+        # `matrix` rather than `matrix_info.framework`, which is "ATT&CK" for both Enterprise
         # and ICS and so wouldn't say which one failed. Reloading is
         # deliberately not offered: it starts a new session, dropping a key
         # typed into the sidebar and any scenario already generated.
@@ -209,7 +202,7 @@ def _requirements() -> list[str]:
             f"loading the {matrix} techniques failed (see the error above)."
         ]
     if not selected_techniques:
-        return [f"Select at least one {label} technique for the scenario."]
+        return [f"Select at least one {matrix_info.framework} technique for the scenario."]
     return []
 
 

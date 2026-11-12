@@ -25,6 +25,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from core.matrices import MATRICES
 from core.request import ScenarioRequest
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -176,12 +177,6 @@ _MODIFIER_LABELS = {
     "purple_team_narrative": "Purple-team narrative",
 }
 
-_MATRIX_LABELS = {
-    "Enterprise": "Enterprise ATT&CK",
-    "ICS": "ICS ATT&CK",
-    "ATLAS": "MITRE ATLAS",
-}
-
 
 def modifier_labels(request: ScenarioRequest | None) -> tuple[str, ...]:
     """Human labels for the modifiers that were on when Generate was pressed."""
@@ -223,7 +218,8 @@ def describe_inputs(request: ScenarioRequest | None) -> tuple[tuple[str, str], .
     facts: list[tuple[str, str]] = []
 
     if request.matrix:
-        facts.append(("Framework", _MATRIX_LABELS.get(request.matrix, str(request.matrix))))
+        matrix_info = MATRICES.get(request.matrix)
+        facts.append(("Framework", matrix_info.label if matrix_info else str(request.matrix)))
 
     organisation = request.organisation
     if organisation and organisation.industry:

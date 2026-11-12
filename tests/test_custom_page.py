@@ -53,3 +53,22 @@ def test_switching_matrix_after_a_template_drops_its_techniques(start, template,
 
     assert not at.exception
     assert _picked_techniques(at) == []
+
+
+@pytest.mark.parametrize(
+    ("matrix", "framework", "example"),
+    [
+        ("Enterprise", "ATT&CK", "`T1556` or `Phishing`"),
+        ("ICS", "ATT&CK", "`T0814` or `Denial of Service`"),
+        ("ATLAS", "ATLAS", "`AML.T0051` or `Prompt Injection`"),
+    ],
+)
+def test_labels_name_the_matrix_framework(matrix, framework, example):
+    at = _page(matrix)
+
+    assert f"### Select {framework} Techniques" in [m.value for m in at.markdown]
+    assert any(m.label == f"Select {framework} Techniques" for m in at.multiselect)
+    assert (
+        f"Techniques are searchable by either their name or technique ID (e.g. {example})."
+        in [i.value for i in at.info]
+    )

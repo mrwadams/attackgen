@@ -9,6 +9,7 @@ from core.detections import (
     render_defense_narrative_toggle,
     resolve_defense_report,
 )
+from core.matrices import DEFAULT_MATRIX, MATRICES
 from core.navigator import build_layer, dumps, tactic_shortname
 from core.request import (
     Modifiers,
@@ -113,17 +114,13 @@ def _modifiers():
 
 page_heading("Generate Threat Group Scenario🛡️")
 
-matrix = setup.matrix or "Enterprise"
+matrix = setup.matrix or DEFAULT_MATRIX
+matrix_info = MATRICES[matrix]
 groups = load_groups(matrix)
 
-if matrix == "ATLAS":
-    st.markdown("### Select a Case Study")
-    entity_label = "case study"
-    select_placeholder = "Select Case Study"
-else:
-    st.markdown("### Select a Threat Actor Group")
-    entity_label = "threat actor group"
-    select_placeholder = "Select Group"
+entity_label = matrix_info.entity
+st.markdown(f"### Select a {entity_label.title()}")
+select_placeholder = "Select Case Study" if matrix_info.case_studies else "Select Group"
 
 # Options arrive already in natural-sorted order from list_usable_scenario_options
 # (APT3, APT28, APT29, APT30…), so preserve that rather than re-sorting the labels
@@ -149,7 +146,7 @@ lookup_error = None
 try:
     if selected_group_alias is not None:
         group_url = groups[groups['group'] == selected_group_alias]['url'].values[0]
-        if matrix == "ATLAS":
+        if matrix_info.case_studies:
             st.markdown(f"[View case study on atlas.mitre.org]({group_url})")
         else:
             st.markdown(f"[View {selected_group_alias}'s page on attack.mitre.org]({group_url})")
@@ -159,7 +156,6 @@ try:
         kill_chain = resolve_kill_chain(matrix, selected_group_alias)
 
         if not kill_chain.all_techniques:
-            entity = "case study" if matrix == "ATLAS" else "threat group"
             # Deliberately not `st.stop()`: halting the script here would also
             # tear down the readiness summary and any result this page is
             # already holding. The empty technique set becomes a readiness
@@ -171,7 +167,7 @@ try:
             # (core/attack_data.py). Kept as defence in depth in case that
             # invariant ever changes.
             st.warning(
-                f"There are no {matrix} techniques associated with the {entity}: {selected_group_alias}"
+                f"There are no {matrix} techniques associated with the {entity_label}: {selected_group_alias}"
             )
         else:
             # Rebuild the DataFrames the rest of the page (expander, layer,
@@ -180,8 +176,7 @@ try:
             selected_techniques_df = pd.DataFrame(kill_chain.techniques)
             technique_ids = kill_chain.technique_ids
 
-            expander_title = "Associated ATLAS Techniques" if matrix == "ATLAS" else "Associated ATT&CK Techniques"
-            with st.expander(expander_title):
+            with st.expander(f"Associated {matrix_info.framework} Techniques"):
                 st.dataframe(data=techniques_df, height=200, width='stretch', hide_index=True)
 
             kill_chain_string = kill_chain.kill_chain_string
@@ -196,11 +191,10 @@ except Exception as e:
 
 st.markdown("")
 
-if matrix == "ATLAS":
-    st.markdown("### Generate a Scenario")
+st.markdown("### Generate a Scenario")
+if matrix_info.case_studies:
     st.caption("Built from the case study's documented attack procedure.")
 else:
-    st.markdown("### Generate a Scenario")
     st.caption(
         "Built from a random selection of the group's techniques, so each run "
         "differs."
@@ -243,7 +237,7 @@ def _requirements() -> list[str]:
 
 def _capture_inputs() -> ScenarioRequest:
     return ScenarioRequest(
-        scenario_type="case_study" if matrix == "ATLAS" else "threat_group",
+        scenario_type="case_study" if matrix_info.case_studies else "threat_group",
         matrix=matrix,
         organisation=Organisation(industry=industry, company_size=company_size),
         selected_entity=SelectedEntity(type=entity_label, name=selected_group_alias),
