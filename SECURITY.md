@@ -120,7 +120,7 @@ Our security workflow runs on pushes and pull requests to `main` and `develop`, 
 Security scan results are available in multiple locations:
 
 - **GitHub Security Tab**: View all code scanning alerts, secret scanning alerts, and Dependabot alerts
-- **Pull Request Checks**: Security scans run on every PR with results visible in the checks
+- **Pull Request Checks**: Security scans except Trivy run on every PR with results visible in the checks
 - **Actions Tab**: Detailed workflow logs and security reports
 - **Workflow Artifacts**: Downloadable JSON reports (Bandit, pip-audit) for deeper analysis
 
