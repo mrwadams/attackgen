@@ -55,7 +55,8 @@ class ResultKeys:
     Streamlit session.
 
     None of these are widget keys — ``core.scenario_page`` sets and clears
-    them directly, and ``core.assistant`` writes revised results back to
+    them directly, ``core.apply_recovery`` writes and drops ``pre_apply`` and
+    ``applied_at``, and ``core.assistant`` writes revised results back to
     ``text`` and ``defense``, which Streamlit only permits for keys no widget
     owns.
     """
