@@ -174,16 +174,29 @@ jobs:
   security-summary:
     name: Security Scan Summary
     runs-on: ubuntu-latest
-    needs: [python-security, secret-scanning, codeql-analysis]
+    needs: [python-security, secret-scanning, codeql-analysis, docker-security, dependency-review]
     if: always()
 
     steps:
       - name: Check security scan results
+        env:
+          # Every job above, with its result. `needs` must name them all;
+          # tests/test_security_workflow.py fails when one is missing.
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Python Security: ${{ needs.python-security.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Secret Scanning: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "✅ CodeQL Analysis: ${{ needs.codeql-analysis.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View detailed results in the workflow logs and Security tab." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Security Scan Summary"
+            echo ""
+            jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<< "$NEEDS" |
+              while read -r job result; do
+                case "$result" in
+                  success) marker="✅" ;;
+                  failure) marker="❌" ;;
+                  skipped) marker="⏭️" ;;
+                  *) marker="⚠️" ;;
+                esac
+                echo "- $marker $job: $result"
+              done
+            echo ""
+            echo "View detailed results in the workflow logs and Security tab."
+          } >> "$GITHUB_STEP_SUMMARY"
