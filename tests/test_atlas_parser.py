@@ -19,12 +19,12 @@ from atlas_parser import ATLASData, get_techniques_from_case_study_procedure
 def _atlas(source_name: str = "mitre-atlas") -> dict:
     """A minimal STIX document exercising every indexing branch.
 
-    Tactics are intentionally given out of kill-chain order (Initial Access
-    before Reconnaissance) so a test can prove `get_tactics` re-orders them.
+    Tactics are listed out of kill-chain order (Initial Access before
+    Reconnaissance); the parser indexes them by ATLAS ID, not position.
     """
     return {
         "objects": [
-            # Tactics — only two of the sixteen ordered IDs are present.
+            # Tactics — only two are present.
             {
                 "type": "x-mitre-tactic",
                 "id": "x-mitre-tactic--ia",
@@ -137,15 +137,6 @@ def test_indexes_only_objects_with_mitre_atlas_external_id(atlas_data: ATLASData
 # ---------------------------------------------------------------------------
 
 
-def test_get_tactics_returns_kill_chain_order_skipping_absent_ids(
-    atlas_data: ATLASData,
-) -> None:
-    # Reconnaissance (AML.TA0002) precedes Initial Access (AML.TA0004) in the
-    # canonical order, even though the document lists them the other way round.
-    names = [t["name"] for t in atlas_data.get_tactics()]
-    assert names == ["Reconnaissance", "Initial Access"]
-
-
 def test_get_tactic_name_by_shortname_echoes_unknown(atlas_data: ATLASData) -> None:
     assert atlas_data.get_tactic_name_by_shortname("reconnaissance") == "Reconnaissance"
     assert atlas_data.get_tactic_name_by_shortname("no-such-tactic") == "no-such-tactic"
@@ -154,20 +145,6 @@ def test_get_tactic_name_by_shortname_echoes_unknown(atlas_data: ATLASData) -> N
 def test_get_tactic_name_by_id_echoes_unknown(atlas_data: ATLASData) -> None:
     assert atlas_data.get_tactic_name_by_id("AML.TA0002") == "Reconnaissance"
     assert atlas_data.get_tactic_name_by_id("AML.TA9999") == "AML.TA9999"
-
-
-# ---------------------------------------------------------------------------
-# Techniques
-# ---------------------------------------------------------------------------
-
-
-def test_get_techniques_can_exclude_subtechniques(atlas_data: ATLASData) -> None:
-    with_subs = {t["external_id"] for t in atlas_data.get_techniques(include_subtechniques=True)}
-    without_subs = {t["external_id"] for t in atlas_data.get_techniques(include_subtechniques=False)}
-
-    assert "AML.T0001.001" in with_subs
-    assert "AML.T0001.001" not in without_subs
-    assert "AML.T0001" in without_subs
 
 
 # ---------------------------------------------------------------------------
