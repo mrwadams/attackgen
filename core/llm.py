@@ -1,14 +1,17 @@
 """Unified LLM interface. All providers routed through LiteLLM.
 
-Public entrypoint: `call_llm(config, messages) -> str`.
+Public entrypoints: `call_llm(config, messages) -> str` returns the full text,
+and `call_llm_stream(config, messages) -> Iterator[str]` yields chunks as they
+arrive (used by the scenario pages and the Assistant chat).
 
 Provider-specific quirks (Gemini safety, Anthropic max_tokens, OpenAI reasoning
 models, Custom api_base) are handled in `_build_litellm_kwargs` and driven off
 the registry in `core/models.py`, not by name-matching at the call site.
 
-LangSmith tracing wraps `call_llm` via `@traceable` when a `Client` is available;
-the active run id is stashed in `st.session_state['run_id']` so the existing
-feedback widget on each page continues to work without changes.
+LangSmith tracing wraps both `call_llm` and `call_llm_stream` via `@traceable`
+when a `Client` is available; each stashes the active run id in
+`st.session_state['run_id']` so the existing feedback widget on each page
+continues to work without changes.
 """
 
 from __future__ import annotations

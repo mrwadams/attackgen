@@ -4,10 +4,11 @@ Two pure surfaces, both Streamlit-free so they can be tested (and reused)
 without rendering anything:
 
 * :func:`summarise_scenario` turns generated Markdown into an overview, a
-  section index and a handful of facilitator shortcuts (injects, success
-  criteria, metrics, artefacts, rules of engagement). A finished exercise runs
-  to a dozen-plus sections, so the coordinator renders this above the result
-  rather than truncating or rewriting the Markdown itself.
+  section index and a handful of facilitator shortcuts (injects, discussion
+  questions, success criteria, metrics, artefacts, rules of engagement). A
+  finished exercise runs to a dozen-plus sections, so the coordinator renders
+  this above the result rather than truncating or rewriting the Markdown
+  itself.
 * :func:`describe_inputs` / :func:`summary_line` render the Generate-time
   :class:`~core.request.ScenarioRequest` as human-readable facts. The same helpers describe what *will* be
   generated before the click and what *did* produce the result afterwards, so
