@@ -1,5 +1,5 @@
 # Use specific version with SHA256 for reproducibility and security
-FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # The base image ships zlib1g 1:1.3.dfsg+really1.3.1-1+b1, which carries
 # CVE-2026-85091, CVE-2026-76844 and CVE-2026-27171. trixie-security has the
