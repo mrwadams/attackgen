@@ -27,7 +27,7 @@ from core.apply_recovery import (
     mark_applied,
     stash_pre_apply,
 )
-from core.assistant import apply_write_back
+from core.assistant import Artifact, apply_write_back
 from core.request import (
     AIInsiderPayload,
     CustomPayload,
@@ -2485,13 +2485,13 @@ def _apply_both_artifacts(fake_session_state, *, page_id: str = "threat_group") 
     stash_pre_apply(page_id)
     apply_write_back(
         page_id=page_id,
-        artifact="scenario",
+        artifact=Artifact.SCENARIO,
         revised_text="# Refined APT29 Scenario",
         session_state=fake_session_state,
     )
     apply_write_back(
         page_id=page_id,
-        artifact="defense",
+        artifact=Artifact.DEFENSE,
         revised_text="## Refined walkthrough",
         session_state=fake_session_state,
     )
