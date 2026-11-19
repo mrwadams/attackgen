@@ -77,7 +77,7 @@ When deploying AttackGen:
 1. **Dependency Management**
    - Regularly update dependencies to patch security vulnerabilities
    - Review `pyproject.toml` dependencies for outdated or vulnerable packages
-   - Automated scanning with `pip-audit` runs on every commit and fails the build on a known vulnerability (see Automated Security Scanning section)
+   - Automated scanning with `pip-audit` runs on the security workflow's triggers (pushes and pull requests to `main` and `develop`, weekly, and on manual dispatch) and fails the build on a known vulnerability (see Automated Security Scanning section)
 
 2. **Input Validation**
    - The application validates inputs, but always review user-provided data
@@ -142,10 +142,10 @@ When security issues are identified:
 Developers can run security scans locally:
 ```bash
 # Install security tools
-pip install bandit pip-audit
+pip install "bandit[toml]" pip-audit
 
-# Run Bandit
-bandit -r . -f txt
+# Run Bandit with the configuration CI uses (excludes tests/)
+bandit -c pyproject.toml -r . -f txt
 
 # Run pip-audit
 pip-audit --desc
