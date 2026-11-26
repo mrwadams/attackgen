@@ -16,7 +16,7 @@ import pytest
 import core.llm as llm_module
 import mcp_server as s
 from core.attack_data import KillChain
-from core.prompts import build_ai_insider_messages
+from core.prompts import DEFINITIONS_INSTRUCTION, build_ai_insider_messages
 from data.ai_insider_threats import (
     AGENT_CAPABILITIES,
     DEPLOYMENT_ARCHETYPES,
@@ -367,6 +367,31 @@ class TestGenerateTools:
         assert out == "custom scenario"
         _args, kwargs = mock_litellm_completion.calls[0]
         assert "T1566" in kwargs["messages"][1]["content"]
+
+    def test_every_prompt_asks_for_definitions(
+        self, no_langsmith, canned_kill_chain, known_techniques, mock_litellm_completion
+    ):
+        """The data and generate tools reach the Definitions instruction through
+        the shared builders, so no tool can drift from the pages."""
+        archetype = next(iter(DEPLOYMENT_ARCHETYPES))
+        key = dict(provider="OpenAI API", model="gpt-5.5", api_key="k")
+        s.generate_threat_group_scenario("Enterprise", "APT29", "Finance", "Large", **key)
+        s.generate_custom_scenario("Enterprise", ["T1566"], "Finance", "Large", **key)
+        s.generate_ai_insider_scenario(archetype, [], ["S1"], [], "Healthcare", "Large", **key)
+        prompts = [kwargs["messages"][1]["content"] for _args, kwargs in mock_litellm_completion.calls]
+        prompts.append(
+            s.get_kill_chain("Enterprise", "APT29", industry="Finance", company_size="Large")[
+                "messages"
+            ][1]["content"]
+        )
+        prompts.append(
+            s.get_ai_insider_prompt(
+                archetype, categories=[], stride=["S1"], capabilities=[],
+                industry="Healthcare", company_size="Large",
+            )["messages"][1]["content"]
+        )
+        assert len(prompts) == 5
+        assert all(DEFINITIONS_INSTRUCTION in prompt for prompt in prompts)
 
     def test_bad_provider_raises(self, canned_kill_chain):
         with pytest.raises(ValueError):
