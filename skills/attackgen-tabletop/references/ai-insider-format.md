@@ -19,7 +19,7 @@ external actor:
   capability and objective — see the *no human motive* rule in `SKILL.md`.
 
 All facts come from the `get_ai_insider_prompt` payload (and
-`list_ai_insider_options`). The prompt's own seven sections are a *scenario*;
+`list_ai_insider_options`). The prompt's own eight sections are a *scenario*;
 the sections below are the *exercise*. Map them across rather than emitting the
 prompt's structure verbatim.
 

@@ -44,6 +44,23 @@ SCENARIO_SYSTEM_PROMPT = (
 )
 
 
+# The Definitions section every scenario prompt asks for. The AI-insider
+# template lists DEFINITIONS_INSTRUCTION as a numbered section. The four Threat
+# Group/Custom templates have no section list, so their ``{definitions}`` slot
+# takes DEFINITIONS_SECTION_REQUEST, which also says where the section goes.
+DEFINITIONS_INSTRUCTION = (
+    "a bullet list defining the technical terms, acronyms and framework identifiers "
+    "(for example technique names and IDs, STRIDE codes or the deployment archetype) "
+    "that appear in this scenario, each in one plain-language sentence. Define only "
+    "terms the scenario uses."
+)
+
+DEFINITIONS_SECTION_REQUEST = (
+    "Immediately after the scenario's opening overview and before the attack narrative, "
+    "include a section with the heading 'Definitions' containing " + DEFINITIONS_INSTRUCTION
+)
+
+
 # --- Threat Group (page 1) human templates ---
 
 THREAT_GROUP_ATLAS_TEMPLATE = """
@@ -61,6 +78,8 @@ Create an incident response testing scenario based on this AI/ML attack case stu
 
 Focus on realistic attack vectors that target AI/ML infrastructure, including model manipulation, data poisoning, adversarial inputs, and AI supply chain attacks.
 
+{definitions}
+
 Your response should be well structured and formatted using Markdown. Write in British English.
 """
 
@@ -74,6 +93,8 @@ Threat actor group '{selected_group_alias}' is planning to target the company us
 
 **Your task:**
 Create an incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against the identified threat actor group, focusing on the {matrix} environment.
+
+{definitions}
 
 Your response should be well structured and formatted using Markdown. Write in British English.
 """
@@ -98,6 +119,8 @@ Create a custom incident response testing scenario focused on adversarial ML att
 
 Focus on realistic attack vectors that target AI/ML infrastructure, including model manipulation, data poisoning, adversarial inputs, prompt injection, and AI supply chain attacks.
 
+{definitions}
+
 Your response should be well structured and formatted using Markdown. Write in British English.
 """
 
@@ -112,6 +135,8 @@ The threat actor is known to use the following ATT&CK techniques from the {matri
 
 **Your task:**
 Create a custom incident response testing scenario based on the information provided. The goal of the scenario is to test the company's incident response capabilities against a threat actor group that uses the identified ATT&CK techniques.
+
+{definitions}
 
 Your response should be well structured and formatted using Markdown.
 """
@@ -134,6 +159,7 @@ def build_threat_group_messages(
         selected_group_alias=selected_group_alias,
         kill_chain_string=kill_chain_string,
         matrix=matrix,
+        definitions=DEFINITIONS_SECTION_REQUEST,
     )
     user_content = append_ai_uplift(user_content, ai_uplift)
     return [
@@ -159,6 +185,7 @@ def build_custom_messages(
         selected_techniques_string=selected_techniques_string,
         template_info=template_info,
         matrix=matrix,
+        definitions=DEFINITIONS_SECTION_REQUEST,
     )
     user_content = append_ai_uplift(user_content, ai_uplift)
     return [
@@ -212,12 +239,13 @@ The agent is deployed under the **{archetype_name}** model.
 Create a detailed incident response testing scenario (a tabletop exercise) in which the AI agent acts as an insider threat consistent with the deployment archetype and threat scope above. The scenario must be realistic for the stated industry and organisation size, and grounded in how the agent's tool access and autonomy enable the behaviour. Structure your response with the following sections:
 
 1. **Scenario Title & Overview** — a short, evocative title and a one-paragraph summary.
-2. **Deployment Context** — how the agent is deployed, what tools and access it has, and why this autonomy level matters.
-3. **Attack Narrative & Timeline** — a step-by-step account of how the incident unfolds, mapping each step to the relevant STRIDE threat identifier(s) where applicable. Emphasise how the agent blends malicious actions with legitimate work.
-4. **Affected Systems & Business Impact** — concrete systems, data and business consequences.
-5. **Detection Opportunities** — at which points the activity could be detected, mapped to the available detection strategies, and which would likely fail given the deployment archetype.
-6. **Discussion Questions** — 5–8 questions to test the incident response team's readiness (containment, attribution, credential revocation, log integrity, blast-radius assessment, recovery).
-7. **Recommended Controls** — prioritised mitigations mapped to the NIST CSF functions (Identify, Protect, Detect, Respond, Recover).
+2. **Definitions** — {definitions}
+3. **Deployment Context** — how the agent is deployed, what tools and access it has, and why this autonomy level matters.
+4. **Attack Narrative & Timeline** — a step-by-step account of how the incident unfolds, mapping each step to the relevant STRIDE threat identifier(s) where applicable. Emphasise how the agent blends malicious actions with legitimate work.
+5. **Affected Systems & Business Impact** — concrete systems, data and business consequences.
+6. **Detection Opportunities** — at which points the activity could be detected, mapped to the available detection strategies, and which would likely fail given the deployment archetype.
+7. **Discussion Questions** — 5–8 questions to test the incident response team's readiness (containment, attribution, credential revocation, log integrity, blast-radius assessment, recovery).
+8. **Recommended Controls** — prioritised mitigations mapped to the NIST CSF functions (Identify, Protect, Detect, Respond, Recover).
 
 Write in British English and format the entire response in Markdown.
 """
@@ -306,6 +334,7 @@ def build_ai_insider_messages(
         seed_block=seed_block,
         detection_lines=detection_lines,
         controls_lines=controls_lines,
+        definitions=DEFINITIONS_INSTRUCTION,
     )
 
     return [

@@ -83,6 +83,22 @@ class TestScenarioSummary:
         assert inject.level == 3
         assert inject.anchor == slugify("Inject 1 — Suspicious sign-in")
 
+    def test_definitions_after_the_overview_leave_the_overview_alone(self) -> None:
+        summary = summarise_scenario(
+            "# APT29 Scenario\n\n"
+            "## Overview\n\n"
+            "APT29 phishes a finance team and moves laterally to the payments system.\n\n"
+            "## Definitions\n\n"
+            "- **Spearphishing (T1566.001)**: a targeted email carrying a malicious attachment.\n"
+            "- **Lateral movement**: moving from one compromised host to others.\n\n"
+            "## Attack Narrative\n\n"
+            "The first email arrives on Monday.\n"
+        )
+
+        assert summary.overview == (
+            "APT29 phishes a finance team and moves laterally to the payments system."
+        )
+
     def test_summary_exposes_overview_reading_time_and_quick_links(self) -> None:
         summary = summarise_scenario(SCENARIO)
 

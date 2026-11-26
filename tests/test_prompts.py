@@ -11,6 +11,7 @@ from __future__ import annotations
 from core.ai_uplift import AI_UPLIFT_PROMPT
 from core.prompts import (
     AI_INSIDER_SYSTEM_PROMPT,
+    DEFINITIONS_INSTRUCTION,
     SCENARIO_SYSTEM_PROMPT,
     build_ai_insider_messages,
     build_custom_messages,
@@ -19,6 +20,22 @@ from core.prompts import (
 from data.ai_insider_threats import DEPLOYMENT_ARCHETYPES
 
 BRITISH = "Write in British English."
+
+
+def test_definitions_instruction_pinned():
+    assert DEFINITIONS_INSTRUCTION == (
+        "a bullet list defining the technical terms, acronyms and framework identifiers "
+        "(for example technique names and IDs, STRIDE codes or the deployment archetype) "
+        "that appear in this scenario, each in one plain-language sentence. Define only "
+        "terms the scenario uses."
+    )
+
+
+def _asks_for_definitions_after_overview(user: str) -> bool:
+    return (
+        "Immediately after the scenario's opening overview and before the attack narrative, "
+        f"include a section with the heading 'Definitions' containing {DEFINITIONS_INSTRUCTION}" in user
+    )
 
 
 def test_scenario_system_prompt_pinned():
@@ -64,6 +81,14 @@ class TestThreatGroupMessages:
         assert "MITRE ATLAS case study" in msgs[1]["content"]
         assert BRITISH in msgs[1]["content"]
 
+    def test_both_branches_ask_for_definitions(self):
+        for matrix in ("Enterprise", "ATLAS"):
+            user = build_threat_group_messages(
+                matrix=matrix, selected_group_alias="APT29", kill_chain_string="x",
+                industry="F", company_size="L",
+            )[1]["content"]
+            assert _asks_for_definitions_after_overview(user), matrix
+
     def test_ai_uplift_appends_only_when_true(self):
         base = build_threat_group_messages(
             matrix="Enterprise", selected_group_alias="APT29", kill_chain_string="x",
@@ -102,6 +127,14 @@ class TestCustomMessages:
         assert BRITISH in user
         assert "AML.T0051" in user
         assert "Prompt Injection Attack" in user
+
+    def test_both_branches_ask_for_definitions(self):
+        for matrix in ("Enterprise", "ATLAS"):
+            user = build_custom_messages(
+                matrix=matrix, selected_techniques_string="T1059", template_info="",
+                industry="F", company_size="L",
+            )[1]["content"]
+            assert _asks_for_definitions_after_overview(user), matrix
 
 
 class TestAiInsiderMessages:
@@ -159,6 +192,19 @@ class TestAiInsiderMessages:
         assert "the Discussion Questions section must force" in user
         assert "- Containment — halt the fleet." in user
         assert "- Rotation — revoke." in user
+
+    def test_definitions_is_section_two_and_later_sections_renumbered(self):
+        user = self._build()
+        assert (
+            "1. **Scenario Title & Overview** — a short, evocative title and a one-paragraph summary.\n"
+            f"2. **Definitions** — {DEFINITIONS_INSTRUCTION}\n"
+            "3. **Deployment Context** —"
+        ) in user
+        assert "4. **Attack Narrative & Timeline**" in user
+        assert "5. **Affected Systems & Business Impact**" in user
+        assert "6. **Detection Opportunities**" in user
+        assert "7. **Discussion Questions**" in user
+        assert "8. **Recommended Controls**" in user
 
     def test_required_decisions_render_without_a_seed(self):
         user = self._build(required_decisions=["Containment — halt the fleet."])

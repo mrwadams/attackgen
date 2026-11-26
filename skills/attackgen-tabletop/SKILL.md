@@ -137,7 +137,7 @@ variant (`references/exercise-format.md`) rather than switching paths.
    if the user explicitly wants AttackGen's own model to write it.)
 
 5. **Reshape into the exercise** per `references/ai-insider-format.md`. The
-   prompt's own seven sections are a scenario, not an MSEL — that reference maps
+   prompt's own eight sections are a scenario, not an MSEL — that reference maps
    them onto the tabletop structure and adds the inject schedule, the
    phase-grouped discussion questions and the pass criteria.
 
