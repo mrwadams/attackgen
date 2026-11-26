@@ -221,6 +221,15 @@ def disable_langsmith_tracing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm_module, "_langsmith_client", None)
 
 
+def _run_ready_page(**kwargs: Any) -> None:
+    """Run the coordinator, defaulting to a ready page with an Enterprise request."""
+    kwargs.setdefault("requirements", lambda: ())
+    kwargs.setdefault("setup", _setup_state())
+    request = ScenarioRequest(scenario_type=kwargs["page_id"], matrix="Enterprise")
+    kwargs.setdefault("capture_inputs", lambda: request)
+    run_scenario_page(**kwargs)
+
+
 def test_does_nothing_when_button_not_pressed(
     stub_streamlit, fake_session_state, mock_litellm_completion
 ) -> None:
@@ -228,7 +237,7 @@ def test_does_nothing_when_button_not_pressed(
     fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
@@ -251,7 +260,7 @@ def test_skips_llm_when_not_ready(
         build_calls.append(None)
         return [{"role": "user", "content": "x"}]
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=build,
         requirements=_NOT_READY,
@@ -280,7 +289,7 @@ def test_happy_path_calls_llm_cleans_response_and_persists(
 
     messages = [{"role": "user", "content": "build me a scenario"}]
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: messages,
         download_name="threat_group_scenario.md",
@@ -322,7 +331,7 @@ def test_page_id_namespaces_session_state(
     fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
@@ -356,7 +365,7 @@ def test_trace_name_and_tags_reach_llm_config(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _fake_call_llm_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="ai_insider",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
@@ -396,7 +405,7 @@ def test_layer_persisted_and_offered_for_download(
     downloads = _capture_downloads(monkeypatch)
     layer_json = '{"domain": "enterprise-attack"}'
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -435,7 +444,7 @@ def _run_and_capture_caption(
     captions: list[str] = []
     monkeypatch.setattr(st, "caption", lambda text, *a, **k: captions.append(text))
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen Group Enterprise.md",
@@ -484,7 +493,7 @@ def test_no_layer_download_when_build_layer_returns_none(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
@@ -518,7 +527,7 @@ def test_persisted_scenario_and_downloads_survive_rerun(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
         requirements=_NOT_READY,
@@ -553,7 +562,7 @@ def test_no_layer_download_when_build_layer_absent(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="ai_insider",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
@@ -599,7 +608,7 @@ def test_defense_persisted_and_offered_for_download(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -641,7 +650,7 @@ def test_defense_narrative_makes_second_llm_call_and_persists(
     fake_session_state["llm_model_name"] = "gpt-5.5"
     fake_session_state["llm_api_key"] = "k"
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -676,7 +685,7 @@ def test_no_defense_download_when_build_defense_returns_none(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom_scenario.md",
@@ -710,7 +719,7 @@ def test_result_is_tabbed_when_defense_present(
     tab_calls: list[list[str]] = []
     monkeypatch.setattr(st, "tabs", lambda labels, *a, **k: (tab_calls.append(labels) or [_FakeTab() for _ in labels]))
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -740,7 +749,7 @@ def test_result_not_tabbed_without_defense(
     tab_calls: list[list[str]] = []
     monkeypatch.setattr(st, "tabs", lambda labels, *a, **k: (tab_calls.append(labels) or [_FakeTab() for _ in labels]))
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="ai_insider",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="ai_insider_threat_scenario.md",
@@ -771,7 +780,7 @@ def test_persisted_defense_survives_rerun(
 
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
         requirements=_NOT_READY,
@@ -826,7 +835,7 @@ def test_phase_sequence_and_base_is_persisted_before_optional_enrichment(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -894,7 +903,7 @@ def test_generate_captures_input_and_identity_metadata(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=build_messages,
         download_name="AttackGen Custom Enterprise.md",
@@ -948,7 +957,7 @@ def test_streamed_base_text_is_visible_chunk_by_chunk(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom.md",
@@ -1030,10 +1039,9 @@ def _run_page(**overrides) -> None:
         "build_layer": lambda _request: '{"domain": "enterprise-attack"}',
         "build_defense": lambda _request: _DEFENSE_REPORT,
         "defense_narrative": True,
-        "capture_inputs": lambda: ScenarioRequest(matrix="Enterprise"),
     }
     kwargs.update(overrides)
-    run_scenario_page(**kwargs)
+    _run_ready_page(**kwargs)
 
 
 def _generate_with_narrative(
@@ -1462,6 +1470,28 @@ def test_base_retry_replays_the_captured_inputs(
     assert "threat_group_generation_status" not in fake_session_state
 
 
+def test_base_retry_without_a_persisted_request_uses_the_current_form(
+    stub_streamlit, fake_session_state, controllable_stream
+) -> None:
+    fake_session_state["chosen_model_provider"] = "OpenAI API"
+    fake_session_state["llm_model_name"] = "gpt-5.5"
+    fake_session_state["threat_group_retry_base_requested"] = True
+    controllable_stream.scripts = [["# Base scenario"]]
+
+    _run_page(
+        defense_narrative=False,
+        build_messages=lambda request: [
+            {"role": "user", "content": request.matrix}
+        ],
+        capture_inputs=lambda: ScenarioRequest(matrix="ICS"),
+    )
+
+    assert controllable_stream.calls[0].messages == [
+        {"role": "user", "content": "ICS"}
+    ]
+    assert fake_session_state["threat_group_scenario_request"].matrix == "ICS"
+
+
 @pytest.mark.skipif(
     not _SCRIPT_CONTROL, reason="Streamlit exposes no script-control exceptions"
 )
@@ -1536,7 +1566,7 @@ def test_elapsed_label_advances_while_base_scenario_call_is_silent(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", silent_then_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
@@ -1578,7 +1608,7 @@ def test_elapsed_label_advances_while_narrative_call_is_silent(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="AttackGen APT29 Enterprise.md",
@@ -1633,7 +1663,7 @@ def test_streamed_output_still_renders_incrementally_via_worker_thread(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", controlled_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="custom.md",
@@ -1674,7 +1704,7 @@ def test_threaded_stream_error_surfaces_same_message_and_no_completion(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", failing_stream)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         download_name="threat_group_scenario.md",
@@ -1793,7 +1823,7 @@ def test_generate_is_disabled_and_every_blocker_is_listed(
     build_calls: list[None] = []
     setup = _setup_state(industry=None, company_size=None)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id=page_id,
         build_messages=lambda _request: build_calls.append(None),
         requirements=lambda: [page_blocker],
@@ -1829,11 +1859,9 @@ def test_generate_is_enabled_and_confirms_the_inputs_when_ready(
 ) -> None:
     stub_streamlit["button_returns"] = False
 
-    run_scenario_page(
+    _run_ready_page(
         page_id=page_id,
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="scenario.md",
         trace_name="Scenario",
         trace_tags=("scenario",),
@@ -1878,11 +1906,9 @@ def test_modifiers_are_rendered_before_the_generate_button(
 
     monkeypatch.setattr(st, "button", _button)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="scenario.md",
         trace_name="Scenario",
         trace_tags=("scenario",),
@@ -1906,11 +1932,9 @@ def _generate_threat_group_result(
         yield "# APT29 Scenario\n\nA phased intrusion.\n\n## Injects\n\nInject 1."
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2031,8 +2055,6 @@ def test_every_pages_request_satisfies_the_shared_consumers(
             "build_messages": lambda request: (
                 received.append(request) or [{"role": "user", "content": "x"}]
             ),
-            "requirements": lambda: [],
-            "setup": _setup_state(),
             "download_name": "scenario.md",
             "trace_name": "Scenario",
             "trace_tags": ("scenario",),
@@ -2041,7 +2063,7 @@ def test_every_pages_request_satisfies_the_shared_consumers(
             "capture_inputs": lambda: request_,
         }
         kwargs.update(overrides)
-        run_scenario_page(**kwargs)
+        _run_ready_page(**kwargs)
 
     _run()
 
@@ -2073,10 +2095,16 @@ def test_every_pages_request_satisfies_the_shared_consumers(
     _run()
     assert not any("selections have changed" in i for i in stub_streamlit["infos"])
 
-    # ...and navigating away and back to a page with no captured inputs keeps
+    # ...and navigating away and back to a page whose form has reset keeps
     # both the result's metadata and the Assistant's title.
     stub_streamlit["captions"].clear()
-    _run(capture_inputs=None, requirements=lambda: ["Select something."])
+    reset_form = ScenarioRequest(
+        scenario_type=request_.scenario_type, matrix=request_.matrix
+    )
+    _run(
+        capture_inputs=lambda: reset_form,
+        requirements=lambda: ["Select something."],
+    )
     assert any(
         c == f"Generated from — {summary_line(persisted)}"
         for c in stub_streamlit["captions"]
@@ -2115,11 +2143,10 @@ def test_result_survives_visiting_the_assistant_and_returning(
     stub_streamlit["captions"].clear()
     downloads = _capture_downloads(monkeypatch)
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
         requirements=lambda: ["Select a threat actor group for the scenario."],
-        setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2153,11 +2180,9 @@ def test_each_page_keeps_its_own_latest_result(
         yield "# Custom scenario"
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -2185,11 +2210,9 @@ def test_editing_the_form_keeps_the_result_and_says_it_is_out_of_date(
         selected_entity=SelectedEntity(type="threat actor group", name="APT28"),
     )
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2224,11 +2247,9 @@ def test_regenerate_action_runs_again_with_the_current_inputs(
         yield "# APT28 Scenario"
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT28 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2251,11 +2272,9 @@ def test_clear_result_removes_only_the_result(
 
     stub_streamlit["button_returns"] = False
     downloads = _capture_downloads(monkeypatch)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2283,11 +2302,9 @@ def test_clearing_one_page_leaves_another_pages_result_alone(
 
     _click(stub_streamlit, "threat_group_clear_current")
     stub_streamlit["button_returns"] = False
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2324,11 +2341,9 @@ def test_feedback_is_pinned_to_the_run_that_produced_the_result(
         yield "# Custom scenario"
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _stream)
-    run_scenario_page(
+    _run_ready_page(
         page_id="custom",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen Custom Enterprise.md",
         trace_name="Custom Scenario",
         trace_tags=("custom_scenario",),
@@ -2345,11 +2360,10 @@ def test_a_restored_page_without_a_result_says_scenarios_do_not_survive_a_reload
 
     fake_session_state[RESTORED_KEY] = True
 
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
         requirements=lambda: ["Select a threat actor group for the scenario."],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2382,11 +2396,10 @@ def test_regenerate_says_why_nothing_happened_when_the_form_is_not_ready(
         raise AssertionError("no model call may run while the form is incomplete")
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _unexpected)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
         requirements=lambda: ["Select a threat actor group for the scenario."],
-        setup=_setup_state(),
         download_name="AttackGen None Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2419,11 +2432,9 @@ def test_a_run_that_produces_no_scenario_still_shows_the_persisted_result(
 
     monkeypatch.setattr("core.scenario_page.call_llm_stream", _thinking_only)
     downloads = _capture_downloads(monkeypatch)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2521,11 +2532,9 @@ def test_revert_button_and_caption_appear_after_an_apply(
     stub_streamlit["button_returns"] = False
     stub_streamlit["buttons"].clear()
     stub_streamlit["captions"].clear()
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2551,11 +2560,9 @@ def test_layer_caption_notes_it_reflects_the_original_scenario_after_apply(
 
     stub_streamlit["button_returns"] = False
     stub_streamlit["captions"].clear()
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2587,11 +2594,9 @@ def test_revert_button_restores_the_generated_result(
     # nothing was generated on *this* run, so the just-applied result renders
     # through `_render_previous`, not the "current" path a fresh generation uses.
     stub_streamlit["button_returns"] = False
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2603,11 +2608,9 @@ def test_revert_button_restores_the_generated_result(
     stub_streamlit["button_returns"] = False
     stub_streamlit["buttons"].clear()
     downloads = _capture_downloads(monkeypatch)
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2640,11 +2643,9 @@ def test_revert_does_not_appear_when_nothing_was_ever_applied(
     fake_session_state["threat_group_revert_requested"] = True
 
     stub_streamlit["button_returns"] = False
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2663,11 +2664,9 @@ def test_clear_result_also_clears_apply_recovery_state(
 
     _click(stub_streamlit, "threat_group_clear_current")
     stub_streamlit["button_returns"] = False
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: None,
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),
@@ -2698,11 +2697,9 @@ def test_regenerating_clears_the_previous_results_apply_state(
     stub_streamlit["button_returns"] = True
     stub_streamlit["buttons"].clear()
     stub_streamlit["captions"].clear()
-    run_scenario_page(
+    _run_ready_page(
         page_id="threat_group",
         build_messages=lambda _request: [{"role": "user", "content": "x"}],
-        requirements=lambda: [],
-        setup=_setup_state(),
         download_name="AttackGen APT29 Enterprise.md",
         trace_name="Threat Group Scenario",
         trace_tags=("threat_group_scenario",),

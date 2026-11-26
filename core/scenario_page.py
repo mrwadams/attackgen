@@ -10,7 +10,7 @@ readiness data; identity (session state keys, widget keys) comes in via
 
 Adding a new scenario page is now: write the widgets and prompt builder, then
 ``run_scenario_page(page_id=..., build_messages=..., requirements=...,
-setup=...)``.
+setup=..., capture_inputs=...)``.
 
 Readiness is data, not a side effect: a page lists what it still needs, the
 coordinator merges that with the shared Setup blockers, shows them all in one
@@ -45,7 +45,6 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from datetime import datetime, timezone
-from typing import Any
 
 import streamlit as st
 
@@ -74,6 +73,7 @@ from core.navigator import layer_filename, navigator_for_domain
 from core.request import RequestIdentity, ScenarioRequest
 from core.response import clean_model_response, stream_filter_thinking
 from core.schemas import MODEL_KEY, PROVIDER_KEY, LLMConfig, ResultKeys
+from core.sidebar import SetupState
 from core.state import setup_was_restored_from_link
 from core.summary import (
     describe_inputs,
@@ -339,12 +339,12 @@ def run_scenario_page(
     trace_name: str,
     trace_tags: tuple[str, ...],
     render_modifiers: Callable[[], None] | None = None,
-    requirements: Callable[[], Iterable[str]] | None = None,
-    setup: Any | None = None,
+    requirements: Callable[[], Iterable[str]],
+    setup: SetupState,
     build_layer: Callable[[ScenarioRequest], str | None] | None = None,
     build_defense: Callable[[ScenarioRequest], dict | None] | None = None,
     defense_narrative: bool = False,
-    capture_inputs: Callable[[], ScenarioRequest] | None = None,
+    capture_inputs: Callable[[], ScenarioRequest],
 ) -> None:
     """Render the generate-button + scenario lifecycle for one scenario page.
 
@@ -390,9 +390,7 @@ def run_scenario_page(
     ``build_layer`` and ``build_defense`` each receive that frozen request
     rather than consulting live widgets. The request is persisted with the
     result, which is also what lets a base-phase retry replay the run
-    unchanged. A page that supplies no ``capture_inputs`` has no current
-    request: nothing is summarised before generation, the shown result is never
-    reported stale, and Generate stamps an otherwise empty request.
+    unchanged.
 
     ``download_name`` is a human base label (e.g. ``"AttackGen APT29
     Enterprise.md"``); the markdown and layer downloads get a sanitised,
@@ -420,14 +418,12 @@ def run_scenario_page(
     # generated (the pre-flight summary), is frozen as the run's inputs when
     # Generate is pressed, and is compared with the shown result's inputs to
     # tell the user when the form has moved on.
-    current_request: ScenarioRequest | None = (
-        capture_inputs() if capture_inputs else None
-    )
+    current_request = capture_inputs()
 
     # Page blockers come first: the Setup fields are the same on every page and
     # already stated in the sidebar, whereas the missing selection is the thing
     # the user is looking at.
-    blockers = (*(requirements() if requirements else ()), *_setup_blockers(setup))
+    blockers = (*requirements(), *setup.blockers)
     ready = not blockers
 
     if render_modifiers is not None:
@@ -477,9 +473,9 @@ def run_scenario_page(
         )
         return bool(st.session_state.get(keys.generated))
 
-    def freeze(request: ScenarioRequest | None) -> ScenarioRequest:
+    def freeze(request: ScenarioRequest) -> ScenarioRequest:
         """Stamp the run's identity onto the captured request and persist it."""
-        frozen = (request or ScenarioRequest()).stamped(
+        frozen = request.stamped(
             scenario_type=page_id,
             captured_at=datetime.now(timezone.utc).isoformat(),
             identity=RequestIdentity(
@@ -504,7 +500,7 @@ def run_scenario_page(
         # regenerates the run the user actually asked for.
         persisted = st.session_state.get(keys.request)
         rendered = run_generation(
-            persisted if persisted is not None else freeze(None)
+            persisted if persisted is not None else freeze(current_request)
         )
     elif retry_narrative:
         rendered = _retry_narrative(
@@ -1078,13 +1074,8 @@ def _render_fact_table(facts: Iterable[tuple[str, str]]) -> None:
         st.markdown("\n".join(lines))
 
 
-def _setup_blockers(setup: Any | None) -> tuple[str, ...]:
-    """The shared Setup blockers, or none when the caller supplies no Setup."""
-    return tuple(getattr(setup, "blockers", ()) or ())
-
-
 def _render_readiness(
-    blockers: Sequence[str], *, request: ScenarioRequest | None
+    blockers: Sequence[str], *, request: ScenarioRequest
 ) -> None:
     """Show every outstanding requirement, or confirm what is about to run.
 
