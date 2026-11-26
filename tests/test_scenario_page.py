@@ -225,7 +225,8 @@ def _run_ready_page(**kwargs: Any) -> None:
     """Run the coordinator, defaulting to a ready page with an Enterprise request."""
     kwargs.setdefault("requirements", lambda: ())
     kwargs.setdefault("setup", _setup_state())
-    kwargs.setdefault("capture_inputs", lambda: ScenarioRequest(matrix="Enterprise"))
+    request = ScenarioRequest(scenario_type=kwargs["page_id"], matrix="Enterprise")
+    kwargs.setdefault("capture_inputs", lambda: request)
     run_scenario_page(**kwargs)
 
 
