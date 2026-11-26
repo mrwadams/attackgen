@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import litellm
 
-from core.sidebar import get_setup_state
+from core.sidebar import INDUSTRIES, get_setup_state
 
 
 def test_persisted_selections_and_environment_credential_are_complete() -> None:
@@ -63,3 +63,9 @@ def test_custom_provider_requires_endpoint_and_model_but_not_api_key() -> None:
         "Enter a base URL in the Setup sidebar.",
         "Select or enter a model in the Setup sidebar.",
     )
+
+
+def test_industries_offer_wholesale_distribution_and_industrial_supply_separately() -> None:
+    assert "Wholesale Distribution" in INDUSTRIES
+    assert "Industrial Supply" in INDUSTRIES
+    assert "Wholesale Distribution and Industrial Supply" not in INDUSTRIES

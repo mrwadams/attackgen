@@ -32,6 +32,7 @@ INDUSTRIES = sorted(
         "Government / Public Sector",
         "Healthcare",
         "Hospitality / Tourism",
+        "Industrial Supply",
         "Insurance",
         "Legal Services",
         "Manufacturing",
@@ -42,6 +43,7 @@ INDUSTRIES = sorted(
         "Technology / IT",
         "Telecommunication",
         "Transportation / Logistics",
+        "Wholesale Distribution",
     ]
 )
 COMPANY_SIZES = [
