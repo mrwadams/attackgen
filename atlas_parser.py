@@ -59,66 +59,6 @@ class ATLASData:
                 return ref.get("external_id")
         return None
 
-    def get_techniques(self, include_subtechniques: bool = True) -> List[Dict]:
-        """
-        Get all techniques as a list of dicts.
-
-        Args:
-            include_subtechniques: Whether to include subtechniques (default True)
-
-        Returns:
-            List of technique dictionaries
-        """
-        result = []
-        for ext_id, obj in self.techniques.items():
-            is_subtechnique = obj.get("x_mitre_is_subtechnique", False)
-            if not include_subtechniques and is_subtechnique:
-                continue
-            result.append({
-                "id": obj["id"],
-                "external_id": ext_id,
-                "name": obj["name"],
-                "description": obj.get("description", ""),
-                "kill_chain_phases": obj.get("kill_chain_phases", []),
-                "is_subtechnique": is_subtechnique
-            })
-        return result
-
-    def get_tactics(self) -> List[Dict]:
-        """Get all tactics ordered by their typical sequence"""
-        # Define the standard ATLAS tactic order
-        tactic_order = [
-            "AML.TA0002",  # Reconnaissance
-            "AML.TA0003",  # Resource Development
-            "AML.TA0004",  # Initial Access
-            "AML.TA0000",  # AI Model Access
-            "AML.TA0005",  # Execution
-            "AML.TA0006",  # Persistence
-            "AML.TA0012",  # Privilege Escalation
-            "AML.TA0007",  # Defense Evasion
-            "AML.TA0013",  # Credential Access
-            "AML.TA0008",  # Discovery
-            "AML.TA0015",  # Lateral Movement
-            "AML.TA0009",  # Collection
-            "AML.TA0001",  # AI Attack Staging
-            "AML.TA0014",  # Command and Control
-            "AML.TA0010",  # Exfiltration
-            "AML.TA0011",  # Impact
-        ]
-
-        result = []
-        for tactic_id in tactic_order:
-            if tactic_id in self.tactics:
-                obj = self.tactics[tactic_id]
-                result.append({
-                    "id": obj["id"],
-                    "external_id": tactic_id,
-                    "name": obj["name"],
-                    "shortname": obj.get("x_mitre_shortname", ""),
-                    "description": obj.get("description", "")
-                })
-        return result
-
     def get_technique_by_id(self, technique_id: str) -> Optional[Dict]:
         """Get a specific technique by its ATLAS ID (e.g., AML.T0051)"""
         return self.techniques.get(technique_id)
@@ -131,7 +71,7 @@ class ATLASData:
         return shortname
 
     def get_tactic_name_by_id(self, tactic_id: str) -> str:
-        """Convert tactic external ID (e.g., AML.TA0002) to full name"""
+        """Convert tactic external ID (e.g., AML.TA0004) to full name"""
         if tactic_id in self.tactics:
             return self.tactics[tactic_id]["name"]
         return tactic_id
@@ -189,7 +129,7 @@ def get_techniques_from_case_study_procedure(
         technique_id = step.get("technique")
         tech_obj = atlas_data.get_technique_by_id(technique_id)
         if tech_obj:
-            # Get the tactic name from the step (using external ID like AML.TA0002)
+            # Get the tactic name from the step (using external ID like AML.TA0004)
             tactic_id = step.get("tactic", "")
             if tactic_id:
                 # Convert tactic ID to full name
