@@ -2,9 +2,10 @@
 
 Pages don't see the LangSmith client — `render_feedback_widget` initialises one
 lazily from ``st.secrets['LANGCHAIN_API_KEY']``. The run it rates is the one the
-caller passes in: ``core.llm.call_llm`` sets ``st.session_state['run_id']`` when
-a LangSmith client is configured for tracing, and ``core.scenario_page`` copies
-it into the page's own result namespace so it stays with that result.
+caller passes in: ``core.llm`` (``call_llm`` / ``call_llm_stream``) sets
+``st.session_state['run_id']`` when a LangSmith client is configured for
+tracing, and ``core.scenario_page`` copies it into the page's own result
+namespace so it stays with that result.
 """
 
 from __future__ import annotations

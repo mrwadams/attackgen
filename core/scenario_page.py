@@ -9,7 +9,8 @@ readiness data; identity (session state keys, widget keys) comes in via
 ``page_id``.
 
 Adding a new scenario page is now: write the widgets and prompt builder, then
-``run_scenario_page(page_id=..., build_messages=..., requirements=...,
+``run_scenario_page(page_id=..., build_messages=..., download_name=...,
+trace_name=..., trace_tags=..., capture_inputs=..., requirements=...,
 setup=...)``.
 
 Readiness is data, not a side effect: a page lists what it still needs, the
